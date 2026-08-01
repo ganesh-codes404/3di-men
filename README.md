@@ -17,6 +17,7 @@ Our goal is to make 3D creation as intuitive as writing a sentence—and as flex
 Traditional 3D creation is time-consuming and requires specialized expertise.
 
 3di-men combines generative AI with a powerful editing environment, allowing creators to move effortlessly between AI-assisted generation and manual refinement. Whether you're building game assets, product visualizations, animations, or AR/VR experiences, the platform adapts to your workflow instead of forcing you into one.
+
 ---
 
 ## Features (Planned)
