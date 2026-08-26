@@ -1,0 +1,26 @@
+[
+  {
+    "mesh": "plate.stl",
+    "watertight": true,
+    "manifold": true,
+    "euler_number": -6,
+    "face_count": 668,
+    "vertex_count": 328,
+    "degenerate_face_count": 0,
+    "bounding_box_mm": [
+      120.0,
+      80.0,
+      8.0
+    ],
+    "planar_face_fraction": 0.9999999999999979,
+    "cylindrical_patch_count": 4,
+    "detected_hole_count": 4,
+    "hole_circularity": [
+      0.9999999317203182,
+      0.9999999317203182,
+      0.9999999317203182,
+      0.9999999317203182
+    ],
+    "mirror_symmetry_score": 0.9999999999999503
+  }
+]

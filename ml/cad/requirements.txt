@@ -1,0 +1,20 @@
+# CPU-only, works on any machine (verified on a MacBook with no CUDA GPU).
+# Covers: data/procedural_generator.py, evaluation/geometry_eval.py, evaluate.py,
+# scripts/generate_dataset.py, scripts/run_eval.py.
+trimesh>=4.0
+shapely>=2.0
+rtree>=1.0
+manifold3d>=2.0  # boolean mesh ops (hole punching) used by the procedural generator
+numpy>=1.24
+scipy>=1.10
+pyyaml>=6.0
+
+# --- GPU-only, needed once training/inference/benchmark move past the fail-fast
+# --- stubs (see docs/cad-finetuning-technical-report.md Section 3 and 9). Do not
+# --- install these on a machine without a CUDA GPU -- they won't be usable and
+# --- some are large.
+# torch>=2.2 (already present here as CPU-only build; needs a CUDA build on the GPU box)
+# diffusers
+# peft
+# accelerate
+# transformers

@@ -1,0 +1,37 @@
+# v1 CAD fine-tuning config — see docs/cad-finetuning-technical-report.md Section 4.
+#
+# Strategy: LoRA on the upstream text-to-image model only. Hunyuan3D-DiT (shape) and
+# the texture/PBR model are frozen and untouched, so this file has no shape-model
+# hyperparameters -- there is nothing to fine-tune there in v1.
+#
+# STATUS: placeholders below are NOT decided yet (see report Section 9 — open
+# decisions). Do not launch a training run from this file as-is.
+
+experiment_name: cad_lora_v1
+
+base_t2i_model: null  # TODO(decide): sdxl-base-1.0 | flux-dev | hunyuan-dit — pick before training
+hunyuan3d_checkpoint: tencent/Hunyuan3D-2.1  # frozen, unmodified
+
+lora:
+  rank: 16
+  alpha: 32
+  target_modules: [to_q, to_k, to_v, to_out.0]  # standard SDXL/Flux attention proj names; adjust per base_t2i_model
+  dropout: 0.05
+
+data:
+  manifest: ml/cad/data/manifest.json  # produced by scripts/generate_dataset.py or a Text2CAD export in the same schema
+  image_size: 1024
+  train_split: 0.9
+
+training:
+  learning_rate: 1.0e-4
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  max_steps: 3000
+  mixed_precision: bf16
+  seed: 0
+
+output_dir: ml/cad/checkpoints/cad_lora_v1
+
+logging:
+  backend: csv  # swap to wandb once experiment volume justifies it (see InitialPlan.md Phase 2)
