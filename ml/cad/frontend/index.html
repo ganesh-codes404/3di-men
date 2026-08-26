@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>3di-men — CAD prototype</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #14161a; color: #e8e8ea; display: flex; height: 100vh; overflow: hidden;
+  }
+  #panel { width: 380px; flex-shrink: 0; padding: 20px; box-sizing: border-box;
+    display: flex; flex-direction: column; gap: 12px; overflow-y: auto; border-right: 1px solid #2a2d33; }
+  h1 { font-size: 15px; margin: 0 0 4px; color: #9fb4d1; letter-spacing: 0.02em; text-transform: uppercase; }
+  p.hint { font-size: 12.5px; color: #888; margin: 0 0 4px; line-height: 1.5; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 90px; resize: vertical;
+    background: #1d2027; color: #e8e8ea; border: 1px solid #33373f; border-radius: 8px;
+    padding: 10px; font-size: 13.5px; font-family: inherit; line-height: 1.4; }
+  textarea:focus { outline: none; border-color: #5b8def; }
+  button.primary { background: #5b8def; color: white; border: none; border-radius: 8px;
+    padding: 10px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+  button.primary:hover { background: #4a7ce0; }
+  button.primary:disabled { background: #3a3f4a; cursor: default; }
+  .examples { display: flex; flex-direction: column; gap: 6px; }
+  .examples button { text-align: left; background: #1d2027; color: #b7c3d6; border: 1px solid #2a2d33;
+    border-radius: 6px; padding: 8px 10px; font-size: 12px; cursor: pointer; }
+  .examples button:hover { border-color: #5b8def; color: #e8e8ea; }
+  #status { font-size: 12.5px; color: #f0a45b; min-height: 16px; }
+  #info { display: none; flex-direction: column; gap: 8px; font-size: 12.5px; }
+  #info.show { display: flex; }
+  #info .desc { background: #1d2027; border: 1px solid #2a2d33; border-radius: 8px; padding: 10px; color: #cfd6e0; }
+  .fields { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag { border-radius: 999px; padding: 2px 9px; font-size: 11px; }
+  .tag.parsed { background: #1f3d2c; color: #6fd18f; }
+  .tag.defaulted { background: #3d331f; color: #d1a86f; }
+  a.download { color: #5b8def; font-size: 12.5px; text-decoration: none; }
+  a.download:hover { text-decoration: underline; }
+  #viewer { flex: 1; position: relative; }
+  #viewer canvas { display: block; }
+  #placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #4a4e58; font-size: 13px; text-align: center; padding: 40px; }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <div>
+    <h1>3di-men — CAD prototype</h1>
+    <p class="hint">Rule-based prompt → mesh pipeline, runs entirely on CPU (no GPU, no cloud). Two part families: rectangular mounting plates and circular flanges.</p>
+  </div>
+
+  <textarea id="prompt" placeholder="e.g. rectangular aluminum mounting plate, 120mm x 80mm x 8mm, with four 10mm mounting holes, 20mm from each edge, 5mm corner fillets"></textarea>
+  <button class="primary" id="generateBtn">Generate</button>
+
+  <div class="examples">
+    <button data-p="rectangular aluminum mounting plate, 120mm x 80mm x 8mm, with four 10mm mounting holes, 20mm from each edge, 5mm corner fillets">Mounting plate (structured)</button>
+    <button data-p="Create a compact mounting bracket with four mounting holes">Compact bracket (unstructured)</button>
+    <button data-p="Generate a cylindrical pump housing with a 40mm central bore, 8mm wall thickness, six M8 mounting holes, 120mm outer diameter">Pump housing flange</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div id="info">
+    <div class="desc" id="resolvedDesc"></div>
+    <div>
+      <div style="color:#888; margin-bottom:4px;">parsed from your prompt</div>
+      <div class="fields" id="parsedFields"></div>
+    </div>
+    <div>
+      <div style="color:#888; margin-bottom:4px;">filled in with a default</div>
+      <div class="fields" id="defaultedFields"></div>
+    </div>
+    <div style="color:#888;">generated in <span id="genTime"></span></div>
+    <a class="download" id="downloadLink" download>Download .stl</a>
+  </div>
+</div>
+
+<div id="viewer">
+  <div id="placeholder">Type a prompt and click Generate to see the part here.<br/>Drag to rotate, scroll to zoom.</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/STLLoader.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+const viewer = document.getElementById('viewer');
+const placeholder = document.getElementById('placeholder');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14161a);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+viewer.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dir1 = new THREE.DirectionalLight(0xffffff, 0.9);
+dir1.position.set(1, 1.5, 1);
+scene.add(dir1);
+const dir2 = new THREE.DirectionalLight(0xffffff, 0.4);
+dir2.position.set(-1, -0.5, -1);
+scene.add(dir2);
+
+const grid = new THREE.GridHelper(300, 20, 0x2a2d33, 0x1e2126);
+scene.add(grid);
+
+let currentMesh = null;
+
+function resize() {
+  const w = viewer.clientWidth, h = viewer.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+window.addEventListener('resize', resize);
+resize();
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+async function loadSTL(url) {
+  const buf = await (await fetch(url)).arrayBuffer();
+  const geometry = new STLLoader().parse(buf);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+
+  const center = new THREE.Vector3();
+  geometry.boundingBox.getCenter(center);
+  geometry.translate(-center.x, -center.y, -center.z);
+
+  if (currentMesh) scene.remove(currentMesh);
+  const material = new THREE.MeshStandardMaterial({ color: 0xc9d6e3, metalness: 0.15, roughness: 0.55 });
+  currentMesh = new THREE.Mesh(geometry, material);
+  scene.add(currentMesh);
+
+  const size = new THREE.Vector3();
+  geometry.boundingBox.getSize(size);
+  const radius = size.length() / 2;
+  camera.position.set(radius * 1.4, radius * 1.1, radius * 1.6);
+  controls.target.set(0, 0, 0);
+  controls.update();
+
+  placeholder.style.display = 'none';
+}
+
+const promptEl = document.getElementById('prompt');
+const statusEl = document.getElementById('status');
+const infoEl = document.getElementById('info');
+const generateBtn = document.getElementById('generateBtn');
+
+document.querySelectorAll('.examples button').forEach(btn => {
+  btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; });
+});
+
+function renderTags(container, fields) {
+  container.innerHTML = '';
+  if (fields.length === 0) {
+    container.innerHTML = '<span style="color:#555;">(none)</span>';
+    return;
+  }
+  for (const f of fields) {
+    const span = document.createElement('span');
+    span.className = 'tag ' + container.id.replace('Fields', '').toLowerCase();
+    span.textContent = f;
+    container.appendChild(span);
+  }
+}
+
+async function generate() {
+  const prompt = promptEl.value.trim();
+  if (!prompt) { statusEl.textContent = 'Type a prompt first.'; return; }
+
+  generateBtn.disabled = true;
+  statusEl.textContent = 'Generating…';
+  infoEl.classList.remove('show');
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'generation failed');
+
+    await loadSTL(data.mesh_url);
+
+    document.getElementById('resolvedDesc').textContent = data.resolved_description;
+    renderTags(document.getElementById('parsedFields'), data.parsed_fields);
+    renderTags(document.getElementById('defaultedFields'), data.defaulted_fields);
+    document.getElementById('genTime').textContent = (data.generation_time_seconds * 1000).toFixed(0) + ' ms';
+    const link = document.getElementById('downloadLink');
+    link.href = data.mesh_url;
+    link.download = (data.part_type || 'part') + '.stl';
+
+    infoEl.classList.add('show');
+    statusEl.textContent = data.part_type_inferred
+      ? `note: no part-type keyword matched, guessed "${data.part_type}"`
+      : '';
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + err.message;
+  } finally {
+    generateBtn.disabled = false;
+  }
+}
+
+generateBtn.addEventListener('click', generate);
+promptEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generate();
+});
+</script>
+</body>
+</html>

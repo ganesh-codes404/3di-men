@@ -24,6 +24,22 @@ python3 scripts/preview_mesh.py --mesh plate.stl --out plate.png --elev 89 --azi
 
 (Use `python3`/`pip3`, not `python`/`pip` — this machine has no `python` alias.)
 
+### Web UI
+
+```bash
+python3 server.py --port 5050
+# open http://127.0.0.1:5050 — type a prompt, click Generate, rotate/zoom the result
+```
+
+This is a thin Flask wrapper (`server.py`) around the exact same
+`generate_from_prompt()` that `inference.py`'s CLI uses — same parser, same
+generator, same two part families. The page (`frontend/index.html`) is a
+single static HTML file using [three.js](https://threejs.org) (loaded from a
+CDN) to render the returned `.stl` interactively in-browser via `STLLoader`;
+nothing is installed for this beyond Flask (already in `requirements.txt`).
+Generated meshes are written to `webapp_output/` (gitignored, not the
+`examples/` folder).
+
 ---
 
 ## How it actually works
