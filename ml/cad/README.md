@@ -40,6 +40,12 @@ nothing is installed for this beyond Flask (already in `requirements.txt`).
 Generated meshes are written to `webapp_output/` (gitignored, not the
 `examples/` folder).
 
+### Want to see real Hunyuan3D output instead of the rule-based prototype?
+
+`kaggle/hunyuan3d_baseline.ipynb` runs the actual Hunyuan3D-2.1 model on a
+free Kaggle GPU (shape-generation only, no local GPU needed) — see
+`kaggle/README.md` for exact upload/run/download steps.
+
 ---
 
 ## How it actually works
