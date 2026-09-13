@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "threedimen"
+version = "0.1.0"
+description = "3di-men core geometry representation, teacher/data pipeline, and dataset tooling"
+requires-python = ">=3.10"
+dependencies = [
+    "trimesh>=4.0",
+    "numpy>=1.24",
+    "shapely>=2.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+# CPU-only PyTorch is enough for the current model (a small point-cloud
+# autoencoder trained on tens-to-hundreds of samples) -- kept optional so the
+# base package (ingest/dataset/prompts/quality/CLI) never requires it.
+train = ["torch>=2.2"]
+# Importing existing public text-3D datasets (Cap3D/Objaverse, TRELLIS-500K).
+# Kept optional -- large corpora, network-heavy, not needed for the core
+# generate/ingest/quality pipeline.
+external = ["objaverse>=0.1.7", "huggingface_hub>=0.20", "pandas>=2.0"]
+# NOTE: Objaverse-XL support (used by trellis.py) lives in the `objaverse.xl`
+# submodule of the SAME `objaverse` package above, not a separate package --
+# a PyPI package literally named "objaverse-xl" exists but is stale/superseded
+# (verified before adding this; see external/trellis.py's module docstring).
+
+[project.scripts]
+3dimen = "threedimen.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["threedimen*"]

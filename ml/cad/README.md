@@ -40,11 +40,21 @@ nothing is installed for this beyond Flask (already in `requirements.txt`).
 Generated meshes are written to `webapp_output/` (gitignored, not the
 `examples/` folder).
 
-### Want to see real Hunyuan3D output instead of the rule-based prototype?
+### Want a different backend instead of the local rule-based prototype?
 
-`kaggle/hunyuan3d_baseline.ipynb` runs the actual Hunyuan3D-2.1 model on a
-free Kaggle GPU (shape-generation only, no local GPU needed) — see
-`kaggle/README.md` for exact upload/run/download steps.
+All in `kaggle/` — see `kaggle/README.md` for which one does what:
+
+- `kaggle/threedimen_api_server.ipynb` — **the live backend for this web UI
+  today**: serves 3di-men's own trained model (`ml/threedimen/`, no
+  Hunyuan3D/Shap-E involved). Paste the tunnel URL into the **Backend URL**
+  field and Generate calls it instead of the local rule-based generator.
+  Proof-of-concept quality — see `ml/threedimen/README.md`.
+- `kaggle/hunyuan3d_baseline.ipynb` / `kaggle/hunyuan3d_api_server.ipynb` —
+  the real Hunyuan3D-2.1 model, now used only as a **data-generation
+  teacher** for growing `ml/threedimen`'s training dataset, not for live
+  serving here anymore.
+
+Leave the Backend URL field empty to go back to the local backend.
 
 ---
 

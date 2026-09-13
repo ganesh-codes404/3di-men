@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+ml/cad/data/cad_v1/
+ml/cad/checkpoints/
+ml/cad/webapp_output/
+*.stl
+*.glb
+!ml/cad/examples/*.stl
+ml/threedimen/*.egg-info/
+ml/threedimen/.pytest_cache/
+ml/threedimen/dataset/
+ml/threedimen/data/
+*.npz
+*.pt
+*.zip
+ml/threedimen/logs/

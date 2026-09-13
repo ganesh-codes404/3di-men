@@ -35,6 +35,16 @@
   .tag.defaulted { background: #3d331f; color: #d1a86f; }
   a.download { color: #5b8def; font-size: 12.5px; text-decoration: none; }
   a.download:hover { text-decoration: underline; }
+  .backend { display: flex; flex-direction: column; gap: 6px; background: #1d2027; border: 1px solid #2a2d33;
+    border-radius: 8px; padding: 10px; }
+  .backend label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.03em; }
+  .backend input { width: 100%; box-sizing: border-box; background: #14161a; color: #e8e8ea;
+    border: 1px solid #33373f; border-radius: 6px; padding: 7px 8px; font-size: 12px; font-family: ui-monospace, monospace; }
+  .backend input:focus { outline: none; border-color: #5b8def; }
+  .backend .row { display: flex; justify-content: space-between; align-items: center; }
+  .backend .badge { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; }
+  .backend .badge.local { background: #1f3d2c; color: #6fd18f; }
+  .backend .badge.remote { background: #2c2440; color: #b79bf0; }
   #viewer { flex: 1; position: relative; }
   #viewer canvas { display: block; }
   #placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -46,7 +56,16 @@
 <div id="panel">
   <div>
     <h1>3di-men — CAD prototype</h1>
-    <p class="hint">Rule-based prompt → mesh pipeline, runs entirely on CPU (no GPU, no cloud). Two part families: rectangular mounting plates and circular flanges.</p>
+    <p class="hint" id="modeHint">Rule-based prompt → mesh pipeline, runs entirely on CPU (no GPU, no cloud). Two part families: rectangular mounting plates and circular flanges.</p>
+  </div>
+
+  <div class="backend">
+    <div class="row">
+      <label for="backendUrl">Backend URL</label>
+      <span class="badge" id="backendBadge">local</span>
+    </div>
+    <input id="backendUrl" placeholder="empty = local rule-based backend (this machine)" spellcheck="false" />
+    <p class="hint" style="margin:0;">Leave empty to use the local backend (<code>server.py</code>, CPU-only, two part families). Paste a Kaggle tunnel URL from <code>kaggle/threedimen_api_server.ipynb</code> (e.g. <code>https://xxxx.trycloudflare.com</code>) to get 3di-men's own trained model instead — same viewer, different backend.</p>
   </div>
 
   <textarea id="prompt" placeholder="e.g. rectangular aluminum mounting plate, 120mm x 80mm x 8mm, with four 10mm mounting holes, 20mm from each edge, 5mm corner fillets"></textarea>
@@ -159,6 +178,33 @@ const promptEl = document.getElementById('prompt');
 const statusEl = document.getElementById('status');
 const infoEl = document.getElementById('info');
 const generateBtn = document.getElementById('generateBtn');
+const backendUrlEl = document.getElementById('backendUrl');
+const backendBadgeEl = document.getElementById('backendBadge');
+const modeHintEl = document.getElementById('modeHint');
+
+// Backend URL persists per-browser (this machine) via localStorage; empty = local server.py.
+try {
+  const saved = localStorage.getItem('backendUrl');
+  if (saved) backendUrlEl.value = saved;
+} catch (e) { /* private browsing / storage blocked -- fine, just won't persist */ }
+
+function backendBase() {
+  return backendUrlEl.value.trim().replace(/\/+$/, ''); // strip trailing slash
+}
+
+function updateBackendBadge() {
+  const isRemote = backendBase().length > 0;
+  backendBadgeEl.textContent = isRemote ? 'remote (Kaggle)' : 'local';
+  backendBadgeEl.className = 'badge ' + (isRemote ? 'remote' : 'local');
+
+  modeHintEl.textContent = isRemote
+    ? "3di-men's own trained model (point-cloud autoencoder). Proof-of-concept quality — expect it to loosely echo its training set's shapes, not generalize sharply to arbitrary prompts."
+    : 'Rule-based prompt → mesh pipeline, runs entirely on CPU (no GPU, no cloud). Two part families: rectangular mounting plates and circular flanges.';
+
+  try { localStorage.setItem('backendUrl', backendUrlEl.value.trim()); } catch (e) { /* ignore */ }
+}
+backendUrlEl.addEventListener('input', updateBackendBadge);
+updateBackendBadge();
 
 document.querySelectorAll('.examples button').forEach(btn => {
   btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; });
@@ -178,6 +224,30 @@ function renderTags(container, fields) {
   }
 }
 
+async function renderResult(data, base) {
+  // mesh_url from either backend is a path relative to that backend's own origin.
+  const meshUrl = base + data.mesh_url;
+  await loadSTL(meshUrl);
+
+  document.getElementById('resolvedDesc').textContent = data.resolved_description;
+  renderTags(document.getElementById('parsedFields'), data.parsed_fields);
+  renderTags(document.getElementById('defaultedFields'), data.defaulted_fields);
+  const seconds = data.generation_time_seconds;
+  document.getElementById('genTime').textContent = seconds < 1
+    ? (seconds * 1000).toFixed(0) + ' ms'
+    : seconds.toFixed(1) + ' s';
+  const link = document.getElementById('downloadLink');
+  link.href = meshUrl;
+  link.download = (data.part_type || 'part') + '.stl';
+
+  infoEl.classList.add('show');
+  statusEl.textContent = data.part_type_inferred
+    ? `note: no part-type keyword matched, guessed "${data.part_type}"`
+    : '';
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
 async function generate() {
   const prompt = promptEl.value.trim();
   if (!prompt) { statusEl.textContent = 'Type a prompt first.'; return; }
@@ -186,31 +256,56 @@ async function generate() {
   statusEl.textContent = 'Generating…';
   infoEl.classList.remove('show');
 
+  const base = backendBase();
+  const isRemote = base.length > 0;
+
   try {
-    const res = await fetch('/api/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'generation failed');
+    if (!isRemote) {
+      // Local backend: fast (milliseconds), a single request is fine.
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `generation failed (HTTP ${res.status})`);
+      await renderResult(data, base);
+    } else {
+      // Remote (Kaggle) backend: /generate returns a job_id immediately and
+      // the real work happens in the background -- a real generation can
+      // take longer than a public tunnel's request timeout, so we poll for
+      // the result instead of holding one request open.
+      const startRes = await fetch(base + '/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const startData = await startRes.json();
+      if (!startRes.ok) throw new Error(startData.error || `failed to start (HTTP ${startRes.status})`);
+      const jobId = startData.job_id;
 
-    await loadSTL(data.mesh_url);
+      const pollStart = performance.now();
+      const maxWaitMs = 10 * 60 * 1000; // 10 min safety cap
+      while (true) {
+        if (performance.now() - pollStart > maxWaitMs) {
+          throw new Error('gave up after 10 minutes -- check the Kaggle notebook directly');
+        }
+        await sleep(2000);
+        const elapsed = ((performance.now() - pollStart) / 1000).toFixed(0);
+        statusEl.textContent = `Generating on Kaggle GPU… ${elapsed}s elapsed`;
 
-    document.getElementById('resolvedDesc').textContent = data.resolved_description;
-    renderTags(document.getElementById('parsedFields'), data.parsed_fields);
-    renderTags(document.getElementById('defaultedFields'), data.defaulted_fields);
-    document.getElementById('genTime').textContent = (data.generation_time_seconds * 1000).toFixed(0) + ' ms';
-    const link = document.getElementById('downloadLink');
-    link.href = data.mesh_url;
-    link.download = (data.part_type || 'part') + '.stl';
+        const jobRes = await fetch(base + '/jobs/' + jobId);
+        const jobData = await jobRes.json();
+        if (!jobRes.ok) throw new Error(jobData.error || `job lookup failed (HTTP ${jobRes.status})`);
 
-    infoEl.classList.add('show');
-    statusEl.textContent = data.part_type_inferred
-      ? `note: no part-type keyword matched, guessed "${data.part_type}"`
-      : '';
+        if (jobData.status === 'done') { await renderResult(jobData.result, base); break; }
+        if (jobData.status === 'error') throw new Error(jobData.error || 'generation failed on the server');
+        // else "pending" -- keep polling
+      }
+    }
   } catch (err) {
-    statusEl.textContent = 'Error: ' + err.message;
+    const hint = isRemote ? ' (check the backend URL is correct and the Kaggle tunnel is still running)' : '';
+    statusEl.textContent = 'Error: ' + err.message + hint;
   } finally {
     generateBtn.disabled = false;
   }

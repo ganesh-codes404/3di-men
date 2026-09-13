@@ -40,6 +40,25 @@ This project is currently in active development.
 
 The initial focus is on building a robust text-to-3D generation pipeline before expanding into editing, animation, and enterprise workflows.
 
+**What's implemented so far:**
+
+- [`ml/threedimen/`](ml/threedimen/) — the core foundation: a versioned surface
+  representation, a swappable teacher-model interface (Hunyuan3D-2.1 today),
+  mesh ingestion/validation, a versioned dataset format, synthetic prompt
+  generation, quality filtering, and the ML-facing encoder/decoder
+  interfaces a future 3di-men model will train against. See
+  [`docs/threedimen-architecture.md`](docs/threedimen-architecture.md) for
+  the design rationale and the Phase 1–5 roadmap.
+- [`ml/cad/`](ml/cad/) — a separate, narrower prototype: rule-based
+  prompt-to-CAD-part generation (mounting plates, flanges), entirely
+  CPU-only, plus a working Hunyuan3D-2.1 integration (Kaggle-hosted, dual
+  text-direct/image-based modes) and a local web viewer. See
+  [`ml/cad/README.md`](ml/cad/README.md) and
+  [`docs/cad-finetuning-technical-report.md`](docs/cad-finetuning-technical-report.md).
+
+No model has been trained yet — both are data/inference infrastructure, not
+a trained 3di-men model.
+
 ---
 
 ## Long-Term Goals
