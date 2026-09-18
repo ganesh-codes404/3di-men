@@ -69,20 +69,30 @@ def _load_annotations_robust(objaverse_module, uids: list[str]) -> dict[str, Any
     """objaverse.load_annotations() raises for the whole batch if even one
     requested UID can't be resolved (confirmed by hitting this directly on
     real Cap3D data -- unlike load_objects(), which just warns and skips
-    unresolvable UIDs). Try the fast batched call first; only fall back to
-    resolving one UID at a time -- so a single bad UID doesn't silently
-    disable license info for every other UID in the batch -- if the batch
-    call actually fails."""
+    unresolvable UIDs).
+
+    Divide-and-conquer fallback, not flat one-at-a-time: try the whole batch
+    first; on failure, split in half and recurse on each half, only
+    descending as far as needed to isolate the actual bad UID(s). At small
+    scale (tens of candidates) a flat one-by-one fallback is fine, but at
+    the scale "extensive" training implies (thousands of candidates, since
+    the license check over-fetches 5x the requested sample count), a flat
+    fallback turns into thousands of sequential network round-trips the
+    moment even one UID in the batch is bad -- which happens routinely.
+    Halving keeps the fallback cost at O(log n) *around* each bad UID
+    instead of O(n) for the whole batch.
+    """
+    if not uids:
+        return {}
     try:
         return objaverse_module.load_annotations(uids)
     except Exception:
         pass
-    result: dict[str, Any] = {}
-    for uid in uids:
-        try:
-            result.update(objaverse_module.load_annotations([uid]))
-        except Exception:
-            continue  # this one UID genuinely can't be resolved -- skip it, not the whole batch
+    if len(uids) == 1:
+        return {}  # this single UID genuinely can't be resolved -- skip it, not the whole batch
+    mid = len(uids) // 2
+    result = _load_annotations_robust(objaverse_module, uids[:mid])
+    result.update(_load_annotations_robust(objaverse_module, uids[mid:]))
     return result
 
 
@@ -92,6 +102,7 @@ def sample_cap3d(
     seed: int = 0,
     check_license: bool = True,
     cache_dir: str | Path | None = None,
+    download_processes: int = 1,
 ) -> list[ExternalSample]:
     """Pull n random (caption, mesh) pairs from Cap3D/Objaverse.
 
@@ -100,6 +111,17 @@ def sample_cap3d(
     cache directory (~/.objaverse by default), not this project's dataset
     store -- callers run the results through ingest_mesh()/DatasetStore
     same as any other source (see cli/main.py's `dataset import` command).
+
+    download_processes: objaverse.load_objects() uses multiprocessing
+    internally. The default of 1 is deliberately conservative -- confirmed
+    by hitting a real crash locally with a higher value (macOS defaults to
+    the "spawn" multiprocessing start method, which requires the calling
+    code to be guarded by `if __name__ == "__main__":`; a plain script or
+    notebook cell isn't). Linux (e.g. a Kaggle notebook) defaults to "fork"
+    instead, which doesn't have this restriction, so a caller running there
+    can safely pass a higher value for real parallelism at larger `n`. Not
+    independently verified against a real large-n Linux run before writing
+    this -- if you hit multiprocessing errors on Kaggle, drop back to 1.
     """
     try:
         import objaverse
@@ -133,7 +155,7 @@ def sample_cap3d(
                 continue
         selected.append(uid)
 
-    downloaded = objaverse.load_objects(uids=selected, download_processes=1)
+    downloaded = objaverse.load_objects(uids=selected, download_processes=download_processes)
 
     samples = []
     for uid in selected:
