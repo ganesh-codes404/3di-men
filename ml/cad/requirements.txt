@@ -5,10 +5,19 @@ trimesh>=4.0
 shapely>=2.0
 rtree>=1.0
 manifold3d>=2.0  # boolean mesh ops (hole punching) used by the procedural generator
+triangle>=20230923  # quality polygon triangulation (Shewchuk's Triangle) -- without this,
+                     # trimesh falls back to mapbox_earcut, which ear-clips flat faces into
+                     # a handful of long thin fan triangles instead of a uniform mesh
 numpy>=1.24
 scipy>=1.10
 pyyaml>=6.0
 flask>=3.0  # only needed for server.py (the web UI); inference.py/evaluate.py/benchmark.py don't need it
+
+# CPU-only, unrelated to the GPU-only block below -- only needed for the learned
+# prompt-parser model (parser_model.py, nlp/learned_parser.py). The default
+# regex parser (nlp/prompt_parser.py) never imports this.
+scikit-learn>=1.3
+joblib>=1.3
 
 # --- GPU-only, needed once training/inference/benchmark move past the fail-fast
 # --- stubs (see docs/cad-finetuning-technical-report.md Section 3 and 9). Do not

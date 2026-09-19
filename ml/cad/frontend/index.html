@@ -49,6 +49,28 @@
   #viewer canvas { display: block; }
   #placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: #4a4e58; font-size: 13px; text-align: center; padding: 40px; }
+
+  #clarify { display: none; flex-direction: column; gap: 10px; }
+  #clarify.show { display: flex; }
+  #clarify > .lead { font-size: 12.5px; color: #b7c3d6; margin: 0; }
+  .card { background: #1d2027; border: 1px solid #2a2d33; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .card .heading { font-size: 12.5px; color: #e8e8ea; font-weight: 600; }
+  .card .snippet { font-size: 11.5px; color: #777; }
+  .qrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+  .qrow label { color: #b7c3d6; flex: 1; }
+  .qrow input[type="number"], .qrow select { background: #14161a; color: #e8e8ea; border: 1px solid #33373f;
+    border-radius: 6px; padding: 5px 7px; font-size: 12px; font-family: inherit; width: 110px; }
+  .qrow .unit { color: #777; font-size: 11px; margin-left: 4px; }
+  button.secondary { background: #2a2d33; color: #e8e8ea; border: 1px solid #3a3f4a; border-radius: 8px;
+    padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  button.secondary:hover { background: #33373f; }
+  .result-card { background: #1d2027; border: 1px solid #2a2d33; border-radius: 8px; padding: 9px 10px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+  .result-card .desc { color: #cfd6e0; }
+  .badge-wt { border-radius: 999px; padding: 2px 8px; font-size: 10.5px; flex-shrink: 0; }
+  .badge-wt.ok { background: #1f3d2c; color: #6fd18f; }
+  .badge-wt.bad { background: #3d1f24; color: #d16f7f; }
+  .overlap-note { font-size: 11.5px; color: #d1a86f; background: #3d331f; border-radius: 6px; padding: 7px 9px; }
 </style>
 </head>
 <body>
@@ -66,6 +88,7 @@
     </div>
     <input id="backendUrl" placeholder="empty = local rule-based backend (this machine)" spellcheck="false" />
     <p class="hint" style="margin:0;">Leave empty to use the local backend (<code>server.py</code>, CPU-only, two part families). Paste a Kaggle tunnel URL from <code>kaggle/threedimen_api_server.ipynb</code> (e.g. <code>https://xxxx.trycloudflare.com</code>) to get 3di-men's own trained model instead — same viewer, different backend.</p>
+    <a href="#" id="useLocalLink" class="hint" style="display:none; color:#5b8def; text-decoration:none;">✕ clear saved backend URL, use local</a>
   </div>
 
   <textarea id="prompt" placeholder="e.g. rectangular aluminum mounting plate, 120mm x 80mm x 8mm, with four 10mm mounting holes, 20mm from each edge, 5mm corner fillets"></textarea>
@@ -79,16 +102,15 @@
 
   <div id="status"></div>
 
+  <div id="clarify">
+    <p class="lead">A few things weren't clear from your prompt — check the defaults below (already filled in) or change them, then build.</p>
+    <div id="clarifyCards"></div>
+    <button class="secondary" id="buildBtn">Build</button>
+  </div>
+
   <div id="info">
-    <div class="desc" id="resolvedDesc"></div>
-    <div>
-      <div style="color:#888; margin-bottom:4px;">parsed from your prompt</div>
-      <div class="fields" id="parsedFields"></div>
-    </div>
-    <div>
-      <div style="color:#888; margin-bottom:4px;">filled in with a default</div>
-      <div class="fields" id="defaultedFields"></div>
-    </div>
+    <div id="componentResults"></div>
+    <div id="overlapNote" class="overlap-note" style="display:none;"></div>
     <div style="color:#888;">generated in <span id="genTime"></span></div>
     <a class="download" id="downloadLink" download>Download .stl</a>
   </div>
@@ -192,10 +214,13 @@ function backendBase() {
   return backendUrlEl.value.trim().replace(/\/+$/, ''); // strip trailing slash
 }
 
+const useLocalLinkEl = document.getElementById('useLocalLink');
+
 function updateBackendBadge() {
   const isRemote = backendBase().length > 0;
   backendBadgeEl.textContent = isRemote ? 'remote (Kaggle)' : 'local';
   backendBadgeEl.className = 'badge ' + (isRemote ? 'remote' : 'local');
+  useLocalLinkEl.style.display = isRemote ? 'block' : 'none';
 
   modeHintEl.textContent = isRemote
     ? "3di-men's own trained model (point-cloud autoencoder). Proof-of-concept quality — expect it to loosely echo its training set's shapes, not generalize sharply to arbitrary prompts."
@@ -204,47 +229,222 @@ function updateBackendBadge() {
   try { localStorage.setItem('backendUrl', backendUrlEl.value.trim()); } catch (e) { /* ignore */ }
 }
 backendUrlEl.addEventListener('input', updateBackendBadge);
+useLocalLinkEl.addEventListener('click', e => {
+  e.preventDefault();
+  backendUrlEl.value = '';
+  updateBackendBadge();
+});
 updateBackendBadge();
 
 document.querySelectorAll('.examples button').forEach(btn => {
   btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; });
 });
 
-function renderTags(container, fields) {
-  container.innerHTML = '';
-  if (fields.length === 0) {
-    container.innerHTML = '<span style="color:#555;">(none)</span>';
-    return;
-  }
-  for (const f of fields) {
-    const span = document.createElement('span');
-    span.className = 'tag ' + container.id.replace('Fields', '').toLowerCase();
-    span.textContent = f;
-    container.appendChild(span);
-  }
+// ---- shared result rendering (both the new local plan/build flow and the
+// unchanged remote-Kaggle single-part flow funnel into this) ----
+
+function watertightBadge(watertight) {
+  if (watertight === null || watertight === undefined) return '';
+  return watertight
+    ? '<span class="badge-wt ok">watertight</span>'
+    : '<span class="badge-wt bad">not watertight</span>';
 }
 
-async function renderResult(data, base) {
-  // mesh_url from either backend is a path relative to that backend's own origin.
-  const meshUrl = base + data.mesh_url;
+async function renderComponentResults(components, meshUrl, generationTimeSeconds, overlappingPairs) {
   await loadSTL(meshUrl);
 
-  document.getElementById('resolvedDesc').textContent = data.resolved_description;
-  renderTags(document.getElementById('parsedFields'), data.parsed_fields);
-  renderTags(document.getElementById('defaultedFields'), data.defaulted_fields);
-  const seconds = data.generation_time_seconds;
+  const container = document.getElementById('componentResults');
+  container.innerHTML = '';
+  for (const c of components) {
+    const row = document.createElement('div');
+    row.className = 'result-card';
+    const countLabel = c.count && c.count > 1 ? ` ×${c.count}` : '';
+    row.innerHTML = `<span class="desc">${c.resolved_description}${countLabel}</span>${watertightBadge(c.watertight)}`;
+    container.appendChild(row);
+  }
+
+  const overlapEl = document.getElementById('overlapNote');
+  if (overlappingPairs && overlappingPairs.length > 0) {
+    overlapEl.style.display = 'block';
+    overlapEl.textContent = `note: ${overlappingPairs.length} component pair(s) overlap in the placed assembly — a diagnostic signal, not a hard failure (this system doesn't do collision-aware placement).`;
+  } else {
+    overlapEl.style.display = 'none';
+  }
+
+  const seconds = generationTimeSeconds;
   document.getElementById('genTime').textContent = seconds < 1
     ? (seconds * 1000).toFixed(0) + ' ms'
     : seconds.toFixed(1) + ' s';
   const link = document.getElementById('downloadLink');
   link.href = meshUrl;
-  link.download = (data.part_type || 'part') + '.stl';
+  link.download = 'assembly.stl';
 
   infoEl.classList.add('show');
+}
+
+// ---- remote (Kaggle) backend: unchanged single-part response shape, just
+// adapted to the shared multi-component result renderer above ----
+
+async function renderRemoteResult(data, base) {
+  const meshUrl = base + data.mesh_url;
+  await renderComponentResults(
+    [{ resolved_description: data.resolved_description, watertight: null, count: 1 }],
+    meshUrl, data.generation_time_seconds, [],
+  );
   statusEl.textContent = data.part_type_inferred
     ? `note: no part-type keyword matched, guessed "${data.part_type}"`
     : '';
 }
+
+// ---- local backend: plan -> (optional clarification) -> build ----
+
+let currentComponents = [];   // the /api/plan response's components, edited in place by the form
+let currentPrompt = '';
+let familyOverrides = {};
+
+function fieldInputHtml(question, currentValue) {
+  // data-kind drives type coercion in collectEditedComponents() -- a <select>
+  // always yields a string, but a "count" field (e.g. holes_per_arm,
+  // hole_count) is a Python int on the backend and gets compared with `==`
+  // against int literals there (e.g. BracketParams.hole_centers()'s "if
+  // hole_count == 4"); sending the string "4" instead of the int 4 makes
+  // that comparison silently fail and can crash the build outright.
+  //
+  // currentValue (component.params[field], which may already carry a prior
+  // edit merged in by planPrompt()) drives what's PRE-FILLED, not
+  // question.default -- otherwise an edit made before answering some OTHER
+  // component's family-choice question would render back to the default
+  // and then get silently re-sent as the default on Build, even though it
+  // was never actually reverted internally.
+  const idAttr = `data-cid="${question.component_id}" data-field="${question.field}" data-kind="${question.kind}"`;
+  if (question.kind === 'family_choice' || question.kind === 'categorical' || question.kind === 'count') {
+    const opts = (question.choices || []).map(v =>
+      `<option value="${v}" ${String(currentValue) === v ? 'selected' : ''}>${v}</option>`
+    ).join('');
+    return `<select ${idAttr}>${opts}</select>`;
+  }
+  return `<input type="number" step="any" ${idAttr} value="${currentValue}" />` +
+    (question.unit ? `<span class="unit">${question.unit}</span>` : '');
+}
+
+function renderClarifyPanel(plan) {
+  currentComponents = plan.components;
+  const cardsEl = document.getElementById('clarifyCards');
+  cardsEl.innerHTML = '';
+
+  for (const component of plan.components) {
+    const questions = plan.questions.filter(q => q.component_id === component.id);
+    if (questions.length === 0 && component.parsed_fields.length === 0) continue;
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    const snippet = component.clause_text.length > 90 ? component.clause_text.slice(0, 90) + '…' : component.clause_text;
+    let html = `<div class="heading">${component.family}${component.count > 1 ? ` ×${component.count}` : ''}</div>`;
+    html += `<div class="snippet">${snippet}</div>`;
+    if (component.parsed_fields.length > 0) {
+      html += `<div class="fields">${component.parsed_fields.map(f => `<span class="tag parsed">${f}</span>`).join('')}</div>`;
+    }
+    for (const q of questions) {
+      const currentValue = q.field === '__family__' ? component.family : component.params[q.field];
+      html += `<div class="qrow"><label>${q.label}</label>${fieldInputHtml(q, currentValue)}</div>`;
+    }
+    card.innerHTML = html;
+    cardsEl.appendChild(card);
+  }
+
+  document.getElementById('clarify').classList.add('show');
+
+  // A family_choice answer changes which family this component resolves to
+  // entirely -- re-plan (with the override) rather than trying to patch the
+  // existing card in place, so the newly-correct family's OWN questions show up.
+  cardsEl.querySelectorAll('select[data-field="__family__"]').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      // Snapshot whatever the user has already edited in OTHER cards before
+      // re-planning -- renderClarifyPanel() below rebuilds every card's HTML
+      // from scratch from the fresh plan response, which would otherwise
+      // silently discard any edit made before this dropdown was touched.
+      const editsBeforeReplan = collectEditedComponents();
+      familyOverrides[sel.dataset.cid] = sel.value;
+      statusEl.textContent = 'Updating…';
+      await planPrompt(currentPrompt, editsBeforeReplan);
+      statusEl.textContent = '';
+    });
+  });
+}
+
+function coerceFieldValue(el) {
+  if (el.dataset.kind === 'count') return parseInt(el.value, 10);
+  if (el.dataset.kind === 'numeric') return parseFloat(el.value);
+  return el.value; // categorical -- a plain string is already correct
+}
+
+function collectEditedComponents() {
+  const cardsEl = document.getElementById('clarifyCards');
+  const byId = Object.fromEntries(currentComponents.map(c => [c.id, { ...c, params: { ...c.params } }]));
+  cardsEl.querySelectorAll('[data-cid][data-field]').forEach(el => {
+    if (el.dataset.field === '__family__') return; // already applied via familyOverrides/re-plan
+    byId[el.dataset.cid].params[el.dataset.field] = coerceFieldValue(el);
+  });
+  return Object.values(byId);
+}
+
+async function planPrompt(prompt, previousEdits) {
+  currentPrompt = prompt;
+  const res = await fetch('/api/plan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, family_overrides: familyOverrides }),
+  });
+  const plan = await res.json();
+  if (!res.ok) throw new Error(plan.error || `planning failed (HTTP ${res.status})`);
+
+  if (previousEdits) {
+    // Re-apply prior edits onto the fresh plan -- only for a component
+    // whose family DIDN'T just change (its param SET is still the same
+    // shape) and only for keys the new params dict actually has, so a
+    // stale field left over from a since-overridden family can't leak in.
+    const editedById = Object.fromEntries(previousEdits.map(c => [c.id, c]));
+    for (const component of plan.components) {
+      const prior = editedById[component.id];
+      if (!prior || prior.family !== component.family) continue;
+      for (const key of Object.keys(component.params)) {
+        if (key in prior.params) component.params[key] = prior.params[key];
+      }
+    }
+  }
+
+  if (!plan.needs_clarification) {
+    document.getElementById('clarify').classList.remove('show');
+    currentComponents = plan.components;
+    await buildAssembly(currentComponents);
+  } else {
+    renderClarifyPanel(plan);
+  }
+}
+
+async function buildAssembly(components) {
+  statusEl.textContent = 'Building…';
+  const res = await fetch('/api/generate_assembly', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: currentPrompt, components }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `build failed (HTTP ${res.status})`);
+  await renderComponentResults(data.components, data.mesh_url, data.generation_time_seconds, data.overlapping_pairs);
+  statusEl.textContent = '';
+}
+
+document.getElementById('buildBtn').addEventListener('click', async () => {
+  try {
+    document.getElementById('buildBtn').disabled = true;
+    await buildAssembly(collectEditedComponents());
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + err.message;
+  } finally {
+    document.getElementById('buildBtn').disabled = false;
+  }
+});
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -255,21 +455,18 @@ async function generate() {
   generateBtn.disabled = true;
   statusEl.textContent = 'Generating…';
   infoEl.classList.remove('show');
+  document.getElementById('clarify').classList.remove('show');
 
   const base = backendBase();
   const isRemote = base.length > 0;
 
   try {
     if (!isRemote) {
-      // Local backend: fast (milliseconds), a single request is fine.
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `generation failed (HTTP ${res.status})`);
-      await renderResult(data, base);
+      // Local backend: plan first (may surface clarifying questions before
+      // anything is built), fall straight through to a build when nothing
+      // needs asking.
+      familyOverrides = {};
+      await planPrompt(prompt);
     } else {
       // Remote (Kaggle) backend: /generate returns a job_id immediately and
       // the real work happens in the background -- a real generation can
@@ -298,7 +495,7 @@ async function generate() {
         const jobData = await jobRes.json();
         if (!jobRes.ok) throw new Error(jobData.error || `job lookup failed (HTTP ${jobRes.status})`);
 
-        if (jobData.status === 'done') { await renderResult(jobData.result, base); break; }
+        if (jobData.status === 'done') { await renderRemoteResult(jobData.result, base); break; }
         if (jobData.status === 'error') throw new Error(jobData.error || 'generation failed on the server');
         // else "pending" -- keep polling
       }

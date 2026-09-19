@@ -16,18 +16,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from data.procedural_generator import build_flange, build_mounting_plate
 from nlp.prompt_parser import parse_prompt
-
-_BUILDERS = {"plate": build_mounting_plate, "flange": build_flange}
-
+from part_families import get_part_family
 
 def generate_from_prompt(prompt: str):
     """Returns (trimesh.Trimesh, info_dict). info_dict records what was parsed
     from the prompt vs. defaulted, and the wall-clock time taken."""
     t0 = time.perf_counter()
     result = parse_prompt(prompt)
-    mesh = _BUILDERS[result.part_type](result.params)
+    mesh = get_part_family(result.part_type).builder(result.params)
     elapsed = time.perf_counter() - t0
 
     info = {
