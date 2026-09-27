@@ -41,6 +41,8 @@ from before this module existed, never worse.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import trimesh
 
@@ -202,6 +204,88 @@ def _remesh_one_facet(mesh: trimesh.Trimesh, face_indices: np.ndarray, normal: n
     return verts_3d, faces_2d
 
 
+@dataclass
+class SelectedFace:
+    """One flat facet of a mesh, described in its own 2D plane coordinates
+    (outer boundary ring + any hole rings, e.g. an existing drilled hole in
+    that face) plus enough to map new 2D geometry back into world space --
+    the shared building block for face-based tools (extrude_face,
+    inset_pocket in sandbox.py) that need to build NEW geometry relative to
+    an EXISTING flat face, not just re-triangulate one in place."""
+
+    outer: np.ndarray  # (N, 2)
+    holes: list[np.ndarray]
+    origin: np.ndarray  # (3,) a point on the facet's plane
+    normal: np.ndarray  # (3,) unit outward normal
+    u: np.ndarray  # (3,) unit in-plane basis vector
+    v: np.ndarray  # (3,) unit in-plane basis vector, with u x v == normal
+
+    def to_3d(self, points_2d: np.ndarray) -> np.ndarray:
+        return self.origin + points_2d[:, 0:1] * self.u + points_2d[:, 1:2] * self.v
+
+
+def find_facet_by_direction(mesh: trimesh.Trimesh, direction: np.ndarray, min_alignment: float = 0.5) -> SelectedFace | None:
+    """Finds the flat facet whose normal is MOST ALIGNED with `direction`
+    (need not be unit-length) and returns it as a SelectedFace. This is the
+    only "face selection" this project supports -- by which axis-ish
+    direction a face points, a bounded/categorical choice a model can
+    predict, NOT an arbitrary face index (which wouldn't be a stable,
+    learnable argument the way everything else in sandbox.py's ARG_SCHEMA
+    is). Returns None if no facet faces `direction` within `min_alignment`
+    (cosine similarity) -- e.g. asking a cylinder's curved side for a face
+    "up" finds nothing, correctly, since there is no flat face there.
+
+    Deliberately uses a permissive minimum facet size (any facet trimesh
+    reports at all, down to its own 2-triangle minimum) -- unlike
+    remesh_flat_facets's _MIN_FACES_TO_REMESH, which asks "is this facet
+    worth re-triangulating," this asks "does a flat face exist here at
+    all," and even a freshly-created trimesh.creation.box()'s faces (2
+    triangles each) must be selectable."""
+    direction = np.asarray(direction, dtype=float)
+    direction = direction / np.linalg.norm(direction)
+
+    best_face_indices = None
+    best_normal = None
+    best_score = min_alignment
+    for face_indices in mesh.facets:
+        mean_normal = mesh.face_normals[face_indices].mean(axis=0)
+        norm_len = np.linalg.norm(mean_normal)
+        if norm_len < 0.99:  # not genuinely flat (member faces don't agree) -- see remesh_flat_facets's same check
+            continue
+        normal = mean_normal / norm_len
+        score = float(np.dot(normal, direction))
+        if score > best_score:
+            best_score = score
+            best_face_indices = face_indices
+            best_normal = normal
+    if best_face_indices is None:
+        return None
+
+    boundary_edges = _facet_boundary_edges(mesh, best_face_indices)
+    if len(boundary_edges) < 3:
+        return None
+    try:
+        loops = _order_boundary_loops(boundary_edges)
+    except ValueError:
+        return None
+    if not loops:
+        return None
+
+    u, v = _plane_basis(best_normal)
+    origin = mesh.vertices[loops[0][0]]
+
+    def to_2d(vertex_idx: int) -> np.ndarray:
+        p = mesh.vertices[vertex_idx] - origin
+        return np.array([float(p @ u), float(p @ v)])
+
+    loops_2d = [np.array([to_2d(i) for i in loop]) for loop in loops]
+    areas = [abs(_shoelace_area(loop)) for loop in loops_2d]
+    outer_idx = int(np.argmax(areas))
+    outer = loops_2d[outer_idx]
+    holes = [loop for i, loop in enumerate(loops_2d) if i != outer_idx]
+    return SelectedFace(outer=outer, holes=holes, origin=origin, normal=best_normal, u=u, v=v)
+
+
 def remesh_flat_facets(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     """Re-triangulates every sufficiently-large flat facet of `mesh` with a
     quality constraint, leaving curved regions and small/simple facets
@@ -272,3 +356,35 @@ def remesh_flat_facets(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
         if volume_drift > 1e-4:
             return mesh
     return candidate
+
+
+def mesh_topology_stats(mesh: trimesh.Trimesh) -> dict:
+    """Plain-dict, JSON-ready summary of a mesh's polygon topology -- the
+    numbers this project's build tools have always computed internally to
+    judge geometry quality (watertightness, winding, volume/area) but never
+    surfaced anywhere a person could see them. Exists so the frontend can
+    display, per built part and for the combined assembly, exactly what a
+    modeler means by "check the topology": vertex/face/edge counts, the
+    Euler characteristic (2 for a single closed genus-0 solid -- the
+    at-a-glance sanity number), and whether the mesh is actually a valid
+    manifold volume.
+
+    Deliberately reads only existing trimesh-computed properties (no new
+    algorithm) so it can be called on any mesh this project produces,
+    including ones remesh_flat_facets() has already processed, with no risk
+    of disagreeing with what the rest of the pipeline already decided."""
+    bounds = mesh.bounds
+    extents = bounds[1] - bounds[0]
+    is_volume = bool(mesh.is_volume)
+    return {
+        "vertex_count": int(len(mesh.vertices)),
+        "face_count": int(len(mesh.faces)),
+        "edge_count": int(len(mesh.edges_unique)),
+        "euler_number": int(mesh.euler_number),
+        "is_watertight": bool(mesh.is_watertight),
+        "is_winding_consistent": bool(mesh.is_winding_consistent),
+        "is_volume": is_volume,
+        "volume_mm3": float(mesh.volume) if is_volume else None,
+        "surface_area_mm2": float(mesh.area),
+        "bounding_box_mm": [float(extents[0]), float(extents[1]), float(extents[2])],
+    }

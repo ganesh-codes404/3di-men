@@ -2,122 +2,417 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>3di-men — CAD prototype</title>
+<title>3di-men — builder</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root {
+    color-scheme: dark;
+    --bg: #0e1013;
+    --bg-panel: #15171c;
+    --bg-raised: #1b1e25;
+    --bg-input: #1a1d24;
+    --border: #262a33;
+    --border-soft: #20232b;
+    --text: #e9ebf0;
+    --text-dim: #8b909c;
+    --text-faint: #5b6070;
+    --accent: #6d8dff;
+    --accent-dim: #3d4d8f;
+    --accent-glow: rgba(109, 141, 255, 0.18);
+    --ok: #57d18a;
+    --ok-bg: #16281f;
+    --warn: #e0ad5e;
+    --warn-bg: #2c2417;
+    --bad: #e2718a;
+    --bad-bg: #2c1920;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
   body {
     margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #14161a; color: #e8e8ea; display: flex; height: 100vh; overflow: hidden;
+    background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden;
+    font-size: 13.5px;
   }
-  #panel { width: 380px; flex-shrink: 0; padding: 20px; box-sizing: border-box;
-    display: flex; flex-direction: column; gap: 12px; overflow-y: auto; border-right: 1px solid #2a2d33; }
-  h1 { font-size: 15px; margin: 0 0 4px; color: #9fb4d1; letter-spacing: 0.02em; text-transform: uppercase; }
-  p.hint { font-size: 12.5px; color: #888; margin: 0 0 4px; line-height: 1.5; }
-  textarea { width: 100%; box-sizing: border-box; min-height: 90px; resize: vertical;
-    background: #1d2027; color: #e8e8ea; border: 1px solid #33373f; border-radius: 8px;
-    padding: 10px; font-size: 13.5px; font-family: inherit; line-height: 1.4; }
-  textarea:focus { outline: none; border-color: #5b8def; }
-  button.primary { background: #5b8def; color: white; border: none; border-radius: 8px;
-    padding: 10px 14px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
-  button.primary:hover { background: #4a7ce0; }
-  button.primary:disabled { background: #3a3f4a; cursor: default; }
+
+  /* ---------- side panel ---------- */
+  #panel {
+    width: 400px; flex-shrink: 0; padding: 22px; display: flex; flex-direction: column;
+    gap: 16px; overflow-y: auto; border-right: 1px solid var(--border); background: var(--bg-panel);
+  }
+  #panel::-webkit-scrollbar { width: 8px; }
+  #panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent), #9d6dff);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; color: #0e1013;
+  }
+  .brand h1 { font-size: 15px; margin: 0; letter-spacing: 0.01em; font-weight: 650; }
+  .brand .sub { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+  p.hint { font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.55; }
+
+  .card {
+    background: var(--bg-raised); border: 1px solid var(--border-soft); border-radius: var(--radius);
+    padding: 14px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .card-title { font-size: 11px; font-weight: 650; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* ---------- tabs ---------- */
+  .tab-bar { display: flex; gap: 4px; background: var(--bg-input); border: 1px solid var(--border-soft); border-radius: 9px; padding: 3px; }
+  .tab-btn {
+    flex: 1; background: transparent; color: var(--text-faint); border: none; border-radius: 7px;
+    padding: 7px 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s;
+  }
+  .tab-btn.active { background: var(--bg-raised); color: var(--text); }
+  .tab-btn:hover:not(.active) { color: var(--text-dim); }
+
+  textarea {
+    width: 100%; min-height: 84px; resize: vertical;
+    background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 11px; font-size: 13px; font-family: inherit; line-height: 1.45;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
+  button { font-family: inherit; }
+  button.primary {
+    background: var(--accent); color: #0b0d10; border: none; border-radius: 8px;
+    padding: 10px 14px; font-size: 13px; font-weight: 650; cursor: pointer; transition: filter 0.12s, transform 0.06s;
+  }
+  button.primary:hover { filter: brightness(1.08); }
+  button.primary:active { transform: scale(0.98); }
+  button.primary:disabled { background: #333844; color: var(--text-faint); cursor: default; filter: none; }
+  button.secondary {
+    background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px;
+    padding: 9px 13px; font-size: 12.5px; font-weight: 550; cursor: pointer; transition: border-color 0.15s, color 0.15s;
+  }
+  button.secondary:hover { border-color: var(--accent-dim); color: var(--text); }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row button { flex: 1; }
+
   .examples { display: flex; flex-direction: column; gap: 6px; }
-  .examples button { text-align: left; background: #1d2027; color: #b7c3d6; border: 1px solid #2a2d33;
-    border-radius: 6px; padding: 8px 10px; font-size: 12px; cursor: pointer; }
-  .examples button:hover { border-color: #5b8def; color: #e8e8ea; }
-  #status { font-size: 12.5px; color: #f0a45b; min-height: 16px; }
-  #info { display: none; flex-direction: column; gap: 8px; font-size: 12.5px; }
+  .examples button.ex {
+    text-align: left; background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border-soft);
+    border-radius: 7px; padding: 8px 10px; font-size: 11.5px; cursor: pointer; transition: border-color 0.15s, color 0.15s;
+  }
+  .examples button.ex:hover { border-color: var(--accent-dim); color: var(--text); }
+
+  #status, #consoleStatus { font-size: 12px; color: var(--warn); min-height: 14px; line-height: 1.5; }
+  #status.error, #consoleStatus.error { color: var(--bad); }
+
+  /* ---------- clarify questions ---------- */
+  #clarifyCard { display: none; }
+  #clarifyCard.show { display: flex; }
+  .q-block { display: flex; flex-direction: column; gap: 5px; }
+  .q-label { font-size: 12px; color: var(--text); line-height: 1.4; }
+  .q-block input {
+    background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 7px;
+    padding: 8px 10px; font-size: 12.5px; font-family: inherit;
+  }
+  .q-block input:focus { outline: none; border-color: var(--accent); }
+
+  /* ---------- results ---------- */
+  #info { display: none; flex-direction: column; gap: 14px; }
   #info.show { display: flex; }
-  #info .desc { background: #1d2027; border: 1px solid #2a2d33; border-radius: 8px; padding: 10px; color: #cfd6e0; }
-  .fields { display: flex; flex-wrap: wrap; gap: 5px; }
-  .tag { border-radius: 999px; padding: 2px 9px; font-size: 11px; }
-  .tag.parsed { background: #1f3d2c; color: #6fd18f; }
-  .tag.defaulted { background: #3d331f; color: #d1a86f; }
-  a.download { color: #5b8def; font-size: 12.5px; text-decoration: none; }
+  #fallbackNote { font-size: 11.5px; color: var(--warn); background: var(--warn-bg); border-radius: 7px; padding: 8px 10px; line-height: 1.45; }
+
+  .points-list { display: flex; flex-direction: column; gap: 6px; }
+  .point-card {
+    background: var(--bg-raised); border: 1px solid var(--border-soft); border-radius: 8px; padding: 9px 11px;
+    display: flex; flex-direction: column; gap: 7px; font-size: 12px;
+  }
+  .point-card .row1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .point-card .desc { color: var(--text); line-height: 1.35; }
+  .badge-status { border-radius: 999px; padding: 2px 9px; font-size: 10px; font-weight: 650; flex-shrink: 0; letter-spacing: 0.02em; }
+  .badge-status.ok { background: var(--ok-bg); color: var(--ok); }
+  .badge-status.suspect { background: var(--warn-bg); color: var(--warn); }
+  .badge-status.out_of_distribution { background: var(--warn-bg); color: var(--warn); }
+  .badge-status.rejected, .badge-status.partial { background: var(--bad-bg); color: var(--bad); }
+  .badge-status.unbuilt { background: var(--bg-input); color: var(--text-faint); }
+
+  /* ---------- editable parts (playground manual edit) ---------- */
+  .point-card.editable { gap: 8px; padding: 10px 11px; }
+  .point-desc-input {
+    width: 100%; background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 9px; font-size: 12px; font-family: inherit; line-height: 1.4; resize: vertical; min-height: 34px;
+  }
+  .point-desc-input:focus { outline: none; border-color: var(--accent); }
+  .pos-row { display: flex; align-items: center; gap: 6px; }
+  .pos-field { display: flex; align-items: center; gap: 4px; flex: 1; }
+  .pos-field label { font-size: 9.5px; color: var(--text-faint); text-transform: uppercase; width: 8px; flex-shrink: 0; }
+  .pos-field input {
+    width: 100%; min-width: 0; background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
+    border-radius: 5px; padding: 4px 6px; font-size: 11.5px; font-family: inherit; font-variant-numeric: tabular-nums;
+  }
+  .pos-field input:focus { outline: none; border-color: var(--accent); }
+  .point-remove {
+    background: transparent; border: 1px solid var(--border-soft); color: var(--text-faint); border-radius: 5px;
+    width: 22px; height: 22px; flex-shrink: 0; cursor: pointer; font-size: 13px; line-height: 1; display: flex;
+    align-items: center; justify-content: center; transition: border-color 0.15s, color 0.15s;
+  }
+  .point-remove:hover { border-color: var(--bad); color: var(--bad); }
+  .add-part-btn {
+    background: var(--bg-input); color: var(--text-dim); border: 1px dashed var(--border); border-radius: 8px;
+    padding: 9px; font-size: 12px; cursor: pointer; text-align: center; transition: border-color 0.15s, color 0.15s;
+  }
+  .add-part-btn:hover { border-color: var(--accent-dim); color: var(--text); }
+
+  /* ---------- tool console ---------- */
+  select.tool-select, .arg-field select, .arg-field input {
+    width: 100%; background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
+    border-radius: 7px; padding: 8px 9px; font-size: 12.5px; font-family: inherit;
+  }
+  select.tool-select:focus, .arg-field select:focus, .arg-field input:focus { outline: none; border-color: var(--accent); }
+  .arg-field { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .arg-field label { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+  .arg-field label .opt { color: var(--text-faint); text-transform: none; font-weight: 400; }
+  .vec3-inline { display: flex; gap: 6px; }
+  .vec3-inline > div { flex: 1; display: flex; align-items: center; gap: 4px; }
+  .vec3-inline label { width: 9px; flex-shrink: 0; }
+
+  .console-steps { display: flex; flex-direction: column; gap: 5px; max-height: 260px; overflow-y: auto; }
+  .console-step {
+    background: var(--bg-raised); border: 1px solid var(--border-soft); border-radius: 7px; padding: 7px 9px;
+    font-size: 11.5px; display: flex; align-items: baseline; gap: 8px;
+  }
+  .console-step .step-idx { color: var(--text-faint); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .console-step .step-op { color: var(--accent); font-weight: 650; flex-shrink: 0; }
+  .console-step .step-args { color: var(--text-dim); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .console-empty { font-size: 11.5px; color: var(--text-faint); padding: 4px 2px; }
+
+  .entity-list { display: flex; flex-direction: column; gap: 6px; }
+  .entity-row {
+    background: var(--bg-raised); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 10px;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .entity-row.active { border-color: var(--accent); background: var(--bg-input); }
+  .entity-row .row1 { display: flex; align-items: center; gap: 6px; }
+  .entity-row .name-input {
+    flex: 1; background: transparent; color: var(--text); border: none; font-size: 12.5px; font-weight: 600;
+    padding: 2px 0; min-width: 0;
+  }
+  .entity-row .name-input:focus { outline: none; }
+  .entity-row .entity-remove {
+    background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 14px;
+    width: 20px; height: 20px; flex-shrink: 0; border-radius: 5px;
+  }
+  .entity-row .entity-remove:hover { color: var(--bad); }
+  .entity-row .pos-row { margin-top: 6px; }
+  .entity-row .entity-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .entity-row .step-count { font-size: 10.5px; color: var(--text-faint); }
+
+  .topo-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    font-size: 10px; color: var(--text-faint); background: var(--bg-input); border: 1px solid var(--border-soft);
+    border-radius: 5px; padding: 2px 6px; font-variant-numeric: tabular-nums;
+  }
+  .chip.good { color: var(--ok); }
+  .chip.bad { color: var(--bad); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+  .stat { display: flex; flex-direction: column; gap: 1px; }
+  .stat .v { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat .v.good { color: var(--ok); }
+  .stat .v.bad { color: var(--bad); }
+
+  .meta-row { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: var(--text-faint); }
+  a.download {
+    color: var(--accent); font-size: 12.5px; text-decoration: none; font-weight: 600;
+    display: none; align-items: center; gap: 6px;
+  }
   a.download:hover { text-decoration: underline; }
-  .backend { display: flex; flex-direction: column; gap: 6px; background: #1d2027; border: 1px solid #2a2d33;
-    border-radius: 8px; padding: 10px; }
-  .backend label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.03em; }
-  .backend input { width: 100%; box-sizing: border-box; background: #14161a; color: #e8e8ea;
-    border: 1px solid #33373f; border-radius: 6px; padding: 7px 8px; font-size: 12px; font-family: ui-monospace, monospace; }
-  .backend input:focus { outline: none; border-color: #5b8def; }
-  .backend .row { display: flex; justify-content: space-between; align-items: center; }
-  .backend .badge { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; }
-  .backend .badge.local { background: #1f3d2c; color: #6fd18f; }
-  .backend .badge.remote { background: #2c2440; color: #b79bf0; }
+
+  /* ---------- viewer ---------- */
   #viewer { flex: 1; position: relative; }
   #viewer canvas { display: block; }
-  #placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: #4a4e58; font-size: 13px; text-align: center; padding: 40px; }
+  #placeholder {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--text-faint); font-size: 13px; text-align: center; padding: 40px; line-height: 1.6;
+  }
+  #viewerOverlay {
+    position: absolute; top: 16px; left: 16px; display: none; flex-direction: column; gap: 6px;
+    background: rgba(21, 23, 28, 0.82); backdrop-filter: blur(6px); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; min-width: 190px; pointer-events: none;
+  }
+  #viewerOverlay.show { display: flex; }
+  #viewerOverlay .title { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px; }
 
-  #clarify { display: none; flex-direction: column; gap: 10px; }
-  #clarify.show { display: flex; }
-  #clarify > .lead { font-size: 12.5px; color: #b7c3d6; margin: 0; }
-  .card { background: #1d2027; border: 1px solid #2a2d33; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-  .card .heading { font-size: 12.5px; color: #e8e8ea; font-weight: 600; }
-  .card .snippet { font-size: 11.5px; color: #777; }
-  .qrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
-  .qrow label { color: #b7c3d6; flex: 1; }
-  .qrow input[type="number"], .qrow select { background: #14161a; color: #e8e8ea; border: 1px solid #33373f;
-    border-radius: 6px; padding: 5px 7px; font-size: 12px; font-family: inherit; width: 110px; }
-  .qrow .unit { color: #777; font-size: 11px; margin-left: 4px; }
-  button.secondary { background: #2a2d33; color: #e8e8ea; border: 1px solid #3a3f4a; border-radius: 8px;
-    padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  button.secondary:hover { background: #33373f; }
-  .result-card { background: #1d2027; border: 1px solid #2a2d33; border-radius: 8px; padding: 9px 10px;
-    display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
-  .result-card .desc { color: #cfd6e0; }
-  .badge-wt { border-radius: 999px; padding: 2px 8px; font-size: 10.5px; flex-shrink: 0; }
-  .badge-wt.ok { background: #1f3d2c; color: #6fd18f; }
-  .badge-wt.bad { background: #3d1f24; color: #d16f7f; }
-  .overlap-note { font-size: 11.5px; color: #d1a86f; background: #3d331f; border-radius: 6px; padding: 7px 9px; }
+  /* ---------- viewer mouse-editing controls (Tool Console tab only) ---------- */
+  #viewerToolbar {
+    position: absolute; top: 16px; right: 16px; display: none; gap: 4px;
+    background: rgba(21, 23, 28, 0.82); backdrop-filter: blur(6px); border: 1px solid var(--border);
+    border-radius: 10px; padding: 4px;
+  }
+  #viewerToolbar.show { display: flex; }
+  .vtool {
+    background: transparent; color: var(--text-dim); border: none; border-radius: 7px;
+    padding: 7px 10px; font-size: 11.5px; font-weight: 600; cursor: pointer; transition: background 0.15s, color 0.15s;
+  }
+  .vtool.active { background: var(--accent); color: #0b0d10; }
+  .vtool:hover:not(.active) { background: var(--bg-input); color: var(--text); }
+  .vtool:disabled { opacity: 0.4; cursor: default; }
+
+  #dragLabel {
+    position: absolute; display: none; pointer-events: none; transform: translate(-50%, -130%);
+    background: rgba(21, 23, 28, 0.9); border: 1px solid var(--accent-dim); color: var(--text);
+    border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  #dragLabel.show { display: block; }
+
+  #edgeConfirmPopup {
+    position: absolute; display: none; flex-direction: column; gap: 6px; transform: translate(-50%, 8px);
+    background: rgba(21, 23, 28, 0.92); backdrop-filter: blur(6px); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px; min-width: 150px; z-index: 5;
+  }
+  #edgeConfirmPopup.show { display: flex; }
+  #edgeConfirmPopup #edgeConfirmValue { font-size: 11px; color: var(--text-faint); text-align: center; }
+  #edgeConfirmPopup button { font-size: 11.5px; padding: 7px 9px; }
+
+  .spinner {
+    width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--border);
+    border-top-color: var(--accent); display: inline-block; vertical-align: middle; margin-right: 6px;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 
 <div id="panel">
-  <div>
-    <h1>3di-men — CAD prototype</h1>
-    <p class="hint" id="modeHint">Rule-based prompt → mesh pipeline, runs entirely on CPU (no GPU, no cloud). Two part families: rectangular mounting plates and circular flanges.</p>
-  </div>
-
-  <div class="backend">
-    <div class="row">
-      <label for="backendUrl">Backend URL</label>
-      <span class="badge" id="backendBadge">local</span>
+  <div class="brand">
+    <div class="mark">3d</div>
+    <div>
+      <h1>3di-men</h1>
+      <div class="sub">builder</div>
     </div>
-    <input id="backendUrl" placeholder="empty = local rule-based backend (this machine)" spellcheck="false" />
-    <p class="hint" style="margin:0;">Leave empty to use the local backend (<code>server.py</code>, CPU-only, two part families). Paste a Kaggle tunnel URL from <code>kaggle/threedimen_api_server.ipynb</code> (e.g. <code>https://xxxx.trycloudflare.com</code>) to get 3di-men's own trained model instead — same viewer, different backend.</p>
-    <a href="#" id="useLocalLink" class="hint" style="display:none; color:#5b8def; text-decoration:none;">✕ clear saved backend URL, use local</a>
   </div>
 
-  <textarea id="prompt" placeholder="e.g. rectangular aluminum mounting plate, 120mm x 80mm x 8mm, with four 10mm mounting holes, 20mm from each edge, 5mm corner fillets"></textarea>
-  <button class="primary" id="generateBtn">Generate</button>
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tabPromptBtn">Prompt</button>
+    <button class="tab-btn" id="tabConsoleBtn">Tool Console</button>
+  </div>
 
-  <div class="examples">
-    <button data-p="rectangular aluminum mounting plate, 120mm x 80mm x 8mm, with four 10mm mounting holes, 20mm from each edge, 5mm corner fillets">Mounting plate (structured)</button>
-    <button data-p="Create a compact mounting bracket with four mounting holes">Compact bracket (unstructured)</button>
-    <button data-p="Generate a cylindrical pump housing with a 40mm central bore, 8mm wall thickness, six M8 mounting holes, 120mm outer diameter">Pump housing flange</button>
+  <div id="promptTab">
+  <p class="hint">A local Qwen3 model (llama.cpp, in-process, no network) breaks your prompt into independently-buildable parts, asking clarifying questions first if needed. Each part is built in parallel by 3di-men's own proprietary tool-composing model — the LLM never touches geometry, only language.</p>
+
+  <div class="card">
+    <div class="card-title">Prompt</div>
+    <textarea id="prompt" placeholder="e.g. a base plate with a shaft on top and a gear next to it"></textarea>
+    <div class="examples">
+      <button class="ex" data-p="a steel shaft, 20mm diameter, 100mm long, with a spur gear next to it, module 2, 16 teeth">Shaft + gear</button>
+      <button class="ex" data-p="a box 50mm x 40mm x 10mm with a cylinder 16mm diameter x 20mm tall on top">Box + cylinder</button>
+      <button class="ex" data-p="a bracket with some mounting holes in it">Bracket (underspecified — triggers questions)</button>
+    </div>
+    <button class="primary" id="continueBtn">Continue</button>
+  </div>
+
+  <div class="card" id="clarifyCard">
+    <div class="card-title">A few quick questions</div>
+    <div id="questionsList"></div>
+    <div class="btn-row">
+      <button class="secondary" id="skipBtn">Skip &amp; build as-is</button>
+      <button class="primary" id="buildBtn">Build</button>
+    </div>
   </div>
 
   <div id="status"></div>
 
-  <div id="clarify">
-    <p class="lead">A few things weren't clear from your prompt — check the defaults below (already filled in) or change them, then build.</p>
-    <div id="clarifyCards"></div>
-    <button class="secondary" id="buildBtn">Build</button>
-  </div>
-
   <div id="info">
-    <div id="componentResults"></div>
-    <div id="overlapNote" class="overlap-note" style="display:none;"></div>
-    <div style="color:#888;">generated in <span id="genTime"></span></div>
-    <a class="download" id="downloadLink" download>Download .stl</a>
+    <div id="fallbackNote" style="display:none;">Note: the LLM's decomposition couldn't be parsed, so the whole prompt was treated as one part instead of being split up.</div>
+
+    <div class="card" id="assemblyTopoCard" style="display:none;">
+      <div class="card-title">Assembly topology</div>
+      <div class="stat-grid" id="assemblyTopoGrid"></div>
+    </div>
+
+    <div class="card" id="partsCard">
+      <div class="card-title">Parts — edit, add, or reposition, then rebuild</div>
+      <div class="points-list" id="pointResults"></div>
+      <button class="add-part-btn" id="addPartBtn">+ Add part</button>
+      <button class="primary" id="rebuildBtn">Rebuild</button>
+    </div>
+
+    <div class="meta-row">
+      <span>generated in <strong id="genTime" style="color:var(--text);"></strong></span>
+      <a class="download" id="downloadLink" download>&#8681; Download .stl</a>
+    </div>
   </div>
+  </div> <!-- /promptTab -->
+
+  <div id="consoleTab" style="display:none;">
+    <p class="hint">Blender-style direct access to 3di-men's own tool roster — pick a tool, fill in its real arguments, target a handle from an earlier step, or drag directly in the viewport. No LLM, no ML prediction: this goes straight to sandbox.py's tool calls, one step at a time. Each entity below is a separate part (like a gear and its shaft) built independently, then combined by position — never fused into one blob unless you union them yourself.</p>
+
+    <div class="card">
+      <div class="card-title">Entities</div>
+      <div id="entityList" class="entity-list"></div>
+      <button class="add-part-btn" id="addEntityBtn">+ New entity</button>
+    </div>
+
+    <div class="card" id="stepEditorCard">
+      <div class="card-title">Add step — editing <span id="activeEntityLabel">—</span></div>
+      <select id="toolOpSelect" class="tool-select"></select>
+      <div id="toolArgsForm"></div>
+      <button class="primary" id="addStepBtn">Add step</button>
+      <div id="consoleFormError" style="display:none; font-size:11.5px; color:var(--bad);"></div>
+    </div>
+
+    <div class="card" id="stepsCard">
+      <div class="card-title">Steps</div>
+      <div id="consoleSteps" class="console-steps"></div>
+      <div class="btn-row">
+        <button class="secondary" id="undoStepBtn">Undo last step</button>
+        <button class="secondary" id="clearStepsBtn">Clear all</button>
+      </div>
+    </div>
+
+    <div id="consoleStatus" style="font-size:12px; color:var(--warn); min-height:14px; line-height:1.5;"></div>
+
+    <div class="card" id="consoleTopoCard" style="display:none;">
+      <div class="card-title">Topology — active entity</div>
+      <div class="stat-grid" id="consoleTopoGrid"></div>
+    </div>
+
+    <div class="meta-row">
+      <span></span>
+      <a class="download" id="consoleDownloadLink" download>&#8681; Download .stl</a>
+    </div>
+
+    <div class="card" id="assemblyCard" style="display:none;">
+      <div class="card-title">Combined assembly</div>
+      <p class="hint" style="margin:0;">Builds every entity independently, then places each by its own position offset — a real multi-part assembly, not one fused mesh.</p>
+      <button class="primary" id="buildAssemblyBtn">Build combined assembly</button>
+      <div id="assemblyStatus" style="font-size:12px; color:var(--warn); min-height:14px; line-height:1.5;"></div>
+      <div class="stat-grid" id="assemblyTopoGridConsole" style="display:none;"></div>
+      <div class="meta-row">
+        <span></span>
+        <a class="download" id="assemblyDownloadLink" download>&#8681; Download combined .stl</a>
+      </div>
+    </div>
+  </div> <!-- /consoleTab -->
 </div>
 
 <div id="viewer">
-  <div id="placeholder">Type a prompt and click Generate to see the part here.<br/>Drag to rotate, scroll to zoom.</div>
+  <div id="placeholder">Type a prompt and click Continue to see the assembly here.<br/>Drag to rotate, scroll to zoom.</div>
+  <div id="viewerOverlay">
+    <div class="title">Combined mesh</div>
+    <div id="viewerOverlayBody"></div>
+  </div>
+
+  <div id="viewerToolbar">
+    <button class="vtool active" data-mode="select" title="Click a face and drag to push/pull it; click an edge and drag to round/flatten it">Select</button>
+    <button class="vtool" data-mode="translate" title="Drag to move the shape" disabled>Move</button>
+    <button class="vtool" data-mode="rotate" title="Drag a ring to rotate around one world axis (X/Y/Z only)" disabled>Rotate</button>
+    <button class="vtool" data-mode="scale" title="Drag a handle to resize the shape" disabled>Scale</button>
+  </div>
+  <div id="dragLabel"></div>
+  <div id="edgeConfirmPopup">
+    <span id="edgeConfirmValue"></span>
+    <button class="secondary" id="edgeFilletBtn">Round (fillet)</button>
+    <button class="secondary" id="edgeChamferBtn">Flatten (chamfer)</button>
+  </div>
 </div>
 
 <script type="importmap">
@@ -127,12 +422,13 @@
 import * as THREE from 'three';
 import { STLLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/STLLoader.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import { TransformControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/TransformControls.js';
 
 const viewer = document.getElementById('viewer');
 const placeholder = document.getElementById('placeholder');
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x14161a);
+scene.background = new THREE.Color(0x0e1013);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -142,18 +438,20 @@ viewer.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dir1 = new THREE.DirectionalLight(0xffffff, 0.9);
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dir1 = new THREE.DirectionalLight(0xffffff, 0.95);
 dir1.position.set(1, 1.5, 1);
 scene.add(dir1);
-const dir2 = new THREE.DirectionalLight(0xffffff, 0.4);
+const dir2 = new THREE.DirectionalLight(0x6d8dff, 0.35);
 dir2.position.set(-1, -0.5, -1);
 scene.add(dir2);
 
-const grid = new THREE.GridHelper(300, 20, 0x2a2d33, 0x1e2126);
+const grid = new THREE.GridHelper(300, 20, 0x262a33, 0x181a20);
 scene.add(grid);
 
 let currentMesh = null;
+let wireframeMesh = null;
+let showWireframe = false;
 
 function resize() {
   const w = viewer.clientWidth, h = viewer.clientHeight;
@@ -171,346 +469,1455 @@ function animate() {
 }
 animate();
 
-async function loadSTL(url) {
+async function loadSTL(url, opts) {
+  opts = opts || {};
   const buf = await (await fetch(url)).arrayBuffer();
   const geometry = new STLLoader().parse(buf);
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
 
-  const center = new THREE.Vector3();
-  geometry.boundingBox.getCenter(center);
-  geometry.translate(-center.x, -center.y, -center.z);
-
+  // Deliberately NOT recentering geometry to the origin (the old
+  // behavior): mouse-driven editing (gizmo drags, face-normal math) needs
+  // the mesh's vertex coordinates to be the REAL mm coordinates the
+  // backend will also see, not a viewer-only cosmetic offset. Camera
+  // framing is done by pointing the orbit target at the bbox center
+  // instead, which looks identical but keeps the mesh's own transform
+  // truthful.
   if (currentMesh) scene.remove(currentMesh);
+  if (wireframeMesh) scene.remove(wireframeMesh);
+
   const material = new THREE.MeshStandardMaterial({ color: 0xc9d6e3, metalness: 0.15, roughness: 0.55 });
   currentMesh = new THREE.Mesh(geometry, material);
   scene.add(currentMesh);
 
+  const wireGeo = new THREE.WireframeGeometry(geometry);
+  wireframeMesh = new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0x6d8dff, transparent: true, opacity: 0.25 }));
+  wireframeMesh.visible = showWireframe;
+  scene.add(wireframeMesh);
+
   const size = new THREE.Vector3();
   geometry.boundingBox.getSize(size);
+  const center = new THREE.Vector3();
+  geometry.boundingBox.getCenter(center);
   const radius = size.length() / 2;
-  camera.position.set(radius * 1.4, radius * 1.1, radius * 1.6);
-  controls.target.set(0, 0, 0);
-  controls.update();
+
+  if (!opts.keepCamera) {
+    camera.position.set(center.x + radius * 1.4, center.y + radius * 1.1, center.z + radius * 1.6);
+    controls.target.copy(center);
+    controls.update();
+  }
 
   placeholder.style.display = 'none';
+  return { geometry, center, radius };
 }
+
+/* ---------------- state / elements ---------------- */
 
 const promptEl = document.getElementById('prompt');
 const statusEl = document.getElementById('status');
 const infoEl = document.getElementById('info');
-const generateBtn = document.getElementById('generateBtn');
-const backendUrlEl = document.getElementById('backendUrl');
-const backendBadgeEl = document.getElementById('backendBadge');
-const modeHintEl = document.getElementById('modeHint');
+const continueBtn = document.getElementById('continueBtn');
+const buildBtn = document.getElementById('buildBtn');
+const skipBtn = document.getElementById('skipBtn');
+const clarifyCard = document.getElementById('clarifyCard');
+const questionsListEl = document.getElementById('questionsList');
+const viewerOverlay = document.getElementById('viewerOverlay');
+const viewerOverlayBody = document.getElementById('viewerOverlayBody');
 
-// Backend URL persists per-browser (this machine) via localStorage; empty = local server.py.
-try {
-  const saved = localStorage.getItem('backendUrl');
-  if (saved) backendUrlEl.value = saved;
-} catch (e) { /* private browsing / storage blocked -- fine, just won't persist */ }
+let pendingQuestions = [];
 
-function backendBase() {
-  return backendUrlEl.value.trim().replace(/\/+$/, ''); // strip trailing slash
-}
-
-const useLocalLinkEl = document.getElementById('useLocalLink');
-
-function updateBackendBadge() {
-  const isRemote = backendBase().length > 0;
-  backendBadgeEl.textContent = isRemote ? 'remote (Kaggle)' : 'local';
-  backendBadgeEl.className = 'badge ' + (isRemote ? 'remote' : 'local');
-  useLocalLinkEl.style.display = isRemote ? 'block' : 'none';
-
-  modeHintEl.textContent = isRemote
-    ? "3di-men's own trained model (point-cloud autoencoder). Proof-of-concept quality — expect it to loosely echo its training set's shapes, not generalize sharply to arbitrary prompts."
-    : 'Rule-based prompt → mesh pipeline, runs entirely on CPU (no GPU, no cloud). Two part families: rectangular mounting plates and circular flanges.';
-
-  try { localStorage.setItem('backendUrl', backendUrlEl.value.trim()); } catch (e) { /* ignore */ }
-}
-backendUrlEl.addEventListener('input', updateBackendBadge);
-useLocalLinkEl.addEventListener('click', e => {
-  e.preventDefault();
-  backendUrlEl.value = '';
-  updateBackendBadge();
-});
-updateBackendBadge();
-
-document.querySelectorAll('.examples button').forEach(btn => {
-  btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; });
+document.querySelectorAll('.examples button.ex').forEach(btn => {
+  btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; clarifyCard.classList.remove('show'); });
 });
 
-// ---- shared result rendering (both the new local plan/build flow and the
-// unchanged remote-Kaggle single-part flow funnel into this) ----
-
-function watertightBadge(watertight) {
-  if (watertight === null || watertight === undefined) return '';
-  return watertight
-    ? '<span class="badge-wt ok">watertight</span>'
-    : '<span class="badge-wt bad">not watertight</span>';
+function setStatus(msg, isError) {
+  statusEl.textContent = msg;
+  statusEl.classList.toggle('error', !!isError);
 }
 
-async function renderComponentResults(components, meshUrl, generationTimeSeconds, overlappingPairs) {
-  await loadSTL(meshUrl);
+function statusBadge(status) {
+  const labels = { out_of_distribution: 'unfamiliar prompt', ok: 'ok', suspect: 'suspect', rejected: 'rejected', partial: 'partial' };
+  return `<span class="badge-status ${status}">${labels[status] || status}</span>`;
+}
 
-  const container = document.getElementById('componentResults');
+function topoChips(topo) {
+  if (!topo) return '';
+  const watertight = topo.is_watertight
+    ? `<span class="chip good">watertight</span>`
+    : `<span class="chip bad">not watertight</span>`;
+  return `
+    <div class="topo-chips">
+      <span class="chip">${topo.vertex_count} verts</span>
+      <span class="chip">${topo.face_count} faces</span>
+      <span class="chip">${topo.edge_count} edges</span>
+      <span class="chip">χ=${topo.euler_number}</span>
+      ${watertight}
+    </div>`;
+}
+
+/* currentParts: the playground's editable parts list. Each entry carries
+   its own description/position (user-editable) plus the last known build
+   result (status/topology/error), which goes stale (shown but not
+   trusted) the moment a field is edited, until Rebuild runs again. */
+let currentParts = [];
+let nextPartId = 1;
+
+function escapeAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function renderParts() {
+  const container = document.getElementById('pointResults');
   container.innerHTML = '';
-  for (const c of components) {
+  for (const part of currentParts) {
     const row = document.createElement('div');
-    row.className = 'result-card';
-    const countLabel = c.count && c.count > 1 ? ` ×${c.count}` : '';
-    row.innerHTML = `<span class="desc">${c.resolved_description}${countLabel}</span>${watertightBadge(c.watertight)}`;
+    row.className = 'point-card editable';
+    const badge = part.status ? statusBadge(part.status) : `<span class="badge-status unbuilt">not yet built</span>`;
+    row.innerHTML = `
+      <div class="row1">
+        <textarea class="point-desc-input" rows="2" data-id="${part.id}" data-field="description">${escapeAttr(part.description)}</textarea>
+      </div>
+      <div class="pos-row">
+        <div class="pos-field"><label>x</label><input type="number" step="any" data-id="${part.id}" data-field="x" value="${part.position_mm[0]}" /></div>
+        <div class="pos-field"><label>y</label><input type="number" step="any" data-id="${part.id}" data-field="y" value="${part.position_mm[1]}" /></div>
+        <div class="pos-field"><label>z</label><input type="number" step="any" data-id="${part.id}" data-field="z" value="${part.position_mm[2]}" /></div>
+        <button class="point-remove" data-id="${part.id}" title="remove this part">&times;</button>
+      </div>
+      <div class="row1">${badge}</div>
+      ${topoChips(part.topology)}
+    `;
+    if (part.error) row.title = part.error;
     container.appendChild(row);
   }
 
-  const overlapEl = document.getElementById('overlapNote');
-  if (overlappingPairs && overlappingPairs.length > 0) {
-    overlapEl.style.display = 'block';
-    overlapEl.textContent = `note: ${overlappingPairs.length} component pair(s) overlap in the placed assembly — a diagnostic signal, not a hard failure (this system doesn't do collision-aware placement).`;
-  } else {
-    overlapEl.style.display = 'none';
-  }
-
-  const seconds = generationTimeSeconds;
-  document.getElementById('genTime').textContent = seconds < 1
-    ? (seconds * 1000).toFixed(0) + ' ms'
-    : seconds.toFixed(1) + ' s';
-  const link = document.getElementById('downloadLink');
-  link.href = meshUrl;
-  link.download = 'assembly.stl';
-
-  infoEl.classList.add('show');
-}
-
-// ---- remote (Kaggle) backend: unchanged single-part response shape, just
-// adapted to the shared multi-component result renderer above ----
-
-async function renderRemoteResult(data, base) {
-  const meshUrl = base + data.mesh_url;
-  await renderComponentResults(
-    [{ resolved_description: data.resolved_description, watertight: null, count: 1 }],
-    meshUrl, data.generation_time_seconds, [],
-  );
-  statusEl.textContent = data.part_type_inferred
-    ? `note: no part-type keyword matched, guessed "${data.part_type}"`
-    : '';
-}
-
-// ---- local backend: plan -> (optional clarification) -> build ----
-
-let currentComponents = [];   // the /api/plan response's components, edited in place by the form
-let currentPrompt = '';
-let familyOverrides = {};
-
-function fieldInputHtml(question, currentValue) {
-  // data-kind drives type coercion in collectEditedComponents() -- a <select>
-  // always yields a string, but a "count" field (e.g. holes_per_arm,
-  // hole_count) is a Python int on the backend and gets compared with `==`
-  // against int literals there (e.g. BracketParams.hole_centers()'s "if
-  // hole_count == 4"); sending the string "4" instead of the int 4 makes
-  // that comparison silently fail and can crash the build outright.
-  //
-  // currentValue (component.params[field], which may already carry a prior
-  // edit merged in by planPrompt()) drives what's PRE-FILLED, not
-  // question.default -- otherwise an edit made before answering some OTHER
-  // component's family-choice question would render back to the default
-  // and then get silently re-sent as the default on Build, even though it
-  // was never actually reverted internally.
-  const idAttr = `data-cid="${question.component_id}" data-field="${question.field}" data-kind="${question.kind}"`;
-  if (question.kind === 'family_choice' || question.kind === 'categorical' || question.kind === 'count') {
-    const opts = (question.choices || []).map(v =>
-      `<option value="${v}" ${String(currentValue) === v ? 'selected' : ''}>${v}</option>`
-    ).join('');
-    return `<select ${idAttr}>${opts}</select>`;
-  }
-  return `<input type="number" step="any" ${idAttr} value="${currentValue}" />` +
-    (question.unit ? `<span class="unit">${question.unit}</span>` : '');
-}
-
-function renderClarifyPanel(plan) {
-  currentComponents = plan.components;
-  const cardsEl = document.getElementById('clarifyCards');
-  cardsEl.innerHTML = '';
-
-  for (const component of plan.components) {
-    const questions = plan.questions.filter(q => q.component_id === component.id);
-    if (questions.length === 0 && component.parsed_fields.length === 0) continue;
-
-    const card = document.createElement('div');
-    card.className = 'card';
-    const snippet = component.clause_text.length > 90 ? component.clause_text.slice(0, 90) + '…' : component.clause_text;
-    let html = `<div class="heading">${component.family}${component.count > 1 ? ` ×${component.count}` : ''}</div>`;
-    html += `<div class="snippet">${snippet}</div>`;
-    if (component.parsed_fields.length > 0) {
-      html += `<div class="fields">${component.parsed_fields.map(f => `<span class="tag parsed">${f}</span>`).join('')}</div>`;
-    }
-    for (const q of questions) {
-      const currentValue = q.field === '__family__' ? component.family : component.params[q.field];
-      html += `<div class="qrow"><label>${q.label}</label>${fieldInputHtml(q, currentValue)}</div>`;
-    }
-    card.innerHTML = html;
-    cardsEl.appendChild(card);
-  }
-
-  document.getElementById('clarify').classList.add('show');
-
-  // A family_choice answer changes which family this component resolves to
-  // entirely -- re-plan (with the override) rather than trying to patch the
-  // existing card in place, so the newly-correct family's OWN questions show up.
-  cardsEl.querySelectorAll('select[data-field="__family__"]').forEach(sel => {
-    sel.addEventListener('change', async () => {
-      // Snapshot whatever the user has already edited in OTHER cards before
-      // re-planning -- renderClarifyPanel() below rebuilds every card's HTML
-      // from scratch from the fresh plan response, which would otherwise
-      // silently discard any edit made before this dropdown was touched.
-      const editsBeforeReplan = collectEditedComponents();
-      familyOverrides[sel.dataset.cid] = sel.value;
-      statusEl.textContent = 'Updating…';
-      await planPrompt(currentPrompt, editsBeforeReplan);
-      statusEl.textContent = '';
+  container.querySelectorAll('[data-field="description"]').forEach(el => {
+    el.addEventListener('input', () => {
+      const part = currentParts.find(p => p.id == el.dataset.id);
+      if (part) { part.description = el.value; part.status = null; part.topology = null; }
+    });
+  });
+  container.querySelectorAll('[data-field="x"], [data-field="y"], [data-field="z"]').forEach(el => {
+    el.addEventListener('input', () => {
+      const part = currentParts.find(p => p.id == el.dataset.id);
+      if (!part) return;
+      const axis = { x: 0, y: 1, z: 2 }[el.dataset.field];
+      part.position_mm[axis] = parseFloat(el.value) || 0;
+      part.status = null; part.topology = null;
+    });
+  });
+  container.querySelectorAll('.point-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentParts = currentParts.filter(p => p.id != btn.dataset.id);
+      renderParts();
     });
   });
 }
 
-function coerceFieldValue(el) {
-  if (el.dataset.kind === 'count') return parseInt(el.value, 10);
-  if (el.dataset.kind === 'numeric') return parseFloat(el.value);
-  return el.value; // categorical -- a plain string is already correct
+function setPartsFromBuildResult(points) {
+  currentParts = points.map(p => ({
+    id: nextPartId++,
+    description: p.description,
+    position_mm: [...p.position_mm],
+    status: p.status,
+    topology: p.topology,
+    error: p.error,
+  }));
+  renderParts();
 }
 
-function collectEditedComponents() {
-  const cardsEl = document.getElementById('clarifyCards');
-  const byId = Object.fromEntries(currentComponents.map(c => [c.id, { ...c, params: { ...c.params } }]));
-  cardsEl.querySelectorAll('[data-cid][data-field]').forEach(el => {
-    if (el.dataset.field === '__family__') return; // already applied via familyOverrides/re-plan
-    byId[el.dataset.cid].params[el.dataset.field] = coerceFieldValue(el);
-  });
-  return Object.values(byId);
+document.getElementById('addPartBtn').addEventListener('click', () => {
+  currentParts.push({ id: nextPartId++, description: '', position_mm: [0, 0, 0], status: null, topology: null, error: null });
+  renderParts();
+  document.getElementById('partsCard').scrollIntoView({ behavior: 'smooth', block: 'end' });
+});
+
+document.getElementById('rebuildBtn').addEventListener('click', () => runManualRebuild());
+
+function renderTopologyGrid(gridEl, topo) {
+  const stats = [
+    ['Vertices', topo.vertex_count, null],
+    ['Faces', topo.face_count, null],
+    ['Edges', topo.edge_count, null],
+    ['Euler #', topo.euler_number, null],
+    ['Watertight', topo.is_watertight ? 'yes' : 'no', topo.is_watertight ? 'good' : 'bad'],
+    ['Winding', topo.is_winding_consistent ? 'consistent' : 'inconsistent', topo.is_winding_consistent ? 'good' : 'bad'],
+  ];
+  gridEl.innerHTML = stats.map(([k, v, cls]) =>
+    `<div class="stat"><div class="v ${cls||''}">${v}</div><div class="k">${k}</div></div>`
+  ).join('');
 }
 
-async function planPrompt(prompt, previousEdits) {
-  currentPrompt = prompt;
-  const res = await fetch('/api/plan', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, family_overrides: familyOverrides }),
-  });
-  const plan = await res.json();
-  if (!res.ok) throw new Error(plan.error || `planning failed (HTTP ${res.status})`);
+function updateViewerOverlay(topo, title) {
+  if (!topo) { viewerOverlay.classList.remove('show'); return; }
+  viewerOverlay.querySelector('.title').textContent = title || 'Mesh';
+  const bbox = topo.bounding_box_mm.map(n => n.toFixed(1)).join(' × ');
+  viewerOverlayBody.innerHTML = `
+    <div class="topo-chips">
+      <span class="chip">${topo.vertex_count} verts</span>
+      <span class="chip">${topo.face_count} faces</span>
+      <span class="chip ${topo.is_watertight ? 'good' : 'bad'}">${topo.is_watertight ? 'watertight' : 'not watertight'}</span>
+    </div>
+    <div style="font-size:10.5px; color:var(--text-faint); margin-top:6px;">${bbox} mm</div>
+  `;
+  viewerOverlay.classList.add('show');
+}
 
-  if (previousEdits) {
-    // Re-apply prior edits onto the fresh plan -- only for a component
-    // whose family DIDN'T just change (its param SET is still the same
-    // shape) and only for keys the new params dict actually has, so a
-    // stale field left over from a since-overridden family can't leak in.
-    const editedById = Object.fromEntries(previousEdits.map(c => [c.id, c]));
-    for (const component of plan.components) {
-      const prior = editedById[component.id];
-      if (!prior || prior.family !== component.family) continue;
-      for (const key of Object.keys(component.params)) {
-        if (key in prior.params) component.params[key] = prior.params[key];
+function renderAssemblyTopology(topo) {
+  const card = document.getElementById('assemblyTopoCard');
+  if (!topo) { card.style.display = 'none'; updateViewerOverlay(null); return; }
+  card.style.display = 'flex';
+  renderTopologyGrid(document.getElementById('assemblyTopoGrid'), topo);
+  updateViewerOverlay(topo, 'Combined mesh');
+}
+
+/* ---------------- clarify stage ---------------- */
+
+async function requestClarification() {
+  const prompt = promptEl.value.trim();
+  if (!prompt) { setStatus('Type a prompt first.'); return; }
+
+  continueBtn.disabled = true;
+  clarifyCard.classList.remove('show');
+  setStatus('Checking whether anything needs clarifying… (first run loads the model, can take a couple of minutes)');
+
+  try {
+    const res = await fetch('/api/clarify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `clarify failed (HTTP ${res.status})`);
+
+    pendingQuestions = data.questions || [];
+    if (pendingQuestions.length === 0) {
+      setStatus('Looks complete — building now…');
+      await runBuild([]);
+    } else {
+      questionsListEl.innerHTML = '';
+      pendingQuestions.forEach((q, i) => {
+        const block = document.createElement('div');
+        block.className = 'q-block';
+        block.innerHTML = `<label class="q-label">${q}</label><input type="text" data-i="${i}" placeholder="your answer (optional)" />`;
+        questionsListEl.appendChild(block);
+      });
+      clarifyCard.classList.add('show');
+      setStatus('Answer what you can, or skip straight to building.');
+    }
+  } catch (err) {
+    setStatus('Error: ' + err.message, true);
+  } finally {
+    continueBtn.disabled = false;
+  }
+}
+
+async function applyBuildResponse(data) {
+  setPartsFromBuildResult(data.points);
+  renderAssemblyTopology(data.assembly_topology);
+  document.getElementById('fallbackNote').style.display = data.fell_back_to_single_point ? 'block' : 'none';
+
+  const seconds = data.generation_time_seconds;
+  document.getElementById('genTime').textContent = seconds < 1
+    ? (seconds * 1000).toFixed(0) + ' ms'
+    : seconds.toFixed(1) + ' s';
+
+  const link = document.getElementById('downloadLink');
+  if (data.mesh_url) {
+    await loadSTL(data.mesh_url);
+    link.href = data.mesh_url;
+    link.download = 'assembly.stl';
+    link.style.display = 'flex';
+  } else {
+    link.style.display = 'none';
+    setStatus('No part built successfully — see statuses below.', true);
+  }
+
+  infoEl.classList.add('show');
+  clarifyCard.classList.remove('show');
+  if (data.mesh_url) setStatus('');
+}
+
+async function runBuild(answers) {
+  const prompt = promptEl.value.trim();
+  buildBtn.disabled = true;
+  skipBtn.disabled = true;
+  continueBtn.disabled = true;
+  setStatus('Decomposing with the local LLM, then building each part in parallel…');
+  infoEl.classList.remove('show');
+
+  try {
+    const res = await fetch('/api/build', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, answers }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `build failed (HTTP ${res.status})`);
+    await applyBuildResponse(data);
+  } catch (err) {
+    setStatus('Error: ' + err.message, true);
+  } finally {
+    buildBtn.disabled = false;
+    skipBtn.disabled = false;
+    continueBtn.disabled = false;
+  }
+}
+
+/* ---------------- playground: manual rebuild from the edited parts list,
+   entirely bypassing the LLM decomposition step ---------------- */
+
+async function runManualRebuild() {
+  const parts = currentParts
+    .map(p => ({ description: p.description.trim(), position_mm: { x: p.position_mm[0], y: p.position_mm[1], z: p.position_mm[2] } }))
+    .filter(p => p.description);
+  if (parts.length === 0) { setStatus('Add at least one part with a description first.', true); return; }
+
+  const rebuildBtn = document.getElementById('rebuildBtn');
+  const addPartBtn = document.getElementById('addPartBtn');
+  rebuildBtn.disabled = true;
+  addPartBtn.disabled = true;
+  setStatus(`Rebuilding ${parts.length} part${parts.length === 1 ? '' : 's'} in parallel — LLM decomposition skipped…`);
+
+  try {
+    const res = await fetch('/api/build', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ points: parts }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `rebuild failed (HTTP ${res.status})`);
+    await applyBuildResponse(data);
+  } catch (err) {
+    setStatus('Error: ' + err.message, true);
+  } finally {
+    rebuildBtn.disabled = false;
+    addPartBtn.disabled = false;
+  }
+}
+
+continueBtn.addEventListener('click', requestClarification);
+skipBtn.addEventListener('click', () => runBuild([]));
+buildBtn.addEventListener('click', () => {
+  const answers = pendingQuestions.map((q, i) => {
+    const input = questionsListEl.querySelector(`input[data-i="${i}"]`);
+    return { question: q, answer: input ? input.value : '' };
+  });
+  runBuild(answers);
+});
+promptEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) requestClarification();
+});
+
+/* ---------------- tabs ---------------- */
+
+const tabPromptBtn = document.getElementById('tabPromptBtn');
+const tabConsoleBtn = document.getElementById('tabConsoleBtn');
+const promptTabEl = document.getElementById('promptTab');
+const consoleTabEl = document.getElementById('consoleTab');
+
+let mouseEditingActive = false;  // gates all pointer/gizmo handling -- only ever true while the Console tab is showing
+
+function switchTab(which) {
+  const isPrompt = which === 'prompt';
+  promptTabEl.style.display = isPrompt ? '' : 'none';
+  consoleTabEl.style.display = isPrompt ? 'none' : '';
+  tabPromptBtn.classList.toggle('active', isPrompt);
+  tabConsoleBtn.classList.toggle('active', !isPrompt);
+  document.getElementById('viewerToolbar').classList.toggle('show', !isPrompt);
+  mouseEditingActive = !isPrompt;
+  if (isPrompt) {
+    setGizmoMode(null);
+    clearFaceEdgeSelection();
+  } else {
+    ensureToolsLoaded();
+    onConsoleMeshChanged();
+  }
+}
+tabPromptBtn.addEventListener('click', () => switchTab('prompt'));
+tabConsoleBtn.addEventListener('click', () => switchTab('console'));
+
+/* ---------------- tool console: Blender-style direct access to
+   sandbox.py's own tool roster -- no LLM, no ML prediction. Every step the
+   user adds here goes straight to /api/execute_program, which runs
+   Sandbox.execute() on exactly the steps shown, nothing implied or
+   inferred. ---------------- */
+
+let toolsByOp = {};
+let consoleToolsLoaded = false;
+
+/* Entities: each is a SEPARATE Sandbox program (its own steps, own
+   handles, own finalize) built and previewed independently -- a gear and
+   its shaft are two entities, not two chains forced into one union. Only
+   the ACTIVE entity's program is what the Add-step form / mouse gizmo /
+   face-edge drag tools read and write; switching entities switches which
+   program those tools are pointed at. */
+let entities = [];            // [{ id, name, program: [{op,args}], position_mm: [x,y,z], lastStatus, lastError, lastTopology }]
+let nextEntityId = 1;
+let activeEntityId = null;
+
+function activeEntity() {
+  return entities.find(e => e.id === activeEntityId) || null;
+}
+function activeProgram() {
+  const e = activeEntity();
+  return e ? e.program : [];
+}
+
+const toolOpSelectEl = document.getElementById('toolOpSelect');
+const toolArgsFormEl = document.getElementById('toolArgsForm');
+const addStepBtn = document.getElementById('addStepBtn');
+const consoleFormErrorEl = document.getElementById('consoleFormError');
+const consoleStepsEl = document.getElementById('consoleSteps');
+const consoleStatusEl = document.getElementById('consoleStatus');
+const undoStepBtn = document.getElementById('undoStepBtn');
+const clearStepsBtn = document.getElementById('clearStepsBtn');
+const consoleTopoCard = document.getElementById('consoleTopoCard');
+const consoleDownloadLink = document.getElementById('consoleDownloadLink');
+const entityListEl = document.getElementById('entityList');
+const activeEntityLabelEl = document.getElementById('activeEntityLabel');
+
+function entityStatusBadge(entity) {
+  if (!entity.lastStatus) return `<span class="badge-status unbuilt">not built</span>`;
+  return statusBadge(entity.lastStatus);
+}
+
+function renderEntityList() {
+  if (entities.length === 0) {
+    entityListEl.innerHTML = `<div class="console-empty">No entities yet — click "+ New entity" to start building a part.</div>`;
+    activeEntityLabelEl.textContent = '—';
+    return;
+  }
+  entityListEl.innerHTML = entities.map(e => `
+    <div class="entity-row ${e.id === activeEntityId ? 'active' : ''}" data-id="${e.id}">
+      <div class="row1">
+        <input class="name-input" data-id="${e.id}" data-field="name" value="${escapeAttr(e.name)}" />
+        <button class="entity-remove" data-id="${e.id}" title="remove this entity">&times;</button>
+      </div>
+      <div class="pos-row">
+        <div class="pos-field"><label>x</label><input type="number" step="any" data-id="${e.id}" data-field="x" value="${e.position_mm[0]}" /></div>
+        <div class="pos-field"><label>y</label><input type="number" step="any" data-id="${e.id}" data-field="y" value="${e.position_mm[1]}" /></div>
+        <div class="pos-field"><label>z</label><input type="number" step="any" data-id="${e.id}" data-field="z" value="${e.position_mm[2]}" /></div>
+      </div>
+      <div class="entity-meta">
+        <span class="step-count">${e.program.length} step${e.program.length === 1 ? '' : 's'}</span>
+        ${entityStatusBadge(e)}
+      </div>
+    </div>
+  `).join('');
+
+  entityListEl.querySelectorAll('.entity-row').forEach(row => {
+    row.addEventListener('click', (evt) => {
+      if (evt.target.closest('input') || evt.target.closest('button')) return;
+      setActiveEntity(parseInt(row.dataset.id, 10));
+    });
+  });
+  entityListEl.querySelectorAll('[data-field="name"]').forEach(el => {
+    el.addEventListener('input', () => {
+      const e = entities.find(x => x.id == el.dataset.id);
+      if (e) e.name = el.value;
+      if (el.dataset.id == activeEntityId) activeEntityLabelEl.textContent = el.value || '—';
+    });
+    el.addEventListener('click', (evt) => evt.stopPropagation());
+  });
+  entityListEl.querySelectorAll('[data-field="x"], [data-field="y"], [data-field="z"]').forEach(el => {
+    el.addEventListener('input', () => {
+      const e = entities.find(x => x.id == el.dataset.id);
+      if (!e) return;
+      const axis = { x: 0, y: 1, z: 2 }[el.dataset.field];
+      e.position_mm[axis] = parseFloat(el.value) || 0;
+    });
+    el.addEventListener('click', (evt) => evt.stopPropagation());
+  });
+  entityListEl.querySelectorAll('.entity-remove').forEach(btn => {
+    btn.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      const id = parseInt(btn.dataset.id, 10);
+      entities = entities.filter(e => e.id !== id);
+      if (activeEntityId === id) {
+        activeEntityId = entities.length > 0 ? entities[0].id : null;
+        onActiveEntityChanged();
       }
+      renderEntityList();
+      document.getElementById('assemblyCard').style.display = entities.length > 0 ? 'flex' : 'none';
+    });
+  });
+}
+
+function setActiveEntity(id) {
+  if (id === activeEntityId) return;
+  activeEntityId = id;
+  onActiveEntityChanged();
+  renderEntityList();
+}
+
+function onActiveEntityChanged() {
+  setGizmoMode(null);
+  clearFaceEdgeSelection();
+  const e = activeEntity();
+  activeEntityLabelEl.textContent = e ? (e.name || '—') : '—';
+  renderConsoleSteps();
+  renderArgsForm();
+  hasFramedConsoleOnce = false;  // a different entity is a different shape -- reframe the camera for it
+  previewConsoleMesh();
+}
+
+document.getElementById('addEntityBtn').addEventListener('click', () => {
+  const e = { id: nextEntityId++, name: `Part ${entities.length + 1}`, program: [], position_mm: [0, 0, 0], lastStatus: null, lastError: null, lastTopology: null };
+  entities.push(e);
+  activeEntityId = e.id;
+  renderEntityList();
+  onActiveEntityChanged();
+  document.getElementById('assemblyCard').style.display = 'flex';
+});
+
+async function ensureToolsLoaded() {
+  if (consoleToolsLoaded) return;
+  try {
+    const res = await fetch('/api/tools');
+    const data = await res.json();
+    toolsByOp = Object.fromEntries(data.tools.map(t => [t.op, t]));
+    toolOpSelectEl.innerHTML = data.tools.map(t => `<option value="${t.op}">${t.op}</option>`).join('');
+    consoleToolsLoaded = true;
+    renderArgsForm();
+    renderConsoleSteps();
+  } catch (err) {
+    consoleFormErrorEl.style.display = 'block';
+    consoleFormErrorEl.textContent = 'Could not load tool list: ' + err.message;
+  }
+}
+
+/* Replays the active entity's program to track which handles are currently
+   alive and available as a target for the next step -- mirrors
+   sandbox.py's Sandbox.validate() bookkeeping exactly: every tool call
+   creates exactly one new handle (id = its position in the program) and,
+   depending on its CATEGORY (from /api/tools), consumes the handle(s)
+   named in its own target/a/b args. */
+function computeAliveHandles() {
+  const alive = [];
+  let nextId = 0;
+  for (const step of activeProgram()) {
+    const tool = toolsByOp[step.op];
+    const category = tool ? tool.category : 'consumes_target';
+    if (category === 'consumes_two') {
+      removeAliveById(alive, step.args.a);
+      removeAliveById(alive, step.args.b);
+    } else if (category !== 'create') {
+      removeAliveById(alive, step.args.target);
+    }
+    alive.push({ id: nextId, label: `#${nextId} · ${step.op}` });
+    nextId += 1;
+  }
+  return alive;
+}
+function removeAliveById(alive, id) {
+  const idx = alive.findIndex(h => h.id === id);
+  if (idx !== -1) alive.splice(idx, 1);
+}
+
+function renderArgsForm() {
+  const op = toolOpSelectEl.value;
+  const tool = toolsByOp[op];
+  toolArgsFormEl.innerHTML = '';
+  if (!tool) return;
+  const alive = computeAliveHandles();
+
+  for (const arg of tool.args) {
+    const field = document.createElement('div');
+    field.className = 'arg-field';
+    const optTag = arg.required ? '' : ` <span class="opt">(optional)</span>`;
+
+    if (arg.type === 'handle') {
+      const options = alive.map(h => `<option value="${h.id}">${h.label}</option>`).join('');
+      field.innerHTML = `<label>${arg.name}${optTag}</label><select data-name="${arg.name}">${options || '<option value="">(no shapes yet)</option>'}</select>`;
+    } else if (arg.type === 'enum') {
+      const options = arg.choices.map(c => `<option value="${c}" ${arg.default === c ? 'selected' : ''}>${c}</option>`).join('');
+      field.innerHTML = `<label>${arg.name}${optTag}</label><select data-name="${arg.name}">${options}</select>`;
+    } else if (arg.type === 'vec3') {
+      const d = arg.default || [0, 0, 0];
+      field.innerHTML = `
+        <label>${arg.name}${optTag}</label>
+        <div class="vec3-inline">
+          <div><label>x</label><input type="number" step="any" data-name="${arg.name}" data-axis="0" value="${d[0]}"></div>
+          <div><label>y</label><input type="number" step="any" data-name="${arg.name}" data-axis="1" value="${d[1]}"></div>
+          <div><label>z</label><input type="number" step="any" data-name="${arg.name}" data-axis="2" value="${d[2]}"></div>
+        </div>`;
+    } else {
+      const stepAttr = arg.type === 'integer' ? '1' : 'any';
+      const val = arg.default !== undefined ? arg.default : '';
+      field.innerHTML = `<label>${arg.name}${optTag}</label><input type="number" step="${stepAttr}" data-name="${arg.name}" value="${val}">`;
+    }
+    toolArgsFormEl.appendChild(field);
+  }
+}
+toolOpSelectEl.addEventListener('change', renderArgsForm);
+
+function readArgsFromForm(tool) {
+  const args = {};
+  const missing = [];
+  for (const arg of tool.args) {
+    if (arg.type === 'vec3') {
+      const inputs = Array.from(toolArgsFormEl.querySelectorAll(`input[data-name="${arg.name}"]`))
+        .sort((a, b) => a.dataset.axis - b.dataset.axis);
+      const vals = inputs.map(i => parseFloat(i.value));
+      if (vals.some(v => Number.isNaN(v))) { if (arg.required) missing.push(arg.name); continue; }
+      args[arg.name] = vals;
+    } else if (arg.type === 'handle') {
+      const el = toolArgsFormEl.querySelector(`select[data-name="${arg.name}"]`);
+      if (!el || el.value === '') { missing.push(arg.name); continue; }
+      args[arg.name] = parseInt(el.value, 10);
+    } else if (arg.type === 'enum') {
+      args[arg.name] = toolArgsFormEl.querySelector(`select[data-name="${arg.name}"]`).value;
+    } else if (arg.type === 'integer') {
+      const v = parseInt(toolArgsFormEl.querySelector(`input[data-name="${arg.name}"]`).value, 10);
+      if (Number.isNaN(v)) { if (arg.required) missing.push(arg.name); continue; }
+      args[arg.name] = v;
+    } else {
+      const v = parseFloat(toolArgsFormEl.querySelector(`input[data-name="${arg.name}"]`).value);
+      if (Number.isNaN(v)) { if (arg.required) missing.push(arg.name); continue; }
+      args[arg.name] = v;
     }
   }
+  return { args, missing };
+}
 
-  if (!plan.needs_clarification) {
-    document.getElementById('clarify').classList.remove('show');
-    currentComponents = plan.components;
-    await buildAssembly(currentComponents);
-  } else {
-    renderClarifyPanel(plan);
+function formatStepArgs(args) {
+  return Object.entries(args).map(([k, v]) => `${k}=${Array.isArray(v) ? '[' + v.join(',') + ']' : v}`).join(', ');
+}
+
+function renderConsoleSteps() {
+  const program = activeProgram();
+  if (!activeEntity()) {
+    consoleStepsEl.innerHTML = `<div class="console-empty">No entity selected — create or click one above first.</div>`;
+    return;
+  }
+  if (program.length === 0) {
+    consoleStepsEl.innerHTML = `<div class="console-empty">No steps yet — add one below, or drag directly in the viewport.</div>`;
+    return;
+  }
+  consoleStepsEl.innerHTML = program.map((step, i) => `
+    <div class="console-step">
+      <span class="step-idx">#${i}</span>
+      <span class="step-op">${step.op}</span>
+      <span class="step-args">${formatStepArgs(step.args)}</span>
+    </div>
+  `).join('');
+  consoleStepsEl.scrollTop = consoleStepsEl.scrollHeight;
+}
+
+addStepBtn.addEventListener('click', () => {
+  if (!activeEntity()) { consoleFormErrorEl.style.display = 'block'; consoleFormErrorEl.textContent = 'Create or select an entity first.'; return; }
+  const tool = toolsByOp[toolOpSelectEl.value];
+  if (!tool) return;
+  const { args, missing } = readArgsFromForm(tool);
+  if (missing.length > 0) {
+    consoleFormErrorEl.style.display = 'block';
+    consoleFormErrorEl.textContent = `Missing/invalid: ${missing.join(', ')}`;
+    return;
+  }
+  consoleFormErrorEl.style.display = 'none';
+  activeProgram().push({ op: tool.op, args });
+  renderConsoleSteps();
+  renderArgsForm();  // handle dropdowns need the newly-created handle available
+  previewConsoleMesh();
+});
+
+undoStepBtn.addEventListener('click', () => {
+  if (!activeEntity()) return;
+  activeProgram().pop();
+  renderConsoleSteps();
+  renderArgsForm();
+  previewConsoleMesh();
+});
+
+clearStepsBtn.addEventListener('click', () => {
+  const e = activeEntity();
+  if (!e) return;
+  e.program = [];
+  renderConsoleSteps();
+  renderArgsForm();
+  previewConsoleMesh();
+});
+
+let hasFramedConsoleOnce = false;
+
+function clearViewer() {
+  if (currentMesh) { scene.remove(currentMesh); currentMesh = null; }
+  if (wireframeMesh) { scene.remove(wireframeMesh); wireframeMesh = null; }
+  placeholder.style.display = 'flex';
+  hasFramedConsoleOnce = false;
+}
+
+let previewInFlight = false;  // true while an /api/execute_program rebuild is in flight -- gizmo/select tools are disabled meanwhile so a click can never race a null/stale currentMesh
+
+async function previewConsoleMesh(opts) {
+  const forceReframe = !!(opts && opts.forceReframe);
+  const entity = activeEntity();
+  const program = entity ? entity.program : [];
+
+  if (!entity || program.length === 0) {
+    consoleStatusEl.textContent = '';
+    consoleStatusEl.classList.remove('error');
+    consoleTopoCard.style.display = 'none';
+    consoleDownloadLink.style.display = 'none';
+    updateViewerOverlay(null);
+    clearViewer();
+    onConsoleMeshChanged();
+    return;
+  }
+  // every tool call creates exactly one new handle -- the most recent
+  // step's output is always the highest-numbered handle, i.e. the step
+  // count minus one, so that's always what gets previewed.
+  const previewTargetId = program.length - 1;
+  const fullProgram = [...program, { op: 'finalize', args: { target: previewTargetId } }];
+
+  previewInFlight = true;
+  updateViewerToolbarAvailability();
+  consoleStatusEl.textContent = 'Building…';
+  consoleStatusEl.classList.remove('error');
+  try {
+    const res = await fetch('/api/execute_program', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ program: fullProgram }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    // stale response guard: the user may have switched to a different
+    // entity (or deleted this one) while this fetch was in flight --
+    // never let a slow response overwrite whatever's now actually active.
+    if (activeEntity() !== entity) return;
+
+    entity.lastStatus = data.status;
+    entity.lastError = data.error;
+    entity.lastTopology = data.topology;
+
+    if (data.mesh_url) {
+      // camera stays put after the first frame for FORM/step-driven edits
+      // (a stable view makes it easy to compare before/after) -- but a
+      // gizmo commit (move/rotate/scale) always reframes, because
+      // rotate's pivot is the WORLD ORIGIN, not the object's own center
+      // (matching sandbox.py's real rotate() semantics): rotating an
+      // object that isn't already centered at the origin swings it to a
+      // very different location, and without reframing it can end up
+      // outside the camera's view entirely -- confirmed as a real user
+      // report ("after move or rotate the model disappears"), not a
+      // hypothetical. The object was never actually gone, just off-screen.
+      await loadSTL(data.mesh_url, { keepCamera: hasFramedConsoleOnce && !forceReframe });
+      hasFramedConsoleOnce = true;
+      consoleDownloadLink.href = data.mesh_url;
+      consoleDownloadLink.download = `${entity.name || 'console_shape'}.stl`;
+      consoleDownloadLink.style.display = 'flex';
+    } else {
+      consoleDownloadLink.style.display = 'none';
+      clearViewer();
+    }
+    onConsoleMeshChanged();
+
+    if (data.topology) {
+      consoleTopoCard.style.display = 'flex';
+      renderTopologyGrid(document.getElementById('consoleTopoGrid'), data.topology);
+      updateViewerOverlay(data.topology, entity.name || 'Console shape');
+    } else {
+      consoleTopoCard.style.display = 'none';
+      updateViewerOverlay(null);
+    }
+
+    const labels = { ok: 'ok', suspect: 'built, but geometry looks off (suspect)', partial: 'partial — showing the last good step', rejected: 'rejected' };
+    consoleStatusEl.textContent = (labels[data.status] || data.status) + (data.error ? ` — ${data.error}` : '');
+    consoleStatusEl.classList.toggle('error', data.status === 'rejected' || data.status === 'partial');
+    renderEntityList();
+  } catch (err) {
+    consoleStatusEl.textContent = 'Error: ' + err.message;
+    consoleStatusEl.classList.add('error');
+  } finally {
+    previewInFlight = false;
+    updateViewerToolbarAvailability();
   }
 }
 
-async function buildAssembly(components) {
-  statusEl.textContent = 'Building…';
-  const res = await fetch('/api/generate_assembly', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: currentPrompt, components }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `build failed (HTTP ${res.status})`);
-  await renderComponentResults(data.components, data.mesh_url, data.generation_time_seconds, data.overlapping_pairs);
-  statusEl.textContent = '';
+/* ---------------- combined assembly: builds every entity independently
+   (own steps, own handles, own finalize) and places each by its own
+   position offset -- the console's answer to "a gear and its shaft are
+   separate entities," never one fused mesh unless the user unions them
+   themselves. ---------------- */
+
+const assemblyStatusEl = document.getElementById('assemblyStatus');
+const assemblyDownloadLink = document.getElementById('assemblyDownloadLink');
+const assemblyTopoGridConsoleEl = document.getElementById('assemblyTopoGridConsole');
+const buildAssemblyBtn = document.getElementById('buildAssemblyBtn');
+
+async function buildCombinedAssembly() {
+  const buildable = entities.filter(e => e.program.length > 0);
+  if (buildable.length === 0) {
+    assemblyStatusEl.textContent = 'Add at least one entity with steps first.';
+    assemblyStatusEl.classList.add('error');
+    return;
+  }
+
+  buildAssemblyBtn.disabled = true;
+  assemblyStatusEl.textContent = `Building ${buildable.length} entit${buildable.length === 1 ? 'y' : 'ies'}…`;
+  assemblyStatusEl.classList.remove('error');
+  try {
+    const body = {
+      entities: buildable.map(e => ({
+        name: e.name,
+        program: [...e.program, { op: 'finalize', args: { target: e.program.length - 1 } }],
+        position_mm: { x: e.position_mm[0], y: e.position_mm[1], z: e.position_mm[2] },
+      })),
+    };
+    const res = await fetch('/api/execute_programs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    // fold each entity's result back into its own row (status badges,
+    // cached topology) without needing a second round trip.
+    data.entities.forEach(er => {
+      const e = buildable.find(x => x.name === er.name);
+      if (e) { e.lastStatus = er.status; e.lastError = er.error; e.lastTopology = er.topology; }
+    });
+    renderEntityList();
+
+    if (data.assembly_mesh_url) {
+      setGizmoMode(null);
+      clearFaceEdgeSelection();
+      await loadSTL(data.assembly_mesh_url, { keepCamera: false });
+      assemblyDownloadLink.href = data.assembly_mesh_url;
+      assemblyDownloadLink.download = 'assembly.stl';
+      assemblyDownloadLink.style.display = 'flex';
+      onConsoleMeshChanged();
+    } else {
+      assemblyDownloadLink.style.display = 'none';
+    }
+
+    if (data.assembly_topology) {
+      assemblyTopoGridConsoleEl.style.display = 'grid';
+      renderTopologyGrid(assemblyTopoGridConsoleEl, data.assembly_topology);
+      updateViewerOverlay(data.assembly_topology, 'Combined assembly');
+    } else {
+      assemblyTopoGridConsoleEl.style.display = 'none';
+    }
+
+    const failed = data.entities.filter(e => e.status !== 'ok');
+    assemblyStatusEl.textContent = failed.length === 0
+      ? `All ${data.entities.length} entities built ok.`
+      : `${data.entities.length - failed.length}/${data.entities.length} ok — failed: ${failed.map(e => e.name).join(', ')}`;
+    assemblyStatusEl.classList.toggle('error', failed.length > 0);
+  } catch (err) {
+    assemblyStatusEl.textContent = 'Error: ' + err.message;
+    assemblyStatusEl.classList.add('error');
+  } finally {
+    buildAssemblyBtn.disabled = false;
+  }
+}
+buildAssemblyBtn.addEventListener('click', buildCombinedAssembly);
+
+renderConsoleSteps();
+renderEntityList();
+
+/* ================================================================
+   Mouse-driven manual editing (Tool Console tab only)
+
+   Two interaction systems, both committing ordinary Sandbox tool calls
+   onto the active entity's program exactly like the form above -- mouse control is a
+   second way to author the same steps, never a separate code path:
+
+   1. Gizmo mode (Move/Rotate/Scale): three.js TransformControls drags the
+      CURRENTLY PREVIEWED MESH directly. Rotate pivots at the mesh's own
+      position -- which is always (0,0,0) right after a fresh server
+      reload, since every tool bakes its result into vertex coordinates --
+      matching sandbox.py's rotate() (which also pivots at the world
+      origin) exactly. Scale needs a different pivot (the shape's own
+      bounding-box center, matching sandbox.py's scale()), so it drives a
+      separate invisible pivot object instead and reflects the resulting
+      transform onto the mesh by the same center-relative formula
+      scale() itself uses.
+
+   2. Select mode (default): click-drag on a face pushes/pulls it
+      (extrude_face for an outward drag, inset_pocket for an inward one);
+      click-drag on a sharp edge rounds or flattens it (fillet_edge /
+      chamfer_edge). Faces and edges are picked by raycasting the actual
+      displayed mesh, then SNAPPED to the same 6 axis directions
+      (+x/-x/+y/-y/+z/-z) sandbox.py's find_facet_by_direction uses --
+      never an arbitrary/free-form pick -- so a mouse gesture here can
+      only ever produce an argument the backend tools already accept.
+      Live feedback during a drag is a lightweight visual approximation
+      (a translucent plane/tube), NOT a real rebuild -- the actual CSG
+      op (manifold3d boolean) takes real time and only runs once, on
+      release, exactly like every other step in this console.
+   ================================================================ */
+
+const FACE_DIRECTIONS = {
+  '+x': new THREE.Vector3(1, 0, 0), '-x': new THREE.Vector3(-1, 0, 0),
+  '+y': new THREE.Vector3(0, 1, 0), '-y': new THREE.Vector3(0, -1, 0),
+  '+z': new THREE.Vector3(0, 0, 1), '-z': new THREE.Vector3(0, 0, -1),
+};
+
+function snapToFaceDirection(worldNormal) {
+  let best = null, bestDot = -Infinity;
+  for (const [key, vec] of Object.entries(FACE_DIRECTIONS)) {
+    const d = worldNormal.dot(vec);
+    if (d > bestDot) { bestDot = d; best = key; }
+  }
+  return { direction: best, alignment: bestDot, vector: FACE_DIRECTIONS[best] };
 }
 
-document.getElementById('buildBtn').addEventListener('click', async () => {
+function currentPreviewTargetId() {
+  const program = activeProgram();
+  return program.length > 0 ? program.length - 1 : null;
+}
+
+/* ---------------- gizmo: move / rotate / scale ---------------- */
+
+const transformControls = new TransformControls(camera, renderer.domElement);
+transformControls.setSpace('world');
+scene.add(transformControls);
+transformControls.enabled = false;
+transformControls.visible = false;
+
+const gizmoScalePivot = new THREE.Object3D();  // used only in scale mode -- see module docstring above
+scene.add(gizmoScalePivot);
+
+// Rotate ALSO needs a pivot proxy, not just scale -- confirmed as a real
+// bug (not fixed by the earlier camera-reframe change): rotate() in
+// sandbox.py pivots at the WORLD ORIGIN, and attaching TransformControls
+// directly to currentMesh for "live" rotation means dragging pivots the
+// object around ITS OWN LOCAL ORIGIN, which is only the world origin
+// coincidentally when the object happens to already be centered there.
+// For any shape whose geometry isn't centered at (0,0,0) -- which is
+// common after even one prior edit -- live-dragging the rotate handle
+// swings the object in a wide arc DURING the drag itself, often off
+// camera entirely, with no error and nothing to reframe onto yet (the
+// camera only reframes on commit). The fix: rotate the gizmoRotatePivot
+// (positioned at the object's own bounding-box center, like scale's own
+// pivot) for natural in-place visual rotation, then decompose the
+// committed result into translate(-center) -> rotate(about origin) ->
+// translate(+center) -- exactly the standard "rotate about an arbitrary
+// point" identity -- so the backend program still matches sandbox.py's
+// real, world-origin-only rotate() exactly.
+const gizmoRotatePivot = new THREE.Object3D();
+scene.add(gizmoRotatePivot);
+
+let gizmoMode = null;  // null | 'translate' | 'rotate' | 'scale'
+let gizmoDragBaseline = null;
+let gizmoScaleCenter = null;
+let gizmoRotateCenter = null;
+
+// Every gizmo event handler is wrapped in try/catch: a thrown exception
+// inside a native event listener otherwise dies SILENTLY (no on-page
+// error, nothing in this console's own status line) and would look
+// exactly like "nothing happens when I drag" -- confirmed necessary after
+// a real user report of the Move gizmo appearing to do nothing, with no
+// way to inspect their browser console remotely. Any failure here now
+// surfaces as visible text instead of a silent no-op.
+function reportGizmoError(context, err) {
+  console.error(`[3di-men console] ${context}:`, err);
+  consoleStatusEl.textContent = `Internal error in ${context}: ${err.message || err}`;
+  consoleStatusEl.classList.add('error');
+}
+
+transformControls.addEventListener('dragging-changed', (e) => {
   try {
-    document.getElementById('buildBtn').disabled = true;
-    await buildAssembly(collectEditedComponents());
+    controls.enabled = !e.value;
+    if (e.value) {
+      gizmoDragBaseline = {
+        meshPos: currentMesh ? currentMesh.position.clone() : new THREE.Vector3(),
+        meshQuat: currentMesh ? currentMesh.quaternion.clone() : new THREE.Quaternion(),
+        pivotScale: gizmoScalePivot.scale.clone(),
+        axis: null,
+      };
+    } else {
+      if (gizmoDragBaseline) commitGizmoDrag();
+      gizmoDragBaseline = null;
+      hideDragLabel();
+    }
   } catch (err) {
-    statusEl.textContent = 'Error: ' + err.message;
-  } finally {
-    document.getElementById('buildBtn').disabled = false;
+    reportGizmoError('dragging-changed', err);
+  }
+});
+transformControls.addEventListener('objectChange', () => {
+  try {
+    if (!gizmoDragBaseline) return;
+    if (transformControls.axis) gizmoDragBaseline.axis = transformControls.axis;
+
+    if (gizmoMode === 'translate' && currentMesh) {
+      const d = currentMesh.position.clone().sub(gizmoDragBaseline.meshPos);
+      showDragLabel(currentMesh.position, `${d.x.toFixed(1)}, ${d.y.toFixed(1)}, ${d.z.toFixed(1)} mm`);
+    } else if (gizmoMode === 'rotate' && currentMesh && gizmoRotateCenter) {
+      // Reflect the pivot's rotation onto currentMesh as "rotate about
+      // gizmoRotateCenter," not about the mesh's own local origin: for a
+      // point P, rotating about center C by quaternion q maps P -> C +
+      // q*(P-C). Applying that as an object transform means quaternion=q
+      // and position = C - q*C (since position + q*localVertex = C -
+      // q*C + q*P = C + q*(P-C), matching exactly).
+      const q = gizmoRotatePivot.quaternion;
+      currentMesh.quaternion.copy(q);
+      const c = gizmoRotateCenter;
+      const qc = c.clone().applyQuaternion(q);
+      currentMesh.position.set(c.x - qc.x, c.y - qc.y, c.z - qc.z);
+      showDragLabel(currentMesh.position, `axis ${transformControls.axis || '?'}`);
+    } else if (gizmoMode === 'scale' && currentMesh && gizmoScaleCenter) {
+      const s = gizmoScalePivot.scale;
+      currentMesh.scale.copy(s);
+      currentMesh.position.set(
+        gizmoScaleCenter.x * (1 - s.x), gizmoScaleCenter.y * (1 - s.y), gizmoScaleCenter.z * (1 - s.z)
+      );
+      showDragLabel(gizmoScaleCenter, `${s.x.toFixed(2)}x, ${s.y.toFixed(2)}x, ${s.z.toFixed(2)}x`);
+    }
+  } catch (err) {
+    reportGizmoError('objectChange', err);
   }
 });
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+function updateViewerToolbarAvailability() {
+  const ready = !previewInFlight && !!currentMesh;
+  document.querySelectorAll('.vtool').forEach(b => {
+    b.disabled = b.dataset.mode === 'select' ? previewInFlight : !ready;
+  });
+}
 
-async function generate() {
-  const prompt = promptEl.value.trim();
-  if (!prompt) { statusEl.textContent = 'Type a prompt first.'; return; }
-
-  generateBtn.disabled = true;
-  statusEl.textContent = 'Generating…';
-  infoEl.classList.remove('show');
-  document.getElementById('clarify').classList.remove('show');
-
-  const base = backendBase();
-  const isRemote = base.length > 0;
-
+function setGizmoMode(mode) {
   try {
-    if (!isRemote) {
-      // Local backend: plan first (may surface clarifying questions before
-      // anything is built), fall straight through to a build when nothing
-      // needs asking.
-      familyOverrides = {};
-      await planPrompt(prompt);
+    // A no-op click (still building, or nothing to edit yet) is now
+    // prevented at the button level (disabled state, see
+    // updateViewerToolbarAvailability) -- this guard is defense in depth,
+    // not the primary mechanism, in case setGizmoMode is ever called
+    // programmatically instead of via a button click.
+    if (mode && (previewInFlight || !currentMesh)) {
+      consoleStatusEl.textContent = previewInFlight
+        ? 'Still building — try again once the current step finishes.'
+        : 'Nothing to move/rotate/scale yet — add a step first.';
+      consoleStatusEl.classList.add('error');
+      return;
+    }
+
+    gizmoMode = mode;
+    clearFaceEdgeSelection();
+    document.querySelectorAll('.vtool').forEach(b => b.classList.toggle('active', b.dataset.mode === (mode || 'select')));
+
+    if (!mode || !currentMesh) {
+      transformControls.detach();
+      transformControls.visible = false;
+      transformControls.enabled = false;
+      return;
+    }
+
+    // Defensive reset, always, regardless of what mode was active before:
+    // a drag that ends without a real change (e.g. a near-zero nudge) can
+    // leave currentMesh.position/scale/quaternion slightly off identity
+    // without ever reaching previewConsoleMesh() (which is what normally
+    // restores a clean baseline via a fresh server-built mesh). Translate
+    // depends on that baseline being EXACTLY identity -- a stale nonzero
+    // position here would silently corrupt the next commit's delta.
+    currentMesh.position.set(0, 0, 0);
+    currentMesh.quaternion.identity();
+    currentMesh.scale.set(1, 1, 1);
+
+    transformControls.visible = true;
+    transformControls.enabled = true;
+    transformControls.setMode(mode);
+
+    if (mode === 'scale') {
+      const box = new THREE.Box3().setFromObject(currentMesh);
+      gizmoScaleCenter = box.getCenter(new THREE.Vector3());
+      gizmoScalePivot.position.copy(gizmoScaleCenter);
+      gizmoScalePivot.quaternion.identity();
+      gizmoScalePivot.scale.set(1, 1, 1);
+      transformControls.attach(gizmoScalePivot);
+    } else if (mode === 'rotate') {
+      // Pivot at the object's own bounding-box center for natural,
+      // in-place LIVE rotation -- never the world origin directly, which
+      // is what used to make the object swing wildly (and often off
+      // camera) the moment you started dragging, for any shape not
+      // already centered at (0,0,0). The commit step below decomposes
+      // this back into world-origin-pivot translate/rotate/translate
+      // calls that exactly match sandbox.py's real rotate() semantics.
+      const box = new THREE.Box3().setFromObject(currentMesh);
+      gizmoRotateCenter = box.getCenter(new THREE.Vector3());
+      gizmoRotatePivot.position.copy(gizmoRotateCenter);
+      gizmoRotatePivot.quaternion.identity();
+      gizmoRotatePivot.scale.set(1, 1, 1);
+      transformControls.attach(gizmoRotatePivot);
     } else {
-      // Remote (Kaggle) backend: /generate returns a job_id immediately and
-      // the real work happens in the background -- a real generation can
-      // take longer than a public tunnel's request timeout, so we poll for
-      // the result instead of holding one request open.
-      const startRes = await fetch(base + '/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
-      });
-      const startData = await startRes.json();
-      if (!startRes.ok) throw new Error(startData.error || `failed to start (HTTP ${startRes.status})`);
-      const jobId = startData.job_id;
-
-      const pollStart = performance.now();
-      const maxWaitMs = 10 * 60 * 1000; // 10 min safety cap
-      while (true) {
-        if (performance.now() - pollStart > maxWaitMs) {
-          throw new Error('gave up after 10 minutes -- check the Kaggle notebook directly');
-        }
-        await sleep(2000);
-        const elapsed = ((performance.now() - pollStart) / 1000).toFixed(0);
-        statusEl.textContent = `Generating on Kaggle GPU… ${elapsed}s elapsed`;
-
-        const jobRes = await fetch(base + '/jobs/' + jobId);
-        const jobData = await jobRes.json();
-        if (!jobRes.ok) throw new Error(jobData.error || `job lookup failed (HTTP ${jobRes.status})`);
-
-        if (jobData.status === 'done') { await renderRemoteResult(jobData.result, base); break; }
-        if (jobData.status === 'error') throw new Error(jobData.error || 'generation failed on the server');
-        // else "pending" -- keep polling
-      }
+      transformControls.attach(currentMesh);
     }
   } catch (err) {
-    const hint = isRemote ? ' (check the backend URL is correct and the Kaggle tunnel is still running)' : '';
-    statusEl.textContent = 'Error: ' + err.message + hint;
-  } finally {
-    generateBtn.disabled = false;
+    reportGizmoError('setGizmoMode', err);
   }
 }
 
-generateBtn.addEventListener('click', generate);
-promptEl.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generate();
+function commitGizmoDrag() {
+  try {
+    const EPS = 1e-4;
+    if (gizmoMode === 'translate' && currentMesh) {
+      const d = currentMesh.position.clone().sub(gizmoDragBaseline.meshPos);
+      if (d.length() > EPS) {
+        activeProgram().push({ op: 'translate', args: { target: currentPreviewTargetId(), dx: d.x, dy: d.y, dz: d.z } });
+        renderConsoleSteps();
+        previewConsoleMesh({ forceReframe: true });
+      } else {
+        currentMesh.position.copy(gizmoDragBaseline.meshPos);  // revert a negligible drag visually, same as rotate/scale below
+      }
+    } else if (gizmoMode === 'rotate' && currentMesh) {
+      const axis = gizmoDragBaseline.axis;
+      let committed = false;
+      if (axis === 'X' || axis === 'Y' || axis === 'Z') {
+        const comp = { X: 'x', Y: 'y', Z: 'z' }[axis];
+        const q = gizmoRotatePivot.quaternion;
+        const angleRad = 2 * Math.atan2(q[comp], q.w);
+        const angleDeg = THREE.MathUtils.radToDeg(angleRad);
+        if (Math.abs(angleDeg) > 0.05 && gizmoRotateCenter) {
+          // Decompose "rotate by angleDeg about gizmoRotateCenter" into
+          // three sandbox.py calls chained on the SAME handle, since
+          // rotate() itself only ever pivots at the world origin:
+          // translate(-center) -> rotate(about origin) -> translate
+          // (+center) -- the standard identity for rotating about an
+          // arbitrary point, T(C)*R(th)*T(-C). This is what actually
+          // fixes the disappearing-model bug: the LIVE gizmo now rotates
+          // about the object's own center (see setGizmoMode/objectChange
+          // above), so this commit reproduces that exact visual result
+          // as a backend-valid program instead of the old single rotate
+          // call, which silently assumed the object was already sitting
+          // at the world origin.
+          const c = gizmoRotateCenter;
+          const targetId = currentPreviewTargetId();
+          activeProgram().push({ op: 'translate', args: { target: targetId, dx: -c.x, dy: -c.y, dz: -c.z } });
+          const afterRecenter = activeProgram().length - 1;
+          activeProgram().push({ op: 'rotate', args: { target: afterRecenter, axis: comp, angle_deg: angleDeg } });
+          const afterRotate = activeProgram().length - 1;
+          activeProgram().push({ op: 'translate', args: { target: afterRotate, dx: c.x, dy: c.y, dz: c.z } });
+          renderConsoleSteps();
+          previewConsoleMesh({ forceReframe: true });
+          committed = true;
+        }
+      } else if (axis) {
+        consoleStatusEl.textContent = 'Only single-axis (X/Y/Z ring) rotation is supported — free rotation was ignored.';
+        consoleStatusEl.classList.add('error');
+      }
+      if (!committed) {
+        // revert a negligible/unsupported drag visually AND reset the
+        // pivot -- without resetting gizmoRotatePivot here too, an
+        // aborted drag would leave it holding a small leftover rotation
+        // that the NEXT drag's angle math would silently build on top of.
+        currentMesh.position.set(0, 0, 0);
+        currentMesh.quaternion.identity();
+        gizmoRotatePivot.quaternion.identity();
+      }
+    } else if (gizmoMode === 'scale' && currentMesh) {
+      const s = gizmoScalePivot.scale;
+      if (Math.abs(s.x - 1) > EPS || Math.abs(s.y - 1) > EPS || Math.abs(s.z - 1) > EPS) {
+        activeProgram().push({ op: 'scale', args: { target: currentPreviewTargetId(), factor_x: s.x, factor_y: s.y, factor_z: s.z } });
+        renderConsoleSteps();
+        previewConsoleMesh({ forceReframe: true });
+      } else {
+        // revert a negligible scale drag visually -- without this, a
+        // sub-threshold drag left currentMesh.position/scale at whatever
+        // the live 'objectChange' preview last set them to (see that
+        // handler above), uncommitted AND unreset, a real bug found
+        // alongside this one.
+        currentMesh.scale.set(1, 1, 1);
+        currentMesh.position.set(0, 0, 0);
+      }
+    }
+  } catch (err) {
+    reportGizmoError('commitGizmoDrag', err);
+  }
+}
+
+document.querySelectorAll('.vtool').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode === 'select' ? null : btn.dataset.mode;
+    setGizmoMode(mode);
+  });
+});
+
+/* ---------------- drag label (floating distance readout) ---------------- */
+
+const dragLabelEl = document.getElementById('dragLabel');
+function showDragLabel(worldPos, text) {
+  const p = worldPos.clone().project(camera);
+  const x = (p.x * 0.5 + 0.5) * viewer.clientWidth;
+  const y = (-p.y * 0.5 + 0.5) * viewer.clientHeight;
+  dragLabelEl.style.left = `${x}px`;
+  dragLabelEl.style.top = `${y}px`;
+  dragLabelEl.textContent = text;
+  dragLabelEl.classList.add('show');
+}
+function hideDragLabel() { dragLabelEl.classList.remove('show'); }
+
+/* ---------------- select mode: face push/pull, edge round/flatten ---------------- */
+
+const raycaster = new THREE.Raycaster();
+raycaster.params.Line = { threshold: 1 };  // world units -- rescaled per-mesh in onConsoleMeshChanged
+const pointerNDC = new THREE.Vector2();
+
+let edgeLinesMesh = null;      // THREE.LineSegments of sharp edges, rebuilt whenever the console mesh changes
+let ghostMesh = null;          // translucent live-drag indicator (plane for face, tube for edge)
+let activeDrag = null;         // { kind: 'face'|'edge', direction/directions, normal/bisector, origin, plane, startMm }
+
+function clearFaceEdgeSelection() {
+  if (ghostMesh) { scene.remove(ghostMesh); ghostMesh.geometry.dispose(); ghostMesh.material.dispose(); ghostMesh = null; }
+  activeDrag = null;
+  hideDragLabel();
+  document.getElementById('edgeConfirmPopup').classList.remove('show');
+}
+
+function onConsoleMeshChanged() {
+  if (edgeLinesMesh) { scene.remove(edgeLinesMesh); edgeLinesMesh.geometry.dispose(); edgeLinesMesh.material.dispose(); edgeLinesMesh = null; }
+  clearFaceEdgeSelection();
+  if (gizmoMode) transformControls.detach();  // handle id changed under us -- force a clean reattach next mode click
+  if (!currentMesh) {
+    transformControls.visible = false;
+    transformControls.enabled = false;
+    updateViewerToolbarAvailability();
+    return;
+  }
+
+  const edgesGeo = new THREE.EdgesGeometry(currentMesh.geometry, 20);
+  // visible (not just a raycast target): a subtle highlight of exactly the
+  // edges fillet_edge/chamfer_edge can act on (sharp corners between
+  // perpendicular flat faces), so a person knows what's grabbable before
+  // clicking, distinct from the full triangulation wireframe.
+  edgeLinesMesh = new THREE.LineSegments(edgesGeo, new THREE.LineBasicMaterial({ color: 0xffb35b, transparent: true, opacity: 0.45 }));
+  scene.add(edgeLinesMesh);
+
+  const box = new THREE.Box3().setFromObject(currentMesh);
+  const diag = box.getSize(new THREE.Vector3()).length();
+  raycaster.params.Line.threshold = Math.max(0.5, diag * 0.006);
+
+  if (gizmoMode) setGizmoMode(gizmoMode);  // re-attach to the fresh mesh
+  updateViewerToolbarAvailability();
+}
+
+function pointerToNDC(event) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+/* Builds a plane containing `axisDir` (the drag axis) that faces the
+   camera as closely as possible -- the standard technique for
+   constrained-axis mouse dragging in 3D: raycasting THIS plane at each
+   mouse position and projecting onto axisDir gives an exact, stable
+   world-space distance, regardless of camera angle. */
+function buildDragPlane(origin, axisDir) {
+  const toCamera = camera.position.clone().sub(origin);
+  let planeNormal = axisDir.clone().cross(toCamera).cross(axisDir);
+  if (planeNormal.lengthSq() < 1e-8) planeNormal = new THREE.Vector3().crossVectors(axisDir, camera.up);
+  planeNormal.normalize();
+  return new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, origin);
+}
+
+function raycastPlane(plane) {
+  const hit = new THREE.Vector3();
+  const ok = raycaster.ray.intersectPlane(plane, hit);
+  return ok ? hit : null;
+}
+
+function findAdjacentFaceDirections(edgeStart, edgeEnd) {
+  const geo = currentMesh.geometry;
+  const pos = geo.attributes.position;
+  const EPS = Math.max(1e-4, edgeStart.distanceTo(edgeEnd) * 1e-4);
+  const normals = [];
+  const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
+  const faceNormal = new THREE.Vector3();
+  const worldMatrix = currentMesh.matrixWorld;
+
+  for (let i = 0; i < pos.count; i += 3) {
+    va.fromBufferAttribute(pos, i).applyMatrix4(worldMatrix);
+    vb.fromBufferAttribute(pos, i + 1).applyMatrix4(worldMatrix);
+    vc.fromBufferAttribute(pos, i + 2).applyMatrix4(worldMatrix);
+    const hasStart = va.distanceTo(edgeStart) < EPS || vb.distanceTo(edgeStart) < EPS || vc.distanceTo(edgeStart) < EPS;
+    const hasEnd = va.distanceTo(edgeEnd) < EPS || vb.distanceTo(edgeEnd) < EPS || vc.distanceTo(edgeEnd) < EPS;
+    if (hasStart && hasEnd) {
+      faceNormal.crossVectors(vb.clone().sub(va), vc.clone().sub(va)).normalize();
+      normals.push(faceNormal.clone());
+    }
+  }
+  if (normals.length < 2) return null;
+  const d1 = snapToFaceDirection(normals[0]);
+  // pick the second candidate normal that snaps to a DIFFERENT direction than the first (perpendicular face)
+  for (let i = 1; i < normals.length; i++) {
+    const d2 = snapToFaceDirection(normals[i]);
+    if (d2.direction !== d1.direction) return { direction1: d1.direction, direction2: d2.direction };
+  }
+  return null;
+}
+
+function onViewerPointerDown(event) {
+  if (!mouseEditingActive || gizmoMode || !currentMesh || currentPreviewTargetId() === null) return;
+  if (event.button !== 0) return;
+  pointerToNDC(event);
+  raycaster.setFromCamera(pointerNDC, camera);
+
+  // edges are picked first (they're a strict subset of face boundaries and
+  // visually thin, so they'd be unreachable if face-picking always won)
+  if (edgeLinesMesh) {
+    const edgeHits = raycaster.intersectObject(edgeLinesMesh);
+    if (edgeHits.length > 0) {
+      startEdgeDrag(edgeHits[0]);
+      return;
+    }
+  }
+  const faceHits = raycaster.intersectObject(currentMesh);
+  if (faceHits.length > 0) {
+    startFaceDrag(faceHits[0]);
+  }
+}
+
+function startFaceDrag(hit) {
+  const worldNormal = hit.face.normal.clone().transformDirection(currentMesh.matrixWorld).normalize();
+  const snapped = snapToFaceDirection(worldNormal);
+  if (snapped.alignment < 0.5) return;  // not flat/axis-aligned enough -- matches the server's own min_alignment
+
+  const box = new THREE.Box3().setFromObject(currentMesh);
+  const size = box.getSize(new THREE.Vector3());
+  const axisIdx = snapped.direction[1] === 'x' ? 0 : snapped.direction[1] === 'y' ? 1 : 2;
+  const planeSize = [size.x, size.y, size.z];
+  planeSize[axisIdx] = Math.max(planeSize[(axisIdx + 1) % 3], planeSize[(axisIdx + 2) % 3]) * 0.01;  // thin along the normal
+
+  const geo = new THREE.BoxGeometry(Math.max(planeSize[0], 1), Math.max(planeSize[1], 1), Math.max(planeSize[2], 1));
+  const mat = new THREE.MeshBasicMaterial({ color: 0x6d8dff, transparent: true, opacity: 0.35, depthWrite: false });
+  ghostMesh = new THREE.Mesh(geo, mat);
+  ghostMesh.position.copy(hit.point);
+  scene.add(ghostMesh);
+
+  activeDrag = {
+    kind: 'face', direction: snapped.direction, normal: snapped.vector.clone(),
+    origin: hit.point.clone(), plane: buildDragPlane(hit.point, snapped.vector),
+    faceSize: { w: planeSize[(axisIdx + 1) % 3] || 20, h: planeSize[(axisIdx + 2) % 3] || 20 },
+    lastDistance: 0,
+  };
+  window.addEventListener('pointermove', onViewerPointerMove);
+  window.addEventListener('pointerup', onViewerPointerUp, { once: true });
+  controls.enabled = false;
+}
+
+function startEdgeDrag(hit) {
+  // hit.point lies ON the picked segment; recover its two endpoints from the LineSegments buffer directly
+  const idx = hit.index - (hit.index % 2);
+  const pos = edgeLinesMesh.geometry.attributes.position;
+  const a = new THREE.Vector3().fromBufferAttribute(pos, idx).applyMatrix4(currentMesh.matrixWorld);
+  const b = new THREE.Vector3().fromBufferAttribute(pos, idx + 1).applyMatrix4(currentMesh.matrixWorld);
+
+  const dirs = findAdjacentFaceDirections(a, b);
+  if (!dirs) return;  // not a fillet/chamfer-eligible edge (e.g. a curved surface) -- silently ignore, matching the server's own perpendicular-faces requirement
+
+  const bisector = FACE_DIRECTIONS[dirs.direction1].clone().add(FACE_DIRECTIONS[dirs.direction2]).multiplyScalar(-1).normalize();
+  const edgeMid = a.clone().add(b).multiplyScalar(0.5);
+  const edgeLen = a.distanceTo(b);
+
+  const tubeGeo = new THREE.CylinderGeometry(Math.max(edgeLen * 0.01, 0.5), Math.max(edgeLen * 0.01, 0.5), edgeLen, 10);
+  tubeGeo.rotateZ(Math.PI / 2);
+  const dirVec = b.clone().sub(a).normalize();
+  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), dirVec);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffb35b, transparent: true, opacity: 0.7, depthWrite: false });
+  ghostMesh = new THREE.Mesh(tubeGeo, mat);
+  ghostMesh.position.copy(edgeMid);
+  ghostMesh.quaternion.copy(quat);
+  scene.add(ghostMesh);
+
+  activeDrag = {
+    kind: 'edge', direction1: dirs.direction1, direction2: dirs.direction2, bisector,
+    origin: edgeMid.clone(), plane: buildDragPlane(edgeMid, bisector), edgeMid, edgeLen,
+    lastDistance: 0,
+  };
+  window.addEventListener('pointermove', onViewerPointerMove);
+  window.addEventListener('pointerup', onViewerPointerUp, { once: true });
+  controls.enabled = false;
+}
+
+function onViewerPointerMove(event) {
+  if (!activeDrag) return;
+  pointerToNDC(event);
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hit = raycastPlane(activeDrag.plane);
+  if (!hit) return;
+
+  const axis = activeDrag.kind === 'face' ? activeDrag.normal : activeDrag.bisector;
+  let distance = hit.clone().sub(activeDrag.origin).dot(axis);
+  if (activeDrag.kind === 'edge') distance = Math.max(0, distance);  // radius/distance can't go negative
+  activeDrag.lastDistance = distance;
+
+  if (activeDrag.kind === 'face') {
+    // the ghost box sits halfway between the face and the drag point,
+    // giving a simple, honest "here's roughly where the new surface would
+    // land" indicator -- not a precise preview of the real (boolean CSG)
+    // result, which only runs once, on release.
+    ghostMesh.position.copy(activeDrag.origin).addScaledVector(axis, distance / 2);
+    const label = distance >= 0
+      ? `extrude +${distance.toFixed(1)} mm`
+      : `pocket ${Math.abs(distance).toFixed(1)} mm deep`;
+    showDragLabel(ghostMesh.position, label);
+  } else {
+    ghostMesh.position.copy(activeDrag.origin).addScaledVector(axis, distance / 2);
+    ghostMesh.scale.set(Math.max(distance, 0.1) / Math.max(activeDrag.edgeLen * 0.01, 0.5), 1, Math.max(distance, 0.1) / Math.max(activeDrag.edgeLen * 0.01, 0.5));
+    showDragLabel(ghostMesh.position, `${distance.toFixed(1)} mm`);
+  }
+}
+
+function onViewerPointerUp() {
+  window.removeEventListener('pointermove', onViewerPointerMove);
+  controls.enabled = true;
+  if (!activeDrag) return;
+
+  const EPS = 0.5;  // mm -- a near-zero drag is treated as "just clicked," not a real edit
+  if (activeDrag.kind === 'face') {
+    const d = activeDrag.lastDistance;
+    if (Math.abs(d) > EPS) {
+      const targetId = currentPreviewTargetId();
+      if (d > 0) {
+        activeProgram().push({ op: 'extrude_face', args: { target: targetId, direction: activeDrag.direction, distance: d } });
+      } else {
+        const margin = Math.max(2, Math.min(activeDrag.faceSize.w, activeDrag.faceSize.h) * 0.15);
+        activeProgram().push({ op: 'inset_pocket', args: { target: targetId, direction: activeDrag.direction, depth: Math.abs(d), margin } });
+      }
+      renderConsoleSteps();
+      previewConsoleMesh();
+    }
+    clearFaceEdgeSelection();
+  } else {
+    // edge drags need a Round/Flatten choice before committing -- show the
+    // confirm popup near the edge instead of guessing which one was meant
+    if (activeDrag.lastDistance > EPS) {
+      showEdgeConfirmPopup(activeDrag);
+    } else {
+      clearFaceEdgeSelection();
+    }
+  }
+}
+
+function showEdgeConfirmPopup(drag) {
+  const popup = document.getElementById('edgeConfirmPopup');
+  const p = drag.edgeMid.clone().project(camera);
+  const x = (p.x * 0.5 + 0.5) * viewer.clientWidth;
+  const y = (-p.y * 0.5 + 0.5) * viewer.clientHeight;
+  popup.style.left = `${x}px`;
+  popup.style.top = `${y}px`;
+  document.getElementById('edgeConfirmValue').textContent = `${drag.lastDistance.toFixed(1)} mm — ${drag.direction1}/${drag.direction2}`;
+  popup.classList.add('show');
+  popup.dataset.pending = 'true';
+
+  document.getElementById('edgeFilletBtn').onclick = () => commitEdgeOp('fillet_edge', 'radius', drag);
+  document.getElementById('edgeChamferBtn').onclick = () => commitEdgeOp('chamfer_edge', 'distance', drag);
+}
+
+function commitEdgeOp(op, argName, drag) {
+  const targetId = currentPreviewTargetId();
+  const args = { target: targetId, direction1: drag.direction1, direction2: drag.direction2 };
+  args[argName] = drag.lastDistance;
+  activeProgram().push({ op, args });
+  renderConsoleSteps();
+  clearFaceEdgeSelection();
+  previewConsoleMesh();
+}
+
+renderer.domElement.addEventListener('pointerdown', onViewerPointerDown);
+
+// clicking elsewhere in select mode with a pending edge popup cancels it
+window.addEventListener('pointerdown', (event) => {
+  const popup = document.getElementById('edgeConfirmPopup');
+  if (popup.dataset.pending === 'true' && !popup.contains(event.target) && event.target !== renderer.domElement) {
+    clearFaceEdgeSelection();
+  }
 });
 </script>
 </body>

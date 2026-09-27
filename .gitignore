@@ -16,15 +16,35 @@ build/
 .DS_Store
 Thumbs.db
 .ipynb_checkpoints/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+*.orig
+
+# test coverage output
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# node-based tooling (none in this repo yet -- safety net for later, same
+# reasoning as .venv/ above for Python)
+node_modules/
 
 # secrets (none in this repo -- safety net for later)
 .env
 .env.*
 
-# generated model artifacts / data (large, regeneratable -- see docs/threedimen-architecture.md)
+# generated model artifacts / data (regeneratable -- see docs/threedimen-architecture.md
+# for the point-cloud model, scripts/train_program_model.py for program_model.joblib)
 ml/cad/data/cad_v1/
 ml/cad/checkpoints/
+ml/cad/models/
 ml/cad/webapp_output/
+*.joblib
 *.stl
 *.glb
 !ml/cad/examples/*.stl
@@ -36,3 +56,8 @@ ml/threedimen/local_run/
 *.pt
 *.zip
 *.log
+
+# local LLM weights (llm_decompose.py loads these from OUTSIDE the repo by
+# default -- e.g. ~/Desktop/*.gguf -- this is a safety net in case one ever
+# ends up inside the repo tree; multi-GB files like this must never be committed)
+*.gguf
