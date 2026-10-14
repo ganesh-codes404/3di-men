@@ -7,69 +7,135 @@ decomposed point (see parallel_builder.py).
 
 This does NOT reintroduce an external-LLM dependency the project has stood
 against throughout (see part_families.py, program_model.py's module
-docstrings): the model here is a small (1.7B parameters, Q4_K_M quantized,
-~1.2GB) OPEN-WEIGHT model, loaded from a local .gguf file and run entirely
+docstrings): the model here is a small (default: Qwen3-4B-Instruct-2507,
+Q4_K_M quantized, ~2.3GB -- see MODEL_NAME/MODEL_PATH/QUANTIZATION below)
+OPEN-WEIGHT model, loaded from a local .gguf file and run entirely
 in-process via llama-cpp-python -- no network call, no hosted API, no
-account, nothing leaves this machine.
+account, nothing leaves this machine. (Some comments and regression tests
+elsewhere in this file/tests/test_llm_decompose.py reference the PREVIOUS
+default, Qwen3-1.7B -- those are historical records of empirical findings
+against that specific model, not stale configuration; left as-is.)
 """
 
 from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-DEFAULT_MODEL_PATH = Path("/Users/ganeshk/Desktop/Qwen3-1.7B-Q4_K_M.gguf")
+from assembly_plan import Relationship
+
+# Model configuration -- env-var driven, never hard-coded, so swapping models
+# (or pointing at the old one for A/B comparison during a migration) never
+# needs a code change. MODEL_FORMAT is currently a documented, asserted
+# constant rather than a real dispatch switch: llama-cpp-python only loads
+# .gguf, so this project has nothing else to dispatch to yet -- kept as an
+# explicit setting (not silently ignored) so a future non-gguf backend has
+# an obvious place to plug in.
+MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen3-4B-Instruct-2507")
+MODEL_FORMAT = os.environ.get("MODEL_FORMAT", "gguf")
+QUANTIZATION = os.environ.get("QUANTIZATION", "Q4_K_M")
+MAX_CONTEXT = int(os.environ.get("MAX_CONTEXT", "8192"))  # was 4096 -- confirmed, not theoretical: _SYSTEM_PROMPT
+# grew from ~2234 tokens (when 4096 was set) to 3917 tokens over this session's incremental additions, leaving
+# only 179 tokens of headroom for the user's own prompt + the JSON response. A real decompose_prompt() call
+# against a 3-part request measured 1449s (24+ min, the longest of this session) and still fell back to a
+# single unparsed point -- the model almost certainly thrashed against the context ceiling the whole time
+# rather than ever finishing a valid response. 8192 restores ~4275 tokens of headroom at the prompt's current
+# size, with margin for further growth; re-check this if _SYSTEM_PROMPT grows substantially again.
+TEMPERATURE = float(os.environ.get("TEMPERATURE", "0.1"))
+
+# GPU offload / thread count -- both OFF/unset by default (n_gpu_layers=0,
+# n_threads=None -> llama.cpp's own default), exactly matching this
+# project's shipped behavior to date. Confirmed this session (direct
+# benchmark against this project's actual hardware, a 2015 dual-core
+# 1.8GHz CPU with no GPU offload previously configured anywhere) that
+# `load_tensors: offloaded 0/37 layers to GPU` was the single largest
+# factor behind multi-minute decompose_prompt() calls, despite a usable
+# Metal-capable GPU being present and llama_cpp already detecting it
+# (llama_supports_gpu_offload() == True). Left as an explicit opt-in
+# rather than flipped on by default: this is a hardware-dependent tuning
+# knob (N_GPU_LAYERS=-1 offloads every layer; wrong on a machine with too
+# little VRAM for the full model), not something safe to assume for every
+# environment this project might run in.
+N_GPU_LAYERS = int(os.environ.get("N_GPU_LAYERS", "0"))
+_N_THREADS_ENV = os.environ.get("N_THREADS")
+N_THREADS = int(_N_THREADS_ENV) if _N_THREADS_ENV else None
+
+if MODEL_FORMAT != "gguf":
+    raise ValueError(f"MODEL_FORMAT={MODEL_FORMAT!r} is not supported -- only 'gguf' (via llama-cpp-python) is implemented")
+
+_MODELS_DIR = Path(__file__).resolve().parent / "models" / "qwen"
+_DEFAULT_MODEL_PATH = _MODELS_DIR / "quantized" / f"{MODEL_NAME}-{QUANTIZATION}.gguf"
+MODEL_PATH = Path(os.environ.get("MODEL_PATH", str(_DEFAULT_MODEL_PATH)))
+
+DEFAULT_MODEL_PATH = MODEL_PATH  # kept as an alias: existing call sites/tests default-arg on this name
 
 _SYSTEM_PROMPT = """You are an experienced mechanical design engineer decomposing a request into the separate physical components of an object, for a CAD builder. Think about the request the way an engineer reads a drawing: what are the distinct physical parts, how do they mate with and locate against each other, and where does each one actually sit in space -- not just "what shapes are mentioned."
 
 STEP 0 -- first judge the object's overall FORM, since that decides how you describe it:
-(a) A rotationally-symmetric CONTAINER or VESSEL -- a bottle, jar, cup, canister, flask, vase: has a hollow body, usually CURVING smoothly inward to a narrower neck/opening (a real bottle shoulder is a curve, never a sharp step). Describe the body+neck as ONE entry using exactly this phrasing (fill in real numbers): "a hollow vessel: a {D}mm diameter, {H}mm tall body smoothly narrowing to a {d}mm diameter, {h}mm tall neck over a {t}mm shoulder, {w}mm walls" (the shoulder is the curved transition zone between body and neck -- typically 15-30mm). Only add a SECOND entry for a cap/lid if the object actually HAS one in real life -- a bottle, jar, canister, or flask does; an open-topped vessel (a mug, cup, bowl, vase, glass) does NOT, leave those as the single hollow-vessel entry alone, nothing else. If you do add a cap, it is always a plain cylinder SMALLER than the neck it covers (never the same size as the main body -- a cap the same width as the bottle itself is wrong), positioned directly on top of the neck.
-(b) A simple prismatic/box-shaped object -- an enclosure, a case, a block, a tray: a box, optionally hollowed (shelled) or with features. Describe it the same dimension-first way as any box below.
+(a) A rotationally-symmetric CONTAINER or VESSEL -- a bottle, jar, cup, canister, flask, vase: has a hollow body meeting a narrower or wider opening through a smooth CURVE (a real shoulder is a curve, never a sharp step). This is NOT always "wide body, narrow neck": most bottles/jars/flasks narrow toward the opening, but some vessels (a flared vase, a funnel, a flowerpot) genuinely WIDEN toward the opening instead -- read the request's own words for which end is bigger (e.g. "wider at the top," "flares outward," "narrower at the base") rather than defaulting to the narrowing-neck shape out of habit. Use exactly ONE of these two phrasings (fill in real numbers), matching which direction the request actually describes -- these are deliberately different sentences, not the same template with numbers swapped:
+    - narrowing toward the opening (the common bottle/jar/flask case): "a hollow vessel: a {D}mm diameter, {H}mm tall body smoothly narrowing to a {d}mm diameter, {h}mm tall neck over a {t}mm shoulder, {w}mm walls"
+    - widening toward the opening (a flared vase, funnel, flowerpot): "a hollow vessel: a {D}mm diameter, {H}mm tall base smoothly widening to a {d}mm diameter, {h}mm tall top opening over a {t}mm shoulder, {w}mm walls"
+  (the shoulder is the curved transition zone -- typically 15-30mm). Only add a SECOND entry for a cap/lid if the object actually HAS one in real life -- a bottle, jar, canister, or flask does; an open-topped vessel (a mug, cup, bowl, vase, glass, funnel, pot) does NOT, leave those as the single hollow-vessel entry alone, nothing else. If you do add a cap, it is always a plain cylinder SMALLER than the opening it covers (never the same size as the main body -- a cap the same width as the bottle itself is wrong), positioned directly on top of the opening.
+(b) A simple prismatic/box-shaped object -- an enclosure, a case, a block, a tray: a box, optionally hollowed (shelled) or with features. Describe it the same dimension-first way as any box below. ANY holes/slots/pockets/patterns/rounded or chamfered edges cut into or added onto this box are part of the SAME single entry's description (e.g. "a box 100mm x 60mm x 6mm with a corner array of four holes, each 20mm from a corner"), never a separate array entry of their own -- an entry describing only a hole/feature with no base shape to belong to cannot be built (there is nothing for it to cut into).
 (c) A multi-part mechanical assembly -- gears, shafts, brackets, motors, linkages: decompose into distinct mating parts, following STEP 1-3 below.
 
 Common everyday objects (a water bottle, a mug, a pen, a phone case) must come out a REALISTIC, recognizable size, even with zero dimensions given -- if the user names a well-known object without dimensions, use typical real-world sizing for that kind of object instead of leaving it dimensionless or inventing an arbitrary small mechanical-looking number. Rough anchors: a water bottle is roughly 65mm diameter, 190mm tall body + a 25mm shoulder + a 25mm diameter, 30mm neck; a coffee mug is roughly 80mm diameter, 95mm tall; a pen is roughly 12mm diameter, 140mm long; a smartphone case is roughly 75x150x9mm. Use these as a scale reference for similar objects, not a lookup table to match exactly.
 
-STEP 1 -- (for a multi-part mechanical assembly, case (c) above) find the distinct mechanical parts. A part is anything that is its own separate solid in the real assembly: a plate, a bracket, a shaft, a gear, a bushing, a housing, a cover, a standoff, a fastener boss. Two components that TOUCH or MATE (a gear pressed onto a shaft, a shaft running through a bearing bore in a housing, a cover bolted to a base) are STILL separate array entries -- mating parts are never fused into one piece just because they're mechanically coupled. Only features that are physically ONE continuous piece of material (a boss machined onto a plate, a rib on a bracket, a mounting flange on a housing) belong inside the SAME entry as the part they're part of. If the request is just one object, output one entry.
+STEP 1 -- (for a multi-part mechanical assembly, case (c) above) find the distinct mechanical parts. A part is anything that is its own separate solid in the real assembly: a plate, a bracket, a shaft, a gear, a bushing, a housing, a cover, a standoff, a fastener boss. Two components that TOUCH or MATE (a gear pressed onto a shaft, a shaft running through a bearing bore in a housing, a cover bolted to a base) are STILL separate array entries -- mating parts are never fused into one piece just because they're mechanically coupled. Only features that are physically ONE continuous piece of material (a boss machined onto a plate, a rib on a bracket, a mounting flange on a housing, HOLES/SLOTS/POCKETS/hole-patterns/fillets/chamfers cut into or added onto a part) belong inside the SAME entry as the part they're part of -- NEVER give a hole/slot/pocket/pattern its own separate array entry, since a feature described alone with no base shape has nothing to cut into or sit on and cannot be built (wrong: two entries, one "a plate 100x60x6mm" and another "a corner array of four holes" -- right: one entry, "a plate 100mm x 60mm x 6mm with a corner array of four holes, each 20mm from a corner"). If the request is just one object, output one entry.
 
-STEP 2 -- reason like an engineer about how the parts locate against each other, then set position_mm accordingly (rough is fine, but get the RELATIONSHIP right):
-- A part mounted ON a shaft (a gear, a pulley, a collar) shares that shaft's own x/y axis -- same x and y as the shaft, offset only along the shaft's length.
+STEP 2 -- reason like an engineer about how the parts locate against each other. For a part whose position is DERIVED from another part (sits on a face of it, is coaxial with it, or mirrors it), give a "relationship" object instead of computing position_mm by hand -- the builder resolves the real coordinates itself from that OTHER part's actual built dimensions, which is exact where your own arithmetic is not. Use one of:
+- {"kind": "attached_to_face", "target_id": "<id of the part it sits on>", "face": "+z"|"-z"|"+x"|"-x"|"+y"|"-y", "offset_u": 0, "offset_v": 0} -- this part's own center ends up flush against that face of the target, centered by default (nonzero offset_u/offset_v slide it sideways within that face, e.g. toward a corner). Covers: a cap/lid/dome on TOP of a vessel or box (face "+z"), a plate or panel on the FRONT/BACK/LEFT/RIGHT face (face "+y"/"-y"/"+x"/"-x"), a boss or standoff rising from any face.
+- {"kind": "concentric_with", "target_id": "<id>", "axis": "x"|"y"|"z"} -- shares the target's position on the other two axes (coaxial); optionally "axis_offset": <mm> to slide along the shared axis instead of landing exactly level. Covers: an axial hole through a boss, a gear/pulley/collar sharing its shaft's axis, a shaft centered in a housing's bore.
+- {"kind": "symmetric_about", "target_id": "<id>", "axis": "x"|"y"|"z"} -- mirrors the target's position across that axis's plane through the origin. Covers: a matched pair of standoffs/tabs/features on opposite sides.
+Every entry needs a short, stable "id" string (e.g. "base", "boss", "hole") so later entries can reference it as target_id -- a target_id must name an id that appears earlier in the array (never itself, never something later, never a cycle).
+For everything a relationship doesn't cover, fall back to plain position_mm (rough is fine, but get the RELATIONSHIP right):
 - Two gears that MESH sit side by side along one axis (their shaft centers are NOT at the same point), separated by roughly their combined size -- do not attempt exact center-distance arithmetic yourself, a rough gap is corrected automatically afterward from the real module and tooth counts.
-- A shaft passing through a housing's bearing bore must be centered on that bore's own position, not floating apart from it.
-- A cover, cap, or lid sits directly on top of (or flush against) the part it closes, not offset sideways.
-- Fastener/mounting features (bolt circles, corner-hole patterns) belong to the part being fastened, positioned at that part's own location.
+- Fastener/mounting features (bolt circles, corner-hole patterns) are described INSIDE the same entry as the part being fastened (see STEP 1) -- never their own entry or relationship.
+- If you do fall back to raw position_mm for a stacked/attached part, remember every primitive is centered on its own given position by default (a box/cylinder/sphere/etc of height H spans -H/2 to +H/2 around its own center) -- "on top of a part H mm tall" is an offset of H/2, never H.
 
-STEP 3 -- describe EACH part using plain, dimension-first geometry language (a box LxWxH, a cylinder of diameter/height, a gear profile of module/tooth count/face width/bore, a hole pattern, etc.) -- exactly the style shown in the example below. Do NOT dress this up with engineering jargon (no "shoulder," "GD&T," "keyway," "press fit," "shoulder bolt") -- the builder reading this description only understands plain geometric/dimensional phrasing, never trade terminology, even though YOUR reasoning about what parts exist and how they're placed should be engineer-grade.
+STEP 3 -- describe EACH part using plain, dimension-first geometry language (a box LxWxH, a cylinder of diameter/height, a gear profile of module/tooth count/face width/bore, a hole pattern, etc.) -- exactly the style shown in the example below. Do NOT dress this up with engineering jargon (no "shoulder," "GD&T," "keyway," "press fit," "shoulder bolt") -- the builder reading this description only understands plain geometric/dimensional phrasing, never trade terminology, even though YOUR reasoning about what parts exist and how they're placed should be engineer-grade. Keep the description to BARE shape + dimensions ONLY -- never append where it goes ("centered on the top face of...", "mounted on...", "positioned on top of...", "on the front face"): position_mm is the ONLY place placement belongs, and restating it inside the description text is a confirmed, real failure mode that derails the builder reading it into producing the wrong shape entirely, even when the shape itself (e.g. "a dome 20mm diameter, 15mm tall") was described correctly. Drop any MATERIAL, color, finish, or coating word entirely (steel, brass, titanium, aluminum, cast iron, plastic, anodized, polished, ...) -- real hand-written requests mention these constantly, but this builder has no concept of material anywhere in its vocabulary below, so a material word carried into the description is dead text at best and confusing noise at worst; only shape and numbers belong in a description.
 
 Available operations (this is the CAD tool's real vocabulary -- every part must be describable using only these):
-- primitives: a box, a cylinder, or a tapered cylinder / cone (a "spin" of two radii and a height)
+- primitives: a box, a cylinder, a tapered cylinder / cone (a "spin" of two radii and a height), a sphere/ball, a torus/ring-donut shape, a capsule/pill shape (a cylinder with rounded ends), an egg-like ellipsoid (a stretched sphere), a flat-sided prism (hexagonal, octagonal, etc, optionally tapered), a dome (a rounded cap), or a flat ring/washer shape (outer and inner diameter)
 - an extruded 2D profile: rectangle, rounded rectangle, or L-shape, given a height
 - a gear profile (module, tooth count, face width, bore)
 - boolean union / difference / intersection of two shapes -- ONLY to combine primitives WITHIN one piece (e.g. a boss fused onto a plate), NEVER to combine two different mechanical parts from step 1 into one entry
 - a drilled hole, or a hole pattern (corner array, bolt circle, or linear row)
-- a fastener clearance hole with a recessed head pocket: flat-bottomed (a counterbore, for a socket-head fastener) or conical (a countersink, for a flat-head fastener)
-- an elongated, rounded-end mounting slot (not just a round hole)
-- mirror across an axis, or a non-uniform scale
-- a linear array (N copies along an axis) or circular array (N copies around a circle)
-- face-based tools, working on a named face of a shape (top/bottom/+x/-x/+y/-y face): extrude a face outward into a raised boss, inset a face and cut a recessed pocket into it, or shell/hollow out the whole shape leaving a wall thickness
-- taper a shape along an axis (narrower or wider at one end)
-- round or flatten the edge where two named faces meet (a rounded or chamfered/beveled edge)
+- a fastener clearance hole with a recessed head pocket: flat-bottomed (a counterbore, for a socket-head fastener) or conical (a countersink, for a flat-head fastener) -- or a whole corner-array/bolt-circle PATTERN of these at once
+- an elongated, rounded-end mounting slot (not just a round hole) -- or a row/bolt-circle of several slots at once
+- a hex-shaped recessed socket (an Allen-key/hex-bit pocket)
+- mirror across an axis, or mirror a shape and fuse it with itself into one symmetric part in one step
+- a non-uniform scale
+- a linear array (N copies along an axis, optionally each one progressively bigger or smaller) or circular array (N copies around a circle, optionally each one rotated to face outward from the center)
+- a ring of grip ridges standing up from a face (a knurled texture, for a knob or handle)
+- face-based tools, working on a named face of a shape (top/bottom/+x/-x/+y/-y face): extrude a face outward into a raised boss, inset a face and cut a recessed pocket into it, add a raised cylindrical boss with a hole straight through its middle (a screw boss), or shell/hollow out the whole shape leaving a wall thickness
+- taper a shape along an axis with a straight/linear profile (narrower or wider at one end), or flare it with a smoothly curved profile
+- twist a shape along an axis, or bend it along its length into a curve
+- round or flatten a single edge where two named faces meet (a rounded or chamfered/beveled edge) -- or round/chamfer ALL the edges and corners of a box-like shape at once, in one step
 - a structural support rib/gusset bridging the INSIDE (concave) corner of an already-bent/L-shaped piece -- only meaningful where two faces meet at an internal, empty-space corner, not a plain box's outer edge
 - a hollow vessel: a wide body CURVING smoothly (never stepping sharply) to a narrower neck on top, hollowed out to a wall thickness -- the shape a bottle/jar/cup/flask actually is (STEP 0 case (a) -- always use the exact phrasing shown there)
 - a solid shape that smoothly curves from one diameter to another (no hollowing) -- a table leg, a lamp base, a bowling-pin-like shape
 
-Example 1 -- request: "a water bottle" (a well-known object, no dimensions given -- STEP 0 case (a), use realistic typical sizing). Correct reasoning: one hollow-vessel entry for the body+shoulder+neck using the exact required phrasing, plus a separate cap sitting directly on top of the neck (cap z = body height + shoulder height + neck height):
-[{"description": "a hollow vessel: a 65mm diameter, 190mm tall body smoothly narrowing to a 25mm diameter, 30mm tall neck over a 25mm shoulder, 2mm walls", "position_mm": {"x": 0, "y": 0, "z": 0}}, {"description": "a cylinder 27mm diameter, 15mm tall", "position_mm": {"x": 0, "y": 0, "z": 245}}]
+Example 1 -- request: "titanium corner bracket, 80mm long, with two holes per arm" (real hand-written phrasing: terse, a material word, and only SOME dimensions given). Correct reasoning: a bracket's two arms are one continuous bent piece in real life, not two mating parts (STEP 1) -- one entry, not two; "titanium" is dropped entirely (STEP 3 -- this builder has no material concept); the hole COUNT per arm is given so it's kept, but no leg width, thickness, or hole size/spacing was given, so none of those are invented -- they stay out of the description rather than being guessed at (this is different from STEP 0's water-bottle case: a bracket isn't a well-known object with an established typical size, so the "use realistic typical sizing" allowance does not apply here):
+[{"id": "bracket", "description": "an L-shape bracket, 80mm long, with two holes in each leg", "position_mm": {"x": 0, "y": 0, "z": 0}}]
 
-Example 2 -- request: "a small gearbox: two spur gears meshing on parallel shafts, module 2.5mm, gear A has 14 teeth, gear B has 22 teeth, each gear is mounted on its own 10mm diameter, 60mm long shaft" (STEP 0 case (c)). Correct reasoning: 4 separate mechanical parts (2 shafts, 2 gears), each gear shares its own shaft's x/y position, and gear B's shaft is placed a rough, reasonable gap away from gear A's along one axis (the exact spacing is corrected afterward, not your job to get precisely right):
+Example 2 -- request: "a water bottle" (a well-known object, no dimensions given -- STEP 0 case (a), use realistic typical sizing). Correct reasoning: one hollow-vessel entry for the body+shoulder+neck using the exact required phrasing, id "body"; the cap is attached_to_face "+z" of "body" instead of hand-computed z arithmetic:
+[{"id": "body", "description": "a hollow vessel: a 65mm diameter, 190mm tall body smoothly narrowing to a 25mm diameter, 30mm tall neck over a 25mm shoulder, 2mm walls", "position_mm": {"x": 0, "y": 0, "z": 0}}, {"id": "cap", "description": "a cylinder 27mm diameter, 15mm tall", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "body", "face": "+z"}}]
+
+Example 3 -- request: "a small gearbox: two spur gears meshing on parallel shafts, module 2.5mm, gear A has 14 teeth, gear B has 22 teeth, each gear is mounted on its own 10mm diameter, 60mm long shaft" (STEP 0 case (c)). Correct reasoning: 4 separate mechanical parts (2 shafts, 2 gears); meshing gears/shafts use plain position_mm (NOT a relationship -- see STEP 2), each gear shares its own shaft's x/y position, gear B's shaft is placed a rough, reasonable gap away from gear A's along one axis (the exact spacing is corrected afterward, not your job to get precisely right):
 [{"description": "a cylinder 10mm diameter, 60mm long", "position_mm": {"x": 0, "y": 0, "z": 0}}, {"description": "a gear profile, module 2.5, 14 teeth", "position_mm": {"x": 0, "y": 0, "z": 0}}, {"description": "a cylinder 10mm diameter, 60mm long", "position_mm": {"x": 40, "y": 0, "z": 0}}, {"description": "a gear profile, module 2.5, 22 teeth", "position_mm": {"x": 40, "y": 0, "z": 0}}]
 
-Do NOT design exact numeric geometry yourself beyond what the user already gave (dimensions the user didn't specify stay unspecified in the description, not invented) -- the two exceptions are position_mm placement math (center distances, shared axes) and realistic default sizing for a well-known common object with no dimensions given at all (STEP 0), both of which ARE your job.
+Example 4 -- request: "a rectangular metal mounting plate with four corner holes, a raised cylindrical boss in the middle with a smaller axial hole through it, and a short shaft that plugs into that hole." Correct reasoning: the corner holes AND the axial hole are FEATURES of their own parts (STEP 1 -- a hole stays in the same entry as the solid it's cut into, never its own point: the boss's axial hole belongs to the boss's own description, exactly like the plate's corner holes belong to the plate's); the boss sits on the plate's own top face (attached_to_face); the shaft is a genuinely separate, physically distinct part that MATES with the boss's hole, so it gets concentric_with instead of a second attached_to_face guess:
+[{"id": "plate", "description": "a box 120mm x 80mm x 8mm with a corner array of four holes, each 15mm from a corner", "position_mm": {"x": 0, "y": 0, "z": 0}}, {"id": "boss", "description": "a cylinder 20mm diameter, 15mm tall with a 6mm diameter hole through it", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "plate", "face": "+z"}}, {"id": "shaft", "description": "a cylinder 6mm diameter, 25mm long", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "concentric_with", "target_id": "boss", "axis": "z"}}]
 
-Respond with ONLY a JSON array in the same format as the example, no other text, no explanation.
+Do NOT design exact numeric geometry yourself beyond what the user already gave (dimensions the user didn't specify stay unspecified in the description, not invented) -- the exceptions are relationship placement (STEP 2 -- always prefer this over hand computation), position_mm placement math for cases a relationship doesn't cover, and realistic default sizing for a well-known common object with no dimensions given at all (STEP 0), all of which ARE your job.
+
+Respond with ONLY a JSON array in the same format as the examples above, no other text, no explanation.
 
 /no_think"""
 
@@ -104,7 +170,18 @@ Respond with ONLY a JSON object in the form {"questions": [...]}, no other text,
 @dataclass
 class ActionablePoint:
     description: str
-    position_mm: tuple[float, float, float]
+    position_mm: tuple[float, float, float]  # the resolved/explicit position; used directly when relationship is None
+    # `id`/`relationship` are trailing, defaulted fields -- deliberately, so
+    # every existing 2-positional-arg or description=/position_mm=-keyword
+    # call site across this project (tests included) keeps working
+    # unchanged. `id` is only load-bearing when `relationship` is used
+    # (by ANY point) -- callers that build a flat, relationship-free list
+    # (the common case) never need to set it.
+    id: str = ""
+    relationship: "Relationship | None" = None  # see assembly_plan.py -- when set, parallel_builder.py
+                                                 # resolves the REAL position deterministically from the
+                                                 # target part's own actual built dimensions, and position_mm
+                                                 # above is only a placeholder (0,0,0) until that happens
 
 
 @dataclass
@@ -112,6 +189,12 @@ class DecomposeResult:
     points: list[ActionablePoint]
     raw_llm_output: str
     fell_back: bool  # True if the LLM's output couldn't be parsed and we fell back to one whole-prompt point
+    knowledge_context: str = ""  # the retrieved-reference-notes block actually shown to the model, if any
+                                  # (see knowledge/pipeline.py's retrieve_context_for_prompt) -- "" when the
+                                  # knowledge subsystem is disabled, empty, or found nothing relevant. Threaded
+                                  # through so a caller (server.py's /api/build) can surface what was retrieved,
+                                  # per this project's "never fabricate... source references" rule -- this is
+                                  # always the REAL text that was actually injected, not a re-derived guess.
 
 
 @dataclass
@@ -128,8 +211,87 @@ def _get_llm(model_path: Path = DEFAULT_MODEL_PATH):
     if _llm is None:
         from llama_cpp import Llama
 
-        _llm = Llama(model_path=str(model_path), n_ctx=4096, verbose=False)
+        _llm = Llama(
+            model_path=str(model_path), n_ctx=MAX_CONTEXT, verbose=False,
+            n_gpu_layers=N_GPU_LAYERS, n_threads=N_THREADS,
+        )
     return _llm
+
+
+# Grammar-constrained decoding (llama.cpp GBNF, built here from a JSON
+# Schema via LlamaGrammar.from_json_schema): forces every token the model
+# emits to stay inside a syntactically-valid instance of this shape -- the
+# sampler masks out any next-token that would violate it, rather than
+# generating freely and hoping the result parses. This does NOT replace
+# _extract_json_array/_find_schema_shaped_arrays below; it reduces how often
+# they're needed to a near-zero safety net (malformed JSON becomes
+# structurally impossible for the model to emit, but the fallback stays in
+# place as defense in depth -- e.g. if grammar construction itself ever
+# fails, or a future model/llama-cpp-python upgrade changes this behavior).
+# Deliberately permissive on VALUES (description/id are free-form strings,
+# numbers are unconstrained) -- the grammar's job is structural validity
+# (balanced brackets, correct key names, correct types), never content
+# correctness, which stays the model's own job plus this file's downstream
+# semantic checks (_parse_relationship, _correct_gear_mesh_spacing, ...).
+_RELATIONSHIP_KINDS = {"attached_to_face", "concentric_with", "symmetric_about"}
+
+_POINTS_JSON_SCHEMA = json.dumps({
+    "type": "array",
+    "minItems": 1,
+    "items": {
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "description": {"type": "string"},
+            "position_mm": {
+                "type": "object",
+                "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}},
+                "required": ["x", "y", "z"],
+            },
+            "relationship": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": sorted(_RELATIONSHIP_KINDS)},
+                    "target_id": {"type": "string"},
+                    "face": {"type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"]},
+                    "offset_u": {"type": "number"},
+                    "offset_v": {"type": "number"},
+                    "axis": {"type": "string", "enum": ["x", "y", "z"]},
+                    "axis_offset": {"type": "number"},
+                },
+                "required": ["kind", "target_id"],
+            },
+        },
+        "required": ["description", "position_mm"],
+    },
+})
+
+_CLARIFY_JSON_SCHEMA = json.dumps({
+    "type": "object",
+    "properties": {"questions": {"type": "array", "items": {"type": "string"}, "maxItems": 3}},
+    "required": ["questions"],
+})
+
+_points_grammar: Any = None
+_clarify_grammar: Any = None
+
+
+def _get_points_grammar():
+    global _points_grammar
+    if _points_grammar is None:
+        from llama_cpp import LlamaGrammar
+
+        _points_grammar = LlamaGrammar.from_json_schema(_POINTS_JSON_SCHEMA, verbose=False)
+    return _points_grammar
+
+
+def _get_clarify_grammar():
+    global _clarify_grammar
+    if _clarify_grammar is None:
+        from llama_cpp import LlamaGrammar
+
+        _clarify_grammar = LlamaGrammar.from_json_schema(_CLARIFY_JSON_SCHEMA, verbose=False)
+    return _clarify_grammar
 
 
 def _looks_like_actionable_points(parsed: Any) -> bool:
@@ -210,15 +372,43 @@ def _extract_json_array(raw: str) -> list[dict]:
     return merged
 
 
+def _parse_relationship(raw: Any) -> Relationship | None:
+    """None on anything not cleanly shaped like a relationship -- an
+    unparseable/absent relationship just means this point uses its own
+    explicit position_mm instead, never a hard failure here (structural
+    problems like a dangling target_id are caught later, uniformly, by
+    assembly_plan.validate_relationships, which runs on the WHOLE point
+    list where it can actually check cross-references)."""
+    if not isinstance(raw, dict):
+        return None
+    kind = raw.get("kind")
+    target_id = raw.get("target_id")
+    if kind not in _RELATIONSHIP_KINDS or not isinstance(target_id, str) or not target_id:
+        return None
+    try:
+        return Relationship(
+            kind=kind, target_id=target_id,
+            face=raw.get("face"), offset_u=float(raw.get("offset_u", 0.0) or 0.0),
+            offset_v=float(raw.get("offset_v", 0.0) or 0.0), standoff=float(raw.get("standoff", 0.0) or 0.0),
+            axis=raw.get("axis"), axis_offset=float(raw.get("axis_offset", 0.0) or 0.0),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_points(raw: str) -> list[ActionablePoint]:
     items = _extract_json_array(raw)
     points = []
-    for item in items:
+    for i, item in enumerate(items):
         pos = item.get("position_mm") or {}
+        raw_id = item.get("id")
+        point_id = str(raw_id) if isinstance(raw_id, (str, int)) and str(raw_id) else f"p{i}"
         points.append(
             ActionablePoint(
                 description=str(item["description"]),
                 position_mm=(float(pos.get("x", 0.0)), float(pos.get("y", 0.0)), float(pos.get("z", 0.0))),
+                id=point_id,
+                relationship=_parse_relationship(item.get("relationship")),
             )
         )
     if not points:
@@ -270,6 +460,15 @@ def _correct_gear_mesh_spacing(points: list[ActionablePoint]) -> list[Actionable
     gear_indices = [i for i, p in enumerate(points) if _extract_gear_params(p.description) is not None]
     if len(gear_indices) != 2:
         return points
+    # a relationship-based gear point's position_mm is still a (0,0,0)
+    # placeholder at this point in the pipeline (relationships resolve
+    # later, from real built geometry, in parallel_builder.py) -- correcting
+    # against a placeholder would compute nonsense AND silently strand the
+    # point with a now-wrong position_mm alongside its still-set
+    # relationship. STEP 2 already steers meshing gears away from
+    # relationships, but this is the actual guarantee, not just the prompt.
+    if any(points[i].relationship is not None for i in gear_indices):
+        return points
 
     a, b = gear_indices
     module_a, teeth_a = _extract_gear_params(points[a].description)
@@ -304,8 +503,33 @@ def decompose_prompt(prompt: str, model_path: Path = DEFAULT_MODEL_PATH) -> Deco
     point at the origin -- a typed, disclosed degradation (fell_back=True),
     not a crash and not a silently-wrong decomposition."""
     llm = _get_llm(model_path)
+    try:
+        grammar = _get_points_grammar()
+    except Exception:
+        grammar = None  # schema/grammar construction failing is not fatal -- generate unconstrained, same as before
+
+    # Optional engineering-reference retrieval (knowledge/ subsystem). Added
+    # to the USER message, deliberately NOT the system prompt -- _SYSTEM_PROMPT
+    # is a fixed, already carefully budgeted block (see MAX_CONTEXT's comment
+    # above: it grew to ~3900 tokens once and silently broke decomposition by
+    # leaving almost no headroom). Growing it further with variable-length
+    # retrieved content would risk the exact same failure mode again. The
+    # user message, by contrast, naturally scales with what's actually
+    # retrieved -- zero added tokens when the knowledge base is empty or
+    # nothing relevant was found (see knowledge/pipeline.py's
+    # retrieve_context_for_prompt, which never raises and returns "" in
+    # every such case), and is capped by KnowledgeConfig.max_context_chars
+    # (2000 chars by default, ~500 tokens) even when it does have something.
+    try:
+        from knowledge.pipeline import retrieve_context_for_prompt
+
+        knowledge_context = retrieve_context_for_prompt(prompt)
+    except Exception:
+        knowledge_context = ""  # the knowledge subsystem must never break decomposition
+    user_content = f"{knowledge_context}\n\nRequest: {prompt}" if knowledge_context else prompt
+
     response = llm.create_chat_completion(
-        messages=[{"role": "system", "content": _SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
+        messages=[{"role": "system", "content": _SYSTEM_PROMPT}, {"role": "user", "content": user_content}],
         temperature=0.1,
         max_tokens=2048,
         # Confirmed necessary, not defensive: on a genuinely complex 5-part
@@ -316,19 +540,22 @@ def decompose_prompt(prompt: str, model_path: Path = DEFAULT_MODEL_PATH) -> Deco
         # /no_think in the system prompt (a documented Qwen3 convention)
         # suppresses the reasoning block that was looping in the first
         # place; repeat_penalty is defense in depth in case some reasoning
-        # still slips through.
+        # still slips through. `grammar` is the primary defense now (see
+        # _get_points_grammar) -- it makes malformed JSON structurally
+        # impossible to emit rather than just discouraged.
         repeat_penalty=1.15,
+        grammar=grammar,
     )
     raw = response["choices"][0]["message"]["content"] or ""
 
     try:
         points = _parse_points(raw)
         points = _correct_gear_mesh_spacing(points)
-        return DecomposeResult(points=points, raw_llm_output=raw, fell_back=False)
+        return DecomposeResult(points=points, raw_llm_output=raw, fell_back=False, knowledge_context=knowledge_context)
     except Exception:
         return DecomposeResult(
             points=[ActionablePoint(description=prompt, position_mm=(0.0, 0.0, 0.0))],
-            raw_llm_output=raw, fell_back=True,
+            raw_llm_output=raw, fell_back=True, knowledge_context=knowledge_context,
         )
 
 
@@ -369,11 +596,16 @@ def ask_clarifying_questions(prompt: str, model_path: Path = DEFAULT_MODEL_PATH,
     user would defeat the point of it being a helpful, optional step."""
     llm = _get_llm(model_path)
     try:
+        try:
+            grammar = _get_clarify_grammar()
+        except Exception:
+            grammar = None
         response = llm.create_chat_completion(
             messages=[{"role": "system", "content": _CLARIFY_SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
             temperature=0.2,
             max_tokens=512,
             repeat_penalty=1.15,
+            grammar=grammar,
         )
         raw = response["choices"][0]["message"]["content"] or ""
     except Exception:

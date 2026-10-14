@@ -702,3 +702,706 @@ def test_validate_accepts_program_using_add_shouldered_cylinder():
     assert issues == []
     result = Sandbox.execute(program)
     assert result.status == "ok"
+
+
+# ---- 20 more Blender-like tools, group 1: new primitives ----
+
+def test_add_sphere_is_watertight_with_correct_volume():
+    import math
+    sb = Sandbox()
+    h = sb.add_sphere(10)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    expected = 4 / 3 * math.pi * 1000
+    assert abs(mesh.volume - expected) / expected < 0.02  # icosphere polyhedral undershoot, same class as cylinder approximation elsewhere
+
+
+def test_add_torus_has_a_genuine_hole_through_it():
+    sb = Sandbox()
+    h = sb.add_torus(20, 5)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert mesh.euler_number == 0  # genus-1 topology -- a real hole through the body, not just a dent
+
+
+def test_add_torus_raises_when_tube_would_overlap_itself():
+    sb = Sandbox()
+    try:
+        sb.add_torus(10, 15)
+        assert False, "should have raised -- minor_radius must be smaller than major_radius"
+    except Exception:
+        pass
+
+
+def test_add_capsule_full_length_matches_the_height_argument():
+    sb = Sandbox()
+    h = sb.add_capsule(5, 30)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert abs(mesh.extents[2] - 30) < 1e-6  # height is the FULL length including both hemispherical caps
+
+
+def test_add_capsule_raises_when_shorter_than_two_radii():
+    sb = Sandbox()
+    try:
+        sb.add_capsule(10, 15)
+        assert False, "should have raised -- height must be >= 2*radius"
+    except Exception:
+        pass
+
+
+def test_add_ellipsoid_extents_match_each_radius_doubled():
+    sb = Sandbox()
+    h = sb.add_ellipsoid(10, 5, 3)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert list(mesh.extents) == [20.0, 10.0, 6.0]
+
+
+def test_add_polygon_frustum_hex_prism_matches_exact_analytic_volume():
+    import math
+    sb = Sandbox()
+    h = sb.add_polygon_frustum(6, 20, 20, 30)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    hex_area = (3 * math.sqrt(3) / 2) * 20 * 20
+    # flat facets -- no curved-surface approximation error, should be exact
+    assert abs(mesh.volume - hex_area * 30) < 1e-6
+
+
+def test_add_polygon_frustum_raises_on_too_few_sides_or_zero_radius():
+    sb = Sandbox()
+    try:
+        sb.add_polygon_frustum(2, 10, 10, 20)
+        assert False, "should have raised -- needs at least 3 sides"
+    except Exception:
+        pass
+    sb2 = Sandbox()
+    try:
+        sb2.add_polygon_frustum(6, 0, 10, 20)
+        assert False, "should have raised -- a true pyramid isn't supported by this tool"
+    except Exception:
+        pass
+
+
+def test_add_dome_height_is_independent_of_base_radius():
+    sb = Sandbox()
+    h = sb.add_dome(15, 10)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert abs(mesh.extents[2] - 10) < 0.5  # squashed shorter than its own 15mm base radius
+
+
+def test_add_ring_matches_analytic_annulus_volume():
+    import math
+    sb = Sandbox()
+    h = sb.add_ring(20, 15, 5)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    expected = math.pi * (400 - 225) * 5
+    assert abs(mesh.volume - expected) / expected < 0.02
+
+
+def test_add_ring_raises_when_inner_not_smaller_than_outer():
+    sb = Sandbox()
+    try:
+        sb.add_ring(10, 15, 5)
+        assert False, "should have raised"
+    except Exception:
+        pass
+
+
+# ---- group 2: deform tools (twist, bend, flare) -- all three depend on
+# _subdivide_for_deform, confirmed a REAL, necessary fix: a coarse add_box
+# (2 vertex rings) bent 90 degrees without subdividing first computed a
+# volume 36% off the correct value (self-intersecting/distorted side
+# faces), not just a cosmetic approximation issue. ----
+
+def test_bend_preserves_volume_closely_on_a_coarse_box():
+    sb = Sandbox()
+    h = sb.add_box(100, 10, 10)
+    original_volume = 100 * 10 * 10
+    h = sb.bend(h, "x", "z", 90)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert abs(mesh.volume - original_volume) / original_volume < 0.01
+
+
+def test_bend_raises_when_direction_equals_axis():
+    sb = Sandbox()
+    box_h = sb.add_box(40, 10, 10)
+    try:
+        sb.bend(box_h, "x", "x", 45)
+        assert False, "should have raised -- bend_direction must differ from axis"
+    except Exception:
+        pass
+
+
+def test_twist_preserves_volume_exactly_since_it_is_a_pure_rotation():
+    sb = Sandbox()
+    h = sb.add_box(20, 20, 60)
+    h = sb.twist(h, "z", 180)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert abs(mesh.volume - 20 * 20 * 60) / (20 * 20 * 60) < 0.005
+
+
+def test_flare_matches_fine_grained_analytic_volume_closely():
+    import numpy as np
+    sb = Sandbox()
+    h = sb.add_box(20, 20, 60)
+    h = sb.flare(h, "z", 1.0, 2.5)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    ts = np.linspace(0, 1, 2000)
+    smooth = 3 * ts ** 2 - 2 * ts ** 3
+    factor = 1.0 + 1.5 * smooth
+    approx = np.trapz((factor ** 2) * 20 * 20, ts * 60)
+    assert abs(mesh.volume - approx) / approx < 0.01
+
+
+def test_validate_accepts_the_new_primitives_and_deform_tools():
+    program = [
+        ToolCall(op="add_sphere", args={"radius": 10, "center": [0, 0, 0]}),
+        ToolCall(op="finalize", args={"target": 0}),
+    ]
+    assert Sandbox.validate(program) == []
+    assert Sandbox.execute(program).status == "ok"
+
+    program2 = [
+        ToolCall(op="add_box", args={"length": 100, "width": 10, "height": 10, "center": [0, 0, 0]}),
+        ToolCall(op="bend", args={"target": 0, "axis": "x", "bend_direction": "z", "angle_deg": 45}),
+        ToolCall(op="finalize", args={"target": 1}),
+    ]
+    assert Sandbox.validate(program2) == []
+    assert Sandbox.execute(program2).status == "ok"
+
+
+# ---- 20 more Blender-like tools, group 3: box-edge macros, mirror_merge, add_boss_with_bore ----
+
+def test_round_box_edges_keeps_original_extents_and_is_watertight():
+    sb = Sandbox()
+    box = sb.add_box(40, 30, 20, [0, 0, 0])
+    h = sb.round_box_edges(box, 5)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    np.testing.assert_allclose(mesh.extents, [40, 30, 20], atol=1e-6)
+    # exact Minkowski-sum-with-a-ball formula for a box whose OUTER extents
+    # stay at L x W x H after rounding with fillet radius r:
+    # V = core + face slabs + edge quarter-cylinders + corner eighth-spheres
+    L, W, H, r = 40, 30, 20, 5
+    l, w, hh = L - 2 * r, W - 2 * r, H - 2 * r
+    expected = (
+        l * w * hh
+        + 2 * r * (l * w + w * hh + hh * l)
+        + np.pi * r ** 2 * (l + w + hh)
+        + (4 / 3) * np.pi * r ** 3
+    )
+    assert mesh.volume < L * W * H  # rounding removes material from the sharp box
+    assert abs(mesh.volume - expected) / expected < 0.01  # coarse icosphere faceting only
+
+
+def test_round_box_edges_raises_when_radius_too_large_for_shape():
+    sb = Sandbox()
+    box = sb.add_box(10, 10, 10, [0, 0, 0])
+    try:
+        sb.round_box_edges(box, 6)
+        assert False, "should have raised -- radius too large for this box"
+    except Exception:
+        pass
+
+
+def test_chamfer_box_edges_cross_section_matches_exact_2d_chamfered_rectangle():
+    sb = Sandbox()
+    box = sb.add_box(40, 30, 20, [0, 0, 0])
+    h = sb.chamfer_box_edges(box, 5)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    np.testing.assert_allclose(mesh.extents, [40, 30, 20], atol=1e-6)
+    # mid-height slice is unaffected by the top/bottom chamfers, so it must
+    # be an EXACT 2D chamfered rectangle (a right-isoceles triangle of legs
+    # `distance` cut from each of the 4 corners) -- a flat-faceted
+    # construction, so this should match to floating-point precision, not
+    # just approximately.
+    section = mesh.section(plane_origin=[0, 0, 0], plane_normal=[0, 0, 1])
+    planar, _ = section.to_2D()
+    expected_area = 40 * 30 - 2 * 5 ** 2
+    assert abs(planar.area - expected_area) < 1e-6
+
+
+def test_chamfer_box_edges_raises_when_distance_too_large_for_shape():
+    sb = Sandbox()
+    box = sb.add_box(10, 10, 10, [0, 0, 0])
+    try:
+        sb.chamfer_box_edges(box, 6)
+        assert False, "should have raised -- distance too large for this box"
+    except Exception:
+        pass
+
+
+def test_mirror_merge_doubles_a_disjoint_shape_exactly():
+    sb = Sandbox()
+    box = sb.add_box(10, 10, 10, [5, 0, 0])  # entirely on the +x side, disjoint from its mirror
+    h = sb.mirror_merge(box, "x")
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert abs(mesh.volume - 2000.0) < 1e-6
+    np.testing.assert_allclose(mesh.bounds, [[-10, -5, -5], [10, 5, 5]], atol=1e-6)
+
+
+def test_add_boss_with_bore_boss_height_and_through_hole():
+    sb = Sandbox()
+    plate = sb.add_box(60, 40, 10, [0, 0, 0])
+    h = sb.add_boss_with_bore(plate, "+z", offset_u=0, offset_v=0, boss_radius=8, boss_height=6, bore_radius=3)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert abs(mesh.bounds[1][2] - 11.0) < 1e-6  # plate top (5) + boss_height (6)
+    # bore passes all the way through the boss AND the full plate thickness
+    top_section = mesh.section(plane_origin=[0, 0, 10.9], plane_normal=[0, 0, 1])
+    bottom_section = mesh.section(plane_origin=[0, 0, -4.9], plane_normal=[0, 0, 1])
+    assert top_section is not None and len(top_section.entities) > 0
+    assert bottom_section is not None and len(bottom_section.entities) > 0
+    expected_volume = 60 * 40 * 10 + np.pi * 8 ** 2 * 6 - np.pi * 3 ** 2 * 16
+    assert abs(mesh.volume - expected_volume) / expected_volume < 0.01
+
+
+def test_add_boss_with_bore_raises_when_bore_not_smaller_than_boss():
+    sb = Sandbox()
+    plate = sb.add_box(60, 40, 10, [0, 0, 0])
+    try:
+        sb.add_boss_with_bore(plate, "+z", offset_u=0, offset_v=0, boss_radius=8, boss_height=6, bore_radius=8)
+        assert False, "should have raised -- bore_radius must be smaller than boss_radius"
+    except Exception:
+        pass
+
+
+def test_validate_accepts_the_box_edge_macros_mirror_merge_and_boss_with_bore():
+    program = [
+        ToolCall(op="add_box", args={"length": 40, "width": 30, "height": 20, "center": [0, 0, 0]}),
+        ToolCall(op="round_box_edges", args={"target": 0, "radius": 5}),
+        ToolCall(op="finalize", args={"target": 1}),
+    ]
+    assert Sandbox.validate(program) == []
+    assert Sandbox.execute(program).status == "ok"
+
+    program2 = [
+        ToolCall(op="add_box", args={"length": 60, "width": 40, "height": 10, "center": [0, 0, 0]}),
+        ToolCall(op="add_boss_with_bore", args={
+            "target": 0, "direction": "+z", "offset_u": 0, "offset_v": 0,
+            "boss_radius": 8, "boss_height": 6, "bore_radius": 3,
+        }),
+        ToolCall(op="finalize", args={"target": 1}),
+    ]
+    assert Sandbox.validate(program2) == []
+    assert Sandbox.execute(program2).status == "ok"
+
+
+# ---- 20 more Blender-like tools, group 4: pattern generalizations + hex socket ----
+
+def test_counterbore_hole_pattern_corner_array_removes_less_than_plate_volume():
+    sb = Sandbox()
+    plate = sb.add_box(100, 60, 6, [0, 0, 0])
+    h = sb.counterbore_hole_pattern(
+        plate, "+z", pattern="corner_array", count=4,
+        hole_radius=3, head_radius=6, head_depth=3, head_style="flat", margin=15, circle_diameter=0.0,
+    )
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert mesh.volume < 100 * 60 * 6
+
+
+def test_counterbore_hole_pattern_bolt_circle_conical_head():
+    sb = Sandbox()
+    disk = sb.add_cylinder(40, 8)
+    h = sb.counterbore_hole_pattern(
+        disk, "+z", pattern="bolt_circle", count=6,
+        hole_radius=3, head_radius=6, head_depth=3, head_style="conical", margin=15, circle_diameter=60,
+    )
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+
+
+def test_counterbore_hole_pattern_raises_when_head_not_larger_than_hole():
+    sb = Sandbox()
+    plate = sb.add_box(100, 60, 6, [0, 0, 0])
+    try:
+        sb.counterbore_hole_pattern(
+            plate, "+z", pattern="corner_array", count=4,
+            hole_radius=6, head_radius=6, head_depth=3, head_style="flat", margin=15, circle_diameter=0.0,
+        )
+        assert False, "should have raised -- head_radius must exceed hole_radius"
+    except Exception:
+        pass
+
+
+def test_add_slot_pattern_linear_array_is_watertight_and_removes_material():
+    sb = Sandbox()
+    plate = sb.add_box(100, 60, 6, [0, 0, 0])
+    h = sb.add_slot_pattern(
+        plate, "+z", pattern="linear_array", count=3,
+        radius=3, slot_length=20, slot_axis="u", depth=6, margin=20, circle_diameter=0.0,
+    )
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert mesh.volume < 100 * 60 * 6
+
+
+def test_add_knurl_pattern_adds_material_and_stays_watertight():
+    sb = Sandbox()
+    knob = sb.add_cylinder(15, 10)
+    original_volume = sb._get(knob).volume
+    h = sb.add_knurl_pattern(knob, "+z", offset_u=0, offset_v=0, radius=12, height=2, ridge_count=12)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert mesh.volume > original_volume
+
+
+def test_add_knurl_pattern_raises_when_too_few_ridges():
+    sb = Sandbox()
+    knob = sb.add_cylinder(15, 10)
+    try:
+        sb.add_knurl_pattern(knob, "+z", offset_u=0, offset_v=0, radius=12, height=2, ridge_count=2)
+        assert False, "should have raised -- ridge_count must be at least 3"
+    except Exception:
+        pass
+
+
+def test_radial_array_oriented_produces_n_non_overlapping_copies():
+    sb = Sandbox()
+    tooth = sb.add_box(2, 8, 4, [0, 0, 0])
+    single_volume = sb._get(tooth).volume
+    h = sb.radial_array_oriented(tooth, count=8, radius=20)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert abs(mesh.volume - 8 * single_volume) < 1e-2
+
+
+def test_linear_array_scaled_matches_exact_analytic_volume_of_growing_cubes():
+    sb = Sandbox()
+    fin = sb.add_box(4, 4, 4, [0, 0, 0])
+    h = sb.linear_array_scaled(fin, "x", count=5, spacing=20, scale_step=0.3)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    expected = sum(64 * (1 + 0.3 * i) ** 3 for i in range(5))
+    assert abs(mesh.volume - expected) < 1e-2
+
+
+def test_linear_array_scaled_raises_when_a_copys_scale_factor_goes_non_positive():
+    sb = Sandbox()
+    fin = sb.add_box(4, 4, 4, [0, 0, 0])
+    try:
+        sb.linear_array_scaled(fin, "x", count=5, spacing=20, scale_step=-0.5)
+        assert False, "should have raised -- a later copy's scale factor hits zero/negative"
+    except Exception:
+        pass
+
+
+def test_add_hex_socket_matches_exact_analytic_hexagonal_prism_volume_removed():
+    sb = Sandbox()
+    plate = sb.add_box(40, 40, 10, [0, 0, 0])
+    h = sb.add_hex_socket(plate, "+z", offset_u=0, offset_v=0, across_flats=8, depth=5)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    circumradius = 8 / np.sqrt(3.0)
+    hex_area = (3 * np.sqrt(3) / 2) * circumradius ** 2
+    expected = 40 * 40 * 10 - hex_area * 5
+    assert abs(mesh.volume - expected) < 1e-2
+
+
+def test_validate_accepts_the_pattern_generalizations_and_hex_socket():
+    program = [
+        ToolCall(op="add_box", args={"length": 100, "width": 60, "height": 6, "center": [0, 0, 0]}),
+        ToolCall(op="counterbore_hole_pattern", args={
+            "target": 0, "direction": "+z", "pattern": "corner_array", "count": 4,
+            "hole_radius": 3, "head_radius": 6, "head_depth": 3, "head_style": "flat",
+            "margin": 15, "circle_diameter": 0.0,
+        }),
+        ToolCall(op="finalize", args={"target": 1}),
+    ]
+    assert Sandbox.validate(program) == []
+    assert Sandbox.execute(program).status == "ok"
+
+    program2 = [
+        ToolCall(op="add_box", args={"length": 2, "width": 8, "height": 4, "center": [0, 0, 0]}),
+        ToolCall(op="radial_array_oriented", args={"target": 0, "count": 8, "radius": 20}),
+        ToolCall(op="finalize", args={"target": 1}),
+    ]
+    assert Sandbox.validate(program2) == []
+    assert Sandbox.execute(program2).status == "ok"
+
+
+# ---- loft / sweep / tube: curved-path and dissimilar-cross-section shapes ----
+
+def test_add_loft_circle_to_circle_is_watertight_and_frustum_like():
+    sb = Sandbox()
+    h = sb.add_loft("ellipse", 20, 20, 0, "ellipse", 10, 10, 0, height=30, sections=32)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    analytic_frustum = (np.pi / 3) * 30 * (20**2 + 20 * 10 + 10**2)
+    # smoothstep loft, not a linear frustum -- close but not exact to the linear formula
+    assert abs(mesh.volume - analytic_frustum) / analytic_frustum < 0.03
+
+
+def test_add_loft_handles_dissimilar_profile_kinds():
+    """The real point of add_loft: an L-shape (6 raw vertices) blending
+    into an ellipse (a smooth curve) -- only possible because both get
+    arc-length-resampled to the same point count first."""
+    sb = Sandbox()
+    h = sb.add_loft("l_shape", 40, 40, 10, "ellipse", 15, 15, 0, height=50, sections=20)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert mesh.volume > 0
+
+
+def test_add_loft_raises_on_too_few_sections_or_nonpositive_height():
+    sb = Sandbox()
+    try:
+        sb.add_loft("ellipse", 10, 10, 0, "ellipse", 10, 10, 0, height=10, sections=2)
+        assert False, "should have raised -- sections must be >= 3"
+    except Exception:
+        pass
+    sb2 = Sandbox()
+    try:
+        sb2.add_loft("ellipse", 10, 10, 0, "ellipse", 10, 10, 0, height=0)
+        assert False, "should have raised -- height must be positive"
+    except Exception:
+        pass
+
+
+def test_add_sweep_straight_path_matches_extrusion_volume_closely():
+    sb = Sandbox()
+    h = sb.add_sweep("ellipse", 20, 20, 0, "straight", 50, 0, 0, sections=48, path_segments=16)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    expected = np.pi * 20 * 20 * 50
+    assert abs(mesh.volume - expected) / expected < 0.02
+
+
+def test_add_sweep_arc_path_volume_converges_to_pappus_theorem():
+    """A circular profile swept along a circular arc is a torus segment --
+    Pappus's centroid theorem gives an exact closed-form volume to check
+    convergence against as resolution increases."""
+    errors = []
+    for sections, path_segments in [(16, 24), (64, 200)]:
+        sb = Sandbox()
+        h = sb.add_sweep("ellipse", 5, 5, 0, "arc", 40, 90, 0, sections=sections, path_segments=path_segments)
+        mesh = sb._get(h)
+        assert mesh.is_watertight
+        expected = np.pi * 5 * 5 * (40 * np.pi / 2)  # (angle/360) * 2*pi^2*R*r^2, simplified
+        errors.append(abs(mesh.volume - expected) / expected)
+    assert errors[1] < errors[0]  # finer resolution must be closer to the analytic answer
+    assert errors[1] < 0.01
+
+
+def test_add_sweep_raises_on_too_few_sections():
+    sb = Sandbox()
+    try:
+        sb.add_sweep("ellipse", 10, 10, 0, "straight", 20, 0, 0, sections=2)
+        assert False, "should have raised -- sections must be >= 3"
+    except Exception:
+        pass
+
+
+def test_add_tube_solid_and_hollow_straight_match_analytic_volume():
+    sb = Sandbox()
+    h = sb.add_tube(10, 0, "straight", 60, 0, 0, sections=48)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert abs(mesh.volume - np.pi * 10 * 10 * 60) / (np.pi * 10 * 10 * 60) < 0.02
+
+    sb2 = Sandbox()
+    h2 = sb2.add_tube(10, 7, "straight", 60, 0, 0, sections=48)
+    mesh2 = sb2._get(h2)
+    assert mesh2.is_watertight
+    expected2 = np.pi * (10**2 - 7**2) * 60
+    assert abs(mesh2.volume - expected2) / expected2 < 0.02
+
+
+def test_add_tube_arc_and_helix_paths_are_watertight():
+    sb = Sandbox()
+    h = sb.add_tube(8, 6, "arc", 100, 120, 0, sections=24, path_segments=48)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+
+    sb2 = Sandbox()
+    h2 = sb2.add_tube(5, 3, "helix", 25, 15, 3, sections=20, path_segments=64)
+    mesh2 = sb2._get(h2)
+    assert mesh2.is_watertight
+
+
+def test_add_tube_raises_when_inner_not_smaller_than_outer():
+    sb = Sandbox()
+    try:
+        sb.add_tube(5, 8, "straight", 10, 0, 0)
+        assert False, "should have raised -- inner_radius must be smaller than outer_radius"
+    except Exception:
+        pass
+
+
+def test_validate_accepts_loft_sweep_and_tube():
+    program = [
+        ToolCall(op="add_loft", args={
+            "bottom_profile": "rounded_rect", "bottom_param_a": 80, "bottom_param_b": 50, "bottom_param_c": 8,
+            "top_profile": "ellipse", "top_param_a": 20, "top_param_b": 15, "top_param_c": 0,
+            "height": 120, "center": [0, 0, 0], "sections": 24,
+        }),
+        ToolCall(op="finalize", args={"target": 0}),
+    ]
+    assert Sandbox.validate(program) == []
+    assert Sandbox.execute(program).status == "ok"
+
+    program2 = [
+        ToolCall(op="add_tube", args={
+            "outer_radius": 8, "inner_radius": 6, "path_kind": "arc",
+            "path_param_a": 100, "path_param_b": 90, "path_param_c": 0, "center": [0, 0, 0],
+        }),
+        ToolCall(op="finalize", args={"target": 0}),
+    ]
+    assert Sandbox.validate(program2) == []
+    assert Sandbox.execute(program2).status == "ok"
+
+
+# ---- smooth_subdivide / add_wireframe_from_edges / weld_vertices: gaps
+# found by cross-referencing this project's own acquired CAD/mesh
+# documentation (knowledge/sources.py) against the existing tool roster ----
+
+def test_smooth_subdivide_preserves_most_volume_and_stays_watertight():
+    sb = Sandbox()
+    h = sb.add_box(50, 50, 50)
+    original_volume = sb._get(h).volume
+    result_h = sb.smooth_subdivide(h, subdivisions=2, iterations=10)
+    mesh = sb._get(result_h)
+    assert mesh.is_watertight
+    # Taubin smoothing is volume-preserving by construction -- confirmed
+    # directly (not assumed) to retain >98% of volume at these settings on
+    # a plain box; a generous 90% floor here guards against a real
+    # regression without being flaky on minor trimesh-version drift.
+    assert mesh.volume > 0.90 * original_volume
+
+
+def test_smooth_subdivide_increases_vertex_count_when_subdividing():
+    sb = Sandbox()
+    h = sb.add_box(50, 50, 50)
+    original_vertex_count = len(sb._get(h).vertices)
+    result_h = sb.smooth_subdivide(h, subdivisions=2, iterations=5)
+    assert len(sb._get(result_h).vertices) > original_vertex_count
+
+
+def test_smooth_subdivide_with_zero_subdivisions_only_smooths():
+    sb = Sandbox()
+    h = sb.add_sphere(radius=20)
+    original_vertex_count = len(sb._get(h).vertices)
+    result_h = sb.smooth_subdivide(h, subdivisions=0, iterations=5)
+    mesh = sb._get(result_h)
+    assert mesh.is_watertight
+    assert len(mesh.vertices) == original_vertex_count  # no subdivision -- same vertex count
+
+
+def test_smooth_subdivide_raises_on_out_of_range_params():
+    sb = Sandbox()
+    h = sb.add_box(20, 20, 20)
+    try:
+        sb.smooth_subdivide(h, subdivisions=10, iterations=5)
+        assert False, "should have raised -- subdivisions out of [0, 3]"
+    except Exception:
+        pass
+
+    sb2 = Sandbox()
+    h2 = sb2.add_box(20, 20, 20)
+    try:
+        sb2.smooth_subdivide(h2, subdivisions=1, iterations=0)
+        assert False, "should have raised -- iterations out of [1, 50]"
+    except Exception:
+        pass
+
+
+def test_add_wireframe_from_edges_is_watertight_and_follows_box_edges():
+    sb = Sandbox()
+    h = sb.add_box(50, 30, 20)
+    result_h = sb.add_wireframe_from_edges(h, edge_radius=2.0)
+    mesh = sb._get(result_h)
+    assert mesh.is_watertight
+    assert mesh.volume > 0
+    # a box has 12 edges -- the wireframe's own bounding box should roughly
+    # match the original box's extents (tubes run along the original edges)
+    assert mesh.extents[0] > 45  # close to the 50mm edge, allowing for the tube radius
+
+
+def test_add_wireframe_from_edges_raises_on_nonpositive_radius():
+    sb = Sandbox()
+    h = sb.add_box(20, 20, 20)
+    try:
+        sb.add_wireframe_from_edges(h, edge_radius=0)
+        assert False, "should have raised -- edge_radius must be positive"
+    except Exception:
+        pass
+
+
+def test_add_wireframe_from_edges_raises_when_edge_count_exceeds_bound():
+    sb = Sandbox()
+    h = sb.add_sphere(radius=20)
+    # a default-resolution sphere has well over 500 edges -- confirms the
+    # bound is actually enforced, not just documented
+    try:
+        sb.add_wireframe_from_edges(h, edge_radius=1.0)
+        assert False, "should have raised -- too many edges for this tool's bound"
+    except Exception:
+        pass
+
+
+def test_weld_vertices_merges_near_duplicate_vertices():
+    sb = Sandbox()
+    h = sb.add_box(50, 50, 50)
+    mesh = sb._get(h).copy()
+    original_vertex_count = len(mesh.vertices)
+    mesh.vertices[0] = mesh.vertices[1] + 0.001  # nudge one vertex to nearly coincide with its neighbor
+    sb._shapes[h] = mesh
+
+    result_h = sb.weld_vertices(h, tolerance=0.01)
+    welded = sb._get(result_h)
+    assert welded.is_watertight
+    assert len(welded.vertices) < original_vertex_count
+
+
+def test_weld_vertices_is_close_to_a_no_op_when_nothing_is_close():
+    sb = Sandbox()
+    h = sb.add_box(50, 50, 50)
+    original_vertex_count = len(sb._get(h).vertices)
+    result_h = sb.weld_vertices(h, tolerance=0.001)
+    assert len(sb._get(result_h).vertices) == original_vertex_count
+
+
+def test_weld_vertices_raises_on_nonpositive_tolerance():
+    sb = Sandbox()
+    h = sb.add_box(20, 20, 20)
+    try:
+        sb.weld_vertices(h, tolerance=0)
+        assert False, "should have raised -- tolerance must be positive"
+    except Exception:
+        pass
+
+
+def test_validate_accepts_smooth_subdivide_wireframe_and_weld():
+    program = [
+        ToolCall(op="add_box", args={"length": 40, "width": 30, "height": 20}),  # 0
+        ToolCall(op="smooth_subdivide", args={"target": 0, "subdivisions": 1, "iterations": 5}),  # 1
+        ToolCall(op="finalize", args={"target": 1}),
+    ]
+    assert Sandbox.validate(program) == []
+    assert Sandbox.execute(program).status == "ok"
+
+    program2 = [
+        ToolCall(op="add_box", args={"length": 40, "width": 30, "height": 20}),  # 0
+        ToolCall(op="add_wireframe_from_edges", args={"target": 0, "edge_radius": 1.5}),  # 1
+        ToolCall(op="finalize", args={"target": 1}),
+    ]
+    assert Sandbox.validate(program2) == []
+    assert Sandbox.execute(program2).status == "ok"
+
+    program3 = [
+        ToolCall(op="add_box", args={"length": 40, "width": 30, "height": 20}),  # 0
+        ToolCall(op="weld_vertices", args={"target": 0, "tolerance": 0.01}),  # 1
+        ToolCall(op="finalize", args={"target": 1}),
+    ]
+    assert Sandbox.validate(program3) == []
+    assert Sandbox.execute(program3).status == "ok"

@@ -57,6 +57,14 @@ class PointBuildResult:
     executed_steps: int
     error: str | None
     nearest_neighbor_similarity: float
+    program: list[dict]  # [{"op": ..., "args": {...}}, ...] -- the actual predicted tool
+                          # sequence. Previously dropped entirely once execution finished,
+                          # which meant a point that executes "ok" but predicted the WRONG
+                          # tool sequence (confirmed, real failure mode -- see sandbox.py's
+                          # own regression notes on this) was indistinguishable from a
+                          # correct one anywhere downstream. Kept as plain dicts, not
+                          # ToolCall objects, so this survives the ProcessPoolExecutor
+                          # pickling boundary and serializes straight to JSON for logging.
     mesh: "trimesh.Trimesh | None" = field(repr=False, default=None)
     topology: "dict | None" = None
 
@@ -66,6 +74,10 @@ class AssemblyBuildResult:
     mesh: "trimesh.Trimesh | None"
     points: list[PointBuildResult]
     fell_back_to_single_point: bool  # true if the LLM decomposition itself failed (see llm_decompose.DecomposeResult)
+    raw_llm_output: str | None = None  # None for the manual-points path, which never calls the LLM
+    knowledge_context: str = ""  # the engineering-reference text actually retrieved and shown to the
+                                  # model for this prompt, if any (see llm_decompose.DecomposeResult) --
+                                  # "" for the manual-points path too, which never calls decompose_prompt
 
 
 _worker_bundle: Any = None  # per-process cache -- loaded once per worker, not once per point
@@ -106,51 +118,123 @@ def _build_one(description: str) -> dict:
         "executed_steps": result.executed_steps,
         "error": result.error,
         "nearest_neighbor_similarity": prediction.nearest_neighbor_similarity,
+        "program": [{"op": c.op, "args": c.args} for c in prediction.program],
         "mesh": result.mesh,
         "topology": topology,
     }
+
+
+def _unique_point_ids(points: list[ActionablePoint]) -> list[str]:
+    """A blank or duplicated id (an older caller that never set one, or a
+    hand-edited playground list) must still produce a usable, unique id
+    per point -- relationship resolution and the final response both key
+    off this list, positionally aligned with `points`."""
+    seen: set[str] = set()
+    ids: list[str] = []
+    for i, p in enumerate(points):
+        pid = p.id or f"_idx{i}"
+        if pid in seen:
+            pid = f"{pid}_{i}"
+        seen.add(pid)
+        ids.append(pid)
+    return ids
 
 
 def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path, max_workers: int = 4) -> AssemblyBuildResult:
     """The shared build core: takes a list of actionable points from
     WHATEVER source produced them -- the LLM's decomposition, or a user
     hand-editing/hand-adding points in the frontend's playground -- and
-    builds each one independently in parallel via program_model.py +
-    sandbox.py, exactly the same way either way. Manual points are not a
-    separate, lesser path: they go through the identical proprietary
-    tool-composing builder, just skipping the LLM's guess at what the
-    parts and their positions should be."""
+    builds each one via program_model.py + sandbox.py, exactly the same
+    way either way. Manual points are not a separate, lesser path: they go
+    through the identical proprietary tool-composing builder, just
+    skipping the LLM's guess at what the parts and their positions
+    should be.
+
+    Points are built in DEPENDENCY WAVES, not all at once: a point whose
+    position comes from a relationship (see assembly_plan.py) can only be
+    placed once its target's own mesh has actually been built, so it waits
+    for that wave to finish. Points with no relationship (or whose target
+    is already resolved) build in parallel within their own wave, exactly
+    as before -- most real assemblies are 1-2 waves deep, so this rarely
+    costs more than the fully-parallel version did."""
+    from assembly_plan import RelationshipError, order_by_dependency, resolve_position, validate_relationships
+
+    ids = _unique_point_ids(points)
+    id_to_point = dict(zip(ids, points))
+    relationships = {pid: p.relationship for pid, p in zip(ids, points)}
+
+    try:
+        validate_relationships(ids, relationships)
+        waves = order_by_dependency(ids, relationships)
+    except RelationshipError as exc:
+        # A structurally invalid plan (dangling reference, cycle,
+        # self-reference) is rejected BEFORE anything is built -- the same
+        # "typed failure, never silent wrongness" rule sandbox.py's own
+        # ProgramExecutionResult follows for a single part's tool program.
+        rejected = [
+            PointBuildResult(point=p, status="rejected", executed_steps=0, error=f"RelationshipError: {exc}",
+                              nearest_neighbor_similarity=0.0, program=[], mesh=None, topology=None)
+            for p in points
+        ]
+        return AssemblyBuildResult(mesh=None, points=rejected, fell_back_to_single_point=False)
+
+    point_results: dict[str, PointBuildResult] = {}
+    placed_meshes_by_id: dict[str, trimesh.Trimesh] = {}  # final, WORLD-placed meshes -- relationship targets for later waves
+
     with ProcessPoolExecutor(max_workers=max_workers, initializer=_init_worker, initargs=(str(bundle_path),)) as pool:
-        raw_results = list(pool.map(_build_one, [p.description for p in points]))
+        for wave in waves:
+            if not wave:
+                continue
+            wave_points = [id_to_point[pid] for pid in wave]
+            raw_results = list(pool.map(_build_one, [p.description for p in wave_points]))
 
-    point_results: list[PointBuildResult] = []
-    placed_meshes: list[trimesh.Trimesh] = []
-    for point, raw in zip(points, raw_results):
-        point_results.append(
-            PointBuildResult(
-                point=point, status=raw["status"], executed_steps=raw["executed_steps"], error=raw["error"],
-                nearest_neighbor_similarity=raw["nearest_neighbor_similarity"], mesh=raw["mesh"],
-                topology=raw["topology"],
-            )
-        )
-        # "out_of_distribution" and "suspect" still carry a mesh (a guess,
-        # or a geometrically dubious result) -- included in the combined
-        # assembly but disclosed via status, never silently upgraded to
-        # look like a clean "ok". Only a genuinely missing mesh (rejected/
-        # partial-with-no-mesh) is left out, and even then the point is
-        # still reported, never dropped from the response entirely.
-        if raw["mesh"] is not None:
-            transform = PlacementTransform.translation(point.position_mm)
-            placed_meshes.append(transform.apply_to_mesh(raw["mesh"]))
+            for pid, point, raw in zip(wave, wave_points, raw_results):
+                own_mesh, status, error = raw["mesh"], raw["status"], raw["error"]
+                position_mm = point.position_mm
 
+                if own_mesh is not None and point.relationship is not None:
+                    target_mesh = placed_meshes_by_id.get(point.relationship.target_id)
+                    if target_mesh is None:
+                        status, error, own_mesh = "rejected", (
+                            f"cannot resolve relationship: target {point.relationship.target_id!r} "
+                            "failed to build its own geometry"
+                        ), None
+                    else:
+                        try:
+                            position_mm = resolve_position(point.relationship, target_mesh, own_mesh)
+                        except RelationshipError as exc:
+                            status, error, own_mesh = "rejected", f"RelationshipError: {exc}", None
+
+                point_results[pid] = PointBuildResult(
+                    point=ActionablePoint(description=point.description, position_mm=position_mm, id=pid, relationship=point.relationship),
+                    status=status, executed_steps=raw["executed_steps"], error=error,
+                    nearest_neighbor_similarity=raw["nearest_neighbor_similarity"], program=raw["program"],
+                    mesh=own_mesh, topology=raw["topology"],
+                )
+                # "out_of_distribution" and "suspect" still carry a mesh (a
+                # guess, or a geometrically dubious result) -- included in
+                # the combined assembly but disclosed via status, never
+                # silently upgraded to look like a clean "ok". Only a
+                # genuinely missing mesh (rejected/partial-with-no-mesh,
+                # including a relationship that couldn't be resolved) is
+                # left out, and even then the point is still reported,
+                # never dropped from the response entirely.
+                if own_mesh is not None:
+                    placed = PlacementTransform.translation(position_mm).apply_to_mesh(own_mesh)
+                    placed_meshes_by_id[pid] = placed
+
+    ordered_results = [point_results[pid] for pid in ids]
+    placed_meshes = [placed_meshes_by_id[pid] for pid in ids if pid in placed_meshes_by_id]
     combined = trimesh.util.concatenate(placed_meshes) if placed_meshes else None
-    return AssemblyBuildResult(mesh=combined, points=point_results, fell_back_to_single_point=False)
+    return AssemblyBuildResult(mesh=combined, points=ordered_results, fell_back_to_single_point=False)
 
 
 def build_assembly_from_prompt(prompt: str, bundle_path: Path, max_workers: int = 4) -> AssemblyBuildResult:
     decomposition = decompose_prompt(prompt)
     result = build_assembly_from_points(decomposition.points, bundle_path, max_workers)
     result.fell_back_to_single_point = decomposition.fell_back
+    result.raw_llm_output = decomposition.raw_llm_output
+    result.knowledge_context = decomposition.knowledge_context
     return result
 
 

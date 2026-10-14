@@ -1,0 +1,48 @@
+# v1 LoRA config for fine-tuning llm_decompose.py's Qwen3-4B-Instruct-2507 on
+# the decomposition + clarification dataset training/prepare_dataset.py
+# builds. GPU-only -- see train.py's module docstring for why this cannot
+# run on the local CPU-only dev machine, and the dead
+# ml/cad/configs/cad_lora_v1.yaml this supersedes (that one targeted an
+# abandoned Hunyuan3D-DiT image-conditioned pipeline, unrelated to this
+# project's current text-to-tool-call architecture).
+#
+# STATUS: not yet run. This is the pipeline, ready for a rented GPU box; no
+# training has happened with it yet.
+
+experiment_name: qwen3_4b_decompose_lora_v1
+
+base_model: Qwen/Qwen3-4B-Instruct-2507  # the un-quantized HF checkpoint -- NOT the local .gguf
+                                          # (llama.cpp/gguf has no LoRA-training support; train
+                                          # against the full-precision/4-bit HF weights instead,
+                                          # then merge + re-quantize to .gguf for llm_decompose.py)
+
+qlora:
+  enabled: true  # 4-bit (QLoRA) rather than full LoRA -- fits a 4B model's fine-tuning on a
+                 # single mid-range GPU (e.g. a 16GB T4/RTX 4060) instead of needing a larger card
+  quant_type: nf4
+
+lora:
+  rank: 16
+  alpha: 32
+  target_modules: [q_proj, k_proj, v_proj, o_proj]  # Qwen3's attention projections
+  dropout: 0.05
+
+data:
+  train_path: ml/cad/training/data/training/sft.jsonl
+  val_path: ml/cad/training/data/validation/sft.jsonl
+  test_path: ml/cad/training/data/test/sft.jsonl
+  max_length: 4096  # matches llm_decompose.py's MAX_CONTEXT default
+
+training:
+  learning_rate: 2.0e-4
+  batch_size: 2
+  gradient_accumulation_steps: 8  # effective batch size 16
+  max_steps: 1000
+  eval_steps: 50
+  save_steps: 100
+  seed: 0
+
+output_dir: ml/cad/training/checkpoints/qwen3_4b_decompose_lora_v1
+
+logging:
+  backend: csv  # swap to wandb once experiment volume justifies it

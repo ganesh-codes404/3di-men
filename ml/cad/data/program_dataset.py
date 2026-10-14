@@ -148,27 +148,52 @@ def _pattern_ring(rng: random.Random) -> tuple[str, list[ToolCall]]:
     return text, program
 
 
+_NUMBER_WORDS = {2: "two", 3: "three", 4: "four"}
+
+
 def _pattern_holes(rng: random.Random) -> tuple[str, list[ToolCall]]:
     shape = rng.choice(["box", "cylinder"])
     count = rng.choice([2, 3, 4])
     hole_r = rng.choice([2, 3, 4])
+    margin = rng.choice([8.0, 15.0, 20.0, 25.0])
+    # two real phrasing styles, both trained: the plain "N holes" count-only
+    # style, and the "corner array... Xmm from a corner" positional style --
+    # confirmed live that _SYSTEM_PROMPT's own worked phrasing ("a corner
+    # array of four holes, each 20mm from a corner") shares NO vocabulary
+    # with the count-only style, so a classifier trained on count-only text
+    # alone mispredicted this as a box-minus-box cavity instead of a hole
+    # pattern. Both styles must be present so either phrasing is recognized.
+    # weighted toward the verbose style -- confirmed directly (same density
+    # problem as add_sphere's earlier fix) that a 50/50 split left this
+    # phrasing too thin relative to other patterns' box+"with a ..." text
+    # for the per-slot classifier to reliably distinguish it from
+    # _pattern_cavity's box-minus-box shape.
+    verbose_style = rng.random() < 0.85
     if shape == "box":
         l, w, h = rng.choice([40, 60, 80]), rng.choice([30, 40, 60]), rng.choice([6, 8, 10])
         program = [ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]})]
         shape_desc = f"a box {l:g}mm x {w:g}mm x {h:g}mm"
         depth = h
+        pattern_kind = "corner_array"
     else:
         r, h = rng.choice([20, 30, 40]), rng.choice([6, 8, 10])
         program = [ToolCall("add_cylinder", {"radius": r, "height": h, "center": [0, 0, 0], "axis": "z"})]
         shape_desc = f"a cylinder {2*r:g}mm diameter x {h:g}mm tall"
         depth = h
+        pattern_kind = "bolt_circle"
     program.append(
-        ToolCall("drill_hole_pattern", {"target": 0, "pattern": "corner_array" if shape == "box" else "bolt_circle",
+        ToolCall("drill_hole_pattern", {"target": 0, "pattern": pattern_kind,
                                          "count": count, "radius": hole_r, "depth": depth, "axis": "z",
-                                         "margin": 8.0, "circle_diameter": 0.0, "z": 0.0})
+                                         "margin": margin, "circle_diameter": 0.0, "z": 0.0})
     )
     program.append(ToolCall("finalize", {"target": 1}))
-    text = f"{shape_desc} with {count} {2*hole_r:g}mm holes"
+    if verbose_style and shape == "box":
+        count_word = _NUMBER_WORDS[count]
+        text = f"{shape_desc} with a corner array of {count_word} holes, each {margin:g}mm from a corner"
+    elif verbose_style:
+        text = f"{shape_desc} with {count} holes arranged in a bolt circle, {hole_r*2:g}mm diameter, {margin:g}mm margin from the edge"
+    else:
+        text = f"{shape_desc} with {count} {2*hole_r:g}mm holes"
     return text, program
 
 
@@ -367,6 +392,38 @@ def _pattern_hollow_vessel(rng: random.Random) -> tuple[str, list[ToolCall]]:
     return text, program
 
 
+def _pattern_widening_vessel(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """The OTHER real vessel direction -- a vase, funnel, or flowerpot that
+    WIDENS toward its opening, not a bottle-style narrowing neck. Confirmed
+    as a genuine, previously-uncovered gap live: asked the actual LLM
+    decomposer for "a flower vase, wider at the top than the bottom" and it
+    defaulted to the narrowing-neck template anyway (body wider than the
+    requested opening), because this corpus had zero examples of the
+    opposite direction to weigh against that default. Structurally this is
+    just add_shouldered_cylinder with bottom_radius < top_radius -- the
+    tool already supports it fine, only the training/prompt guidance was
+    missing."""
+    base_radius = rng.choice([15, 20, 25])
+    base_height = rng.choice([20, 30, 40])
+    top_radius = rng.choice([35, 40, 50])
+    top_height = rng.choice([100, 130, 160])
+    shoulder_height = rng.choice([15, 20, 25])
+    wall = 2
+    program = [
+        ToolCall("add_shouldered_cylinder", {
+            "bottom_radius": base_radius, "bottom_height": base_height, "top_radius": top_radius,
+            "top_height": top_height, "transition_height": shoulder_height, "center": [0, 0, 0],
+        }),
+        ToolCall("shell", {"target": 0, "wall_thickness": wall}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = (
+        f"a hollow vessel: a {2*base_radius:g}mm diameter, {base_height:g}mm tall base smoothly widening to a "
+        f"{2*top_radius:g}mm diameter, {top_height:g}mm tall top opening over a {shoulder_height:g}mm shoulder, {wall:g}mm walls"
+    )
+    return text, program
+
+
 def _pattern_frustum(rng: random.Random) -> tuple[str, list[ToolCall]]:
     bottom_r, top_r = rng.choice([15, 20, 25]), rng.choice([5, 8, 10])
     height = rng.choice([20, 30, 40])
@@ -508,14 +565,360 @@ def _pattern_rib(rng: random.Random) -> tuple[str, list[ToolCall]]:
     return text, program
 
 
+def _pattern_sphere(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    # deliberately 10 distinct values, not 3-4 like most patterns here --
+    # confirmed directly that with only 4 choices, canonical-key-hash-based
+    # train/val/test splitting can route ALL duplicate occurrences of most
+    # values away from train (every occurrence of a given text hashes to
+    # the same split), leaving the classifier having only ever seen ONE
+    # exact diameter string during training and misclassifying every other
+    # (lexically near-identical) diameter as add_cylinder+drill_hole. A
+    # single-parameter pattern like this is uniquely exposed to that
+    # failure mode -- most other new patterns vary 2-3 dimensions, so the
+    # combinatorial spread already avoids this.
+    radius = rng.choice([8, 10, 12, 15, 18, 20, 22, 25, 28, 30])
+    program = [
+        ToolCall("add_sphere", {"radius": radius, "center": [0, 0, 0]}),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a sphere {2*radius:g}mm diameter"
+    return text, program
+
+
+def _pattern_torus(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    major_radius = rng.choice([20, 30, 40])
+    minor_radius = rng.choice([4, 6, 8])
+    axis = rng.choice(["x", "y", "z"])
+    program = [
+        ToolCall("add_torus", {"major_radius": major_radius, "minor_radius": minor_radius, "center": [0, 0, 0], "axis": axis}),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a torus (ring donut shape) {2*major_radius:g}mm across, {2*minor_radius:g}mm tube diameter, around the {axis} axis"
+    return text, program
+
+
+def _pattern_capsule(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    radius = rng.choice([6, 8, 10])
+    height = rng.choice([40, 60, 80])
+    axis = rng.choice(["x", "y", "z"])
+    program = [
+        ToolCall("add_capsule", {"radius": radius, "height": height, "center": [0, 0, 0], "axis": axis}),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a capsule (pill shape) {2*radius:g}mm diameter, {height:g}mm long, along the {axis} axis"
+    return text, program
+
+
+def _pattern_ellipsoid(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    rx, ry, rz = rng.choice([15, 20, 25]), rng.choice([10, 15, 20]), rng.choice([8, 12, 16])
+    program = [
+        ToolCall("add_ellipsoid", {"radius_x": rx, "radius_y": ry, "radius_z": rz, "center": [0, 0, 0]}),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"an egg-like ellipsoid {2*rx:g}mm x {2*ry:g}mm x {2*rz:g}mm"
+    return text, program
+
+
+def _pattern_polygon_frustum(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    sides = rng.choice([5, 6, 8])
+    bottom_r, top_r = rng.choice([15, 20, 25]), rng.choice([8, 10, 12])
+    height = rng.choice([20, 30, 40])
+    program = [
+        ToolCall("add_polygon_frustum", {
+            "sides": sides, "bottom_radius": bottom_r, "top_radius": top_r, "height": height,
+            "center": [0, 0, 0], "axis": "z",
+        }),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a {sides}-sided prism, {2*bottom_r:g}mm across at the bottom narrowing to {2*top_r:g}mm at the top, {height:g}mm tall"
+    return text, program
+
+
+def _pattern_dome(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    radius = rng.choice([20, 25, 30])
+    height = rng.choice([10, 15, 20])
+    program = [
+        ToolCall("add_dome", {"radius": radius, "height": height, "center": [0, 0, 0], "axis": "z"}),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a dome {2*radius:g}mm diameter base, {height:g}mm tall"
+    return text, program
+
+
+def _pattern_annulus_primitive(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """add_ring, the direct annulus primitive -- distinct from the
+    existing _pattern_ring, which builds its ring via two unioned
+    cylinders + boolean_difference. Both belong in the corpus: the
+    classifier needs exposure to the direct one-call primitive too, not
+    only the boolean-composition route to the same shape family."""
+    outer_radius, height = rng.choice([25, 35, 45]), rng.choice([5, 8, 10])
+    inner_radius = outer_radius * rng.choice([0.4, 0.5, 0.6])
+    program = [
+        ToolCall("add_ring", {
+            "outer_radius": outer_radius, "inner_radius": inner_radius, "height": height,
+            "center": [0, 0, 0], "axis": "z",
+        }),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a flat ring/washer, {2*outer_radius:g}mm outer diameter, {2*inner_radius:g}mm inner diameter, {height:g}mm thick"
+    return text, program
+
+
+def _pattern_flare(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    radius, height = rng.choice([15, 20, 25]), rng.choice([60, 80, 100])
+    top_factor = rng.choice([1.4, 1.6, 1.8])
+    program = [
+        ToolCall("add_cylinder", {"radius": radius, "height": height, "center": [0, 0, 0], "axis": "z"}),
+        ToolCall("flare", {"target": 0, "axis": "z", "bottom_factor": 1.0, "top_factor": top_factor}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a cylinder {2*radius:g}mm diameter, {height:g}mm tall, smoothly flaring out to {top_factor*100:g}% width at the top"
+    return text, program
+
+
+def _pattern_twist(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([20, 25, 30]), rng.choice([20, 25, 30]), rng.choice([80, 100, 120])
+    angle = rng.choice([45, 90, 180])
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("twist", {"target": 0, "axis": "z", "angle_deg": angle}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a box {l:g}mm x {w:g}mm x {h:g}mm twisted {angle:g} degrees along its height"
+    return text, program
+
+
+def _pattern_bend(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([100, 120, 150]), rng.choice([15, 20, 25]), rng.choice([10, 15, 20])
+    angle = rng.choice([30, 45, 60, 90])
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("bend", {"target": 0, "axis": "x", "bend_direction": "z", "angle_deg": angle}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a bar {l:g}mm x {w:g}mm x {h:g}mm bent {angle:g} degrees along its length"
+    return text, program
+
+
+def _pattern_round_box_edges(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([40, 50, 60]), rng.choice([30, 40, 50]), rng.choice([20, 25, 30])
+    radius = max(2, min(l, w, h) // 8)
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("round_box_edges", {"target": 0, "radius": radius}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a box {l:g}mm x {w:g}mm x {h:g}mm with all edges rounded to a {radius:g}mm radius"
+    return text, program
+
+
+def _pattern_chamfer_box_edges(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([40, 50, 60]), rng.choice([30, 40, 50]), rng.choice([20, 25, 30])
+    distance = max(2, min(l, w, h) // 8)
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("chamfer_box_edges", {"target": 0, "distance": distance}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a box {l:g}mm x {w:g}mm x {h:g}mm with all edges chamfered {distance:g}mm"
+    return text, program
+
+
+def _pattern_mirror_merge(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([20, 30, 40]), rng.choice([15, 20, 30]), rng.choice([6, 8, 10])
+    offset = rng.choice([15, 20, 25])
+    axis = rng.choice(["x", "y"])
+    center = [offset, 0, 0] if axis == "x" else [0, offset, 0]
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": center}),
+        ToolCall("mirror_merge", {"target": 0, "axis": axis}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a box {l:g}mm x {w:g}mm x {h:g}mm mirrored across the {axis} axis and merged with itself into one symmetric part"
+    return text, program
+
+
+def _pattern_boss_with_bore(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([50, 60, 70]), rng.choice([40, 50, 60]), rng.choice([6, 8, 10])
+    direction = rng.choice(_FACE_DIRECTIONS)
+    boss_radius = max(4, min(l, w) // 8)
+    boss_height = rng.choice([6, 8, 10])
+    bore_radius = max(1, boss_radius // 2)
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("add_boss_with_bore", {
+            "target": 0, "direction": direction, "offset_u": 0, "offset_v": 0,
+            "boss_radius": boss_radius, "boss_height": boss_height, "bore_radius": bore_radius,
+        }),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = (
+        f"an enclosure wall {l:g}mm x {w:g}mm x {h:g}mm with a screw boss on {_FACE_DIRECTION_WORDS[direction]}: "
+        f"{2*boss_radius:g}mm diameter, {boss_height:g}mm tall, with a {2*bore_radius:g}mm bore through the middle"
+    )
+    return text, program
+
+
+def _pattern_counterbore_hole_pattern(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([80, 100, 120]), rng.choice([60, 80, 100]), rng.choice([15, 20, 25])
+    hole_radius = max(2, min(l, w, h) // 15)
+    head_radius = hole_radius * 2
+    head_depth = max(2, min(l, w, h) // 8)
+    head_style = rng.choice(["flat", "conical"])
+    pattern = rng.choice(["corner_array", "bolt_circle"])
+    margin = max(10, min(l, w) // 6)
+    if pattern == "corner_array":
+        count, circle_diameter = 4, 0.0
+    else:
+        count, circle_diameter = rng.choice([4, 6, 8]), min(l, w) - 2 * margin
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("counterbore_hole_pattern", {
+            "target": 0, "direction": "+z", "pattern": pattern, "count": count,
+            "hole_radius": hole_radius, "head_radius": head_radius, "head_depth": head_depth, "head_style": head_style,
+            "margin": margin, "circle_diameter": circle_diameter,
+        }),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    layout_word = "at the four corners" if pattern == "corner_array" else f"in a bolt circle of {count}"
+    text = (
+        f"a plate {l:g}mm x {w:g}mm x {h:g}mm with counterbored fastener holes {layout_word}, "
+        f"{hole_radius*2:g}mm holes with a {head_radius*2:g}mm recess"
+    )
+    return text, program
+
+
+def _pattern_add_slot_pattern(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([100, 120, 150]), rng.choice([60, 80, 100]), rng.choice([10, 15, 20])
+    radius = max(2, min(l, w) // 25)
+    slot_length = min(l, w) // 4
+    slot_axis = rng.choice(["u", "v"])
+    count = rng.choice([2, 3, 4])
+    margin = max(15, min(l, w) // 5)
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("add_slot_pattern", {
+            "target": 0, "direction": "+z", "pattern": "linear_array", "count": count,
+            "radius": radius, "slot_length": slot_length, "slot_axis": slot_axis, "depth": h,
+            "margin": margin, "circle_diameter": 0.0,
+        }),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a plate {l:g}mm x {w:g}mm x {h:g}mm with a row of {count} adjustable mounting slots, {radius*2:g}mm wide, {slot_length:g}mm long"
+    return text, program
+
+
+def _pattern_knurl(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    radius, height = rng.choice([12, 15, 20]), rng.choice([15, 20, 25])
+    ridge_count = rng.choice([12, 16, 20])
+    knurl_radius = radius - 3
+    knurl_height = rng.choice([1, 2, 3])
+    program = [
+        ToolCall("add_cylinder", {"radius": radius, "height": height, "center": [0, 0, 0], "axis": "z"}),
+        ToolCall("add_knurl_pattern", {
+            "target": 0, "direction": "+z", "offset_u": 0, "offset_v": 0,
+            "radius": knurl_radius, "height": knurl_height, "ridge_count": ridge_count,
+        }),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a knob {2*radius:g}mm diameter, {height:g}mm tall, with a knurled grip texture of {ridge_count} ridges on top"
+    return text, program
+
+
+def _pattern_radial_array_oriented(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([2, 3, 4]), rng.choice([8, 10, 12]), rng.choice([4, 6, 8])
+    count, ring_radius = rng.choice([6, 8, 10]), rng.choice([20, 30, 40])
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("radial_array_oriented", {"target": 0, "count": count, "radius": ring_radius}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"{count} spokes {l:g}mm x {w:g}mm x {h:g}mm arranged in a circle of {ring_radius:g}mm radius, each pointing outward from the center"
+    return text, program
+
+
+def _pattern_linear_array_scaled(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([6, 8, 10]), rng.choice([6, 8, 10]), rng.choice([6, 8, 10])
+    count, spacing = rng.choice([4, 5, 6]), rng.choice([20, 25, 30])
+    scale_step = rng.choice([0.2, 0.3, 0.4])
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("linear_array_scaled", {"target": 0, "axis": "x", "count": count, "spacing": spacing, "scale_step": scale_step}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = (
+        f"a row of {count} boxes {l:g}mm x {w:g}mm x {h:g}mm spaced {spacing:g}mm apart along the x axis, "
+        f"each one {scale_step*100:g}% larger than the last"
+    )
+    return text, program
+
+
+def _pattern_hex_socket(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([40, 50, 60]), rng.choice([40, 50, 60]), rng.choice([15, 20, 25])
+    across_flats = rng.choice([6, 8, 10])
+    depth = max(3, h // 3)
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("add_hex_socket", {
+            "target": 0, "direction": "+z", "offset_u": 0, "offset_v": 0,
+            "across_flats": across_flats, "depth": depth,
+        }),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a block {l:g}mm x {w:g}mm x {h:g}mm with a {across_flats:g}mm hex socket, {depth:g}mm deep, in the top face"
+    return text, program
+
+
 _GENERIC_PATTERNS = [
-    _pattern_union, _pattern_cavity, _pattern_ring, _pattern_holes,
+    _pattern_union, _pattern_cavity, _pattern_ring, _pattern_holes, _pattern_holes, _pattern_holes,
     _pattern_intersection, _pattern_mirror, _pattern_scaled, _pattern_linear_array, _pattern_circular_array,
     _pattern_boss, _pattern_pocket, _pattern_shell, _pattern_fillet, _pattern_chamfer,
     _pattern_frustum, _pattern_cone, _pattern_tapered_box,
     _pattern_counterbore, _pattern_drill_slot, _pattern_rib,
-    _pattern_shell_cylinder, _pattern_hollow_vessel, _pattern_shouldered_cylinder,
+    _pattern_shell_cylinder, _pattern_hollow_vessel, _pattern_widening_vessel, _pattern_shouldered_cylinder,
+    # 20 more Blender-like tools
+    _pattern_sphere, _pattern_sphere, _pattern_sphere,  # 3x weight: confirmed directly that this
+    # pattern's single, 10-value radius parameter otherwise gets too few raw
+    # samples-per-value out of an even per-pattern share of n_generic for
+    # canonical-key-hash train/val/test splitting to reliably put ANY given
+    # exact diameter string in the train split -- every other new pattern
+    # varies 2+ dimensions, so this collision risk is unique to add_sphere.
+    _pattern_torus, _pattern_capsule, _pattern_ellipsoid, _pattern_ellipsoid,
+    _pattern_polygon_frustum, _pattern_dome, _pattern_annulus_primitive,
+    _pattern_flare, _pattern_twist, _pattern_bend,
+    _pattern_round_box_edges, _pattern_chamfer_box_edges, _pattern_mirror_merge, _pattern_boss_with_bore,
+    _pattern_counterbore_hole_pattern, _pattern_add_slot_pattern, _pattern_knurl,
+    _pattern_radial_array_oriented, _pattern_linear_array_scaled, _pattern_hex_socket,
 ]
+
+
+_POSITIONAL_SUFFIXES = [
+    ", centered on the top face of the box base",
+    ", mounted on top",
+    ", centered on the front face",
+    ", positioned on top of the base",
+    ", centered on top of the box",
+]
+
+
+def _with_positional_noise(text: str, rng: random.Random) -> str:
+    """Appends a realistic positional/relational clause to `text` with some
+    probability, WITHOUT changing the program -- teaching the classifier
+    that this kind of clause is irrelevant to which tool gets chosen.
+    Confirmed as a genuinely necessary fix, not a hypothetical one: a live
+    multi-part decomposition (a treasure chest) had the LLM describe EVERY
+    single part with a trailing clause like "...centered on the top face of
+    the box base" (position_mm is a separate field, but STEP 3's guidance
+    didn't forbid restating it in the description too), and every single
+    one of those descriptions -- a dome, a sphere, a capsule, an ellipsoid,
+    a cone, a ring, a hollowed cylinder -- got dragged into the SAME wrong
+    add_box+add_box+boolean_difference prediction regardless of the actual
+    requested shape. A robustness probe confirmed this is systemic: 7 of 8
+    generic patterns tested broke under this exact suffix pattern, with no
+    relation to how well-represented the base pattern itself was."""
+    if rng.random() < 0.35:
+        return text + rng.choice(_POSITIONAL_SUFFIXES)
+    return text
 
 
 def sample_generic_composition_dataset(n: int, seed: int) -> list[ProgramSample]:
@@ -524,6 +927,7 @@ def sample_generic_composition_dataset(n: int, seed: int) -> list[ProgramSample]
     for i in range(n):
         pattern_fn = rng.choice(_GENERIC_PATTERNS)
         text, program = pattern_fn(rng)
+        text = _with_positional_noise(text, rng)
         out.append(
             ProgramSample(
                 id=f"generic_{i:06d}", text=text, program=tuple(program), source_kind="generic_composition",

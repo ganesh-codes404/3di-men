@@ -12,6 +12,8 @@ from llm_decompose import (
     _correct_gear_mesh_spacing,
     _extract_gear_params,
     _extract_json_array,
+    _get_clarify_grammar,
+    _get_points_grammar,
     _parse_points,
     ask_clarifying_questions,
     decompose_prompt,
@@ -150,6 +152,158 @@ def test_decompose_prompt_parses_well_formed_multi_point_response(monkeypatch):
     assert result.fell_back is False
     assert len(result.points) == 2
     assert result.points[1].position_mm == (0.0, 0.0, 50.0)
+
+
+def test_points_grammar_builds_successfully():
+    """Grammar construction itself (LlamaGrammar.from_json_schema against
+    _POINTS_JSON_SCHEMA) must not raise -- this is the thing that makes
+    malformed JSON structurally impossible to emit, so if it can't even be
+    built, decompose_prompt silently loses its main defense (it still falls
+    back to unconstrained generation, see
+    test_decompose_prompt_still_works_if_grammar_construction_fails, but
+    that's the degraded path, not the intended one)."""
+    from llama_cpp.llama_grammar import LlamaGrammar
+
+    assert isinstance(_get_points_grammar(), LlamaGrammar)
+
+
+def test_clarify_grammar_builds_successfully():
+    from llama_cpp.llama_grammar import LlamaGrammar
+
+    assert isinstance(_get_clarify_grammar(), LlamaGrammar)
+
+
+def test_decompose_prompt_passes_a_grammar_to_the_llm(monkeypatch):
+    """The actual wiring, not just that the grammar object can be built in
+    isolation: create_chat_completion must receive a non-None `grammar`
+    kwarg on every call, so the sampler is actually constrained."""
+    import llm_decompose
+
+    canned = '[{"description": "a bracket", "position_mm": {"x": 0, "y": 0, "z": 0}}]'
+    captured = {}
+
+    class _FakeLlm:
+        def create_chat_completion(self, **kwargs):
+            captured.update(kwargs)
+            return {"choices": [{"message": {"content": canned}}]}
+
+    monkeypatch.setattr(llm_decompose, "_get_llm", lambda model_path=None: _FakeLlm())
+    decompose_prompt("a bracket")
+    assert captured.get("grammar") is not None
+
+
+def test_ask_clarifying_questions_passes_a_grammar_to_the_llm(monkeypatch):
+    import llm_decompose
+
+    canned = '{"questions": []}'
+    captured = {}
+
+    class _FakeLlm:
+        def create_chat_completion(self, **kwargs):
+            captured.update(kwargs)
+            return {"choices": [{"message": {"content": canned}}]}
+
+    monkeypatch.setattr(llm_decompose, "_get_llm", lambda model_path=None: _FakeLlm())
+    ask_clarifying_questions("a fully specified box 10x10x10mm")
+    assert captured.get("grammar") is not None
+
+
+def test_decompose_prompt_still_works_if_grammar_construction_fails(monkeypatch):
+    """Grammar construction is defense in depth, not a hard requirement --
+    if it ever fails (bad schema after a future edit, a llama-cpp-python
+    upgrade that changes behavior, ...), decompose_prompt must degrade to
+    unconstrained generation rather than crashing outright."""
+    import llm_decompose
+
+    canned = '[{"description": "a bracket", "position_mm": {"x": 0, "y": 0, "z": 0}}]'
+    captured = {}
+
+    class _FakeLlm:
+        def create_chat_completion(self, **kwargs):
+            captured.update(kwargs)
+            return {"choices": [{"message": {"content": canned}}]}
+
+    def _broken_grammar():
+        raise RuntimeError("grammar construction broke")
+
+    monkeypatch.setattr(llm_decompose, "_get_llm", lambda model_path=None: _FakeLlm())
+    monkeypatch.setattr(llm_decompose, "_get_points_grammar", _broken_grammar)
+    result = decompose_prompt("a bracket")
+    assert captured.get("grammar") is None
+    assert result.fell_back is False
+    assert result.points[0].description == "a bracket"
+
+
+def test_decompose_prompt_injects_retrieved_knowledge_context_into_the_user_message(monkeypatch):
+    """The actual integration point (section 9's Stage B): when
+    knowledge/pipeline.py's retrieve_context_for_prompt returns something,
+    decompose_prompt must put it in the USER message (never the system
+    prompt -- see the comment in decompose_prompt about why) and must
+    thread it through onto the returned DecomposeResult, never silently
+    drop it."""
+    import llm_decompose
+
+    canned = '[{"description": "a bracket", "position_mm": {"x": 0, "y": 0, "z": 0}}]'
+    captured = {}
+
+    class _FakeLlm:
+        def create_chat_completion(self, **kwargs):
+            captured.update(kwargs)
+            return {"choices": [{"message": {"content": canned}}]}
+
+    monkeypatch.setattr(llm_decompose, "_get_llm", lambda model_path=None: _FakeLlm())
+    monkeypatch.setattr(
+        "knowledge.pipeline.retrieve_context_for_prompt",
+        lambda prompt, config=None: "Reference notes: - [doc] a fillet radius must not exceed...",
+    )
+    result = decompose_prompt("a bracket with a fillet")
+    messages = captured["messages"]
+    system_msg = next(m["content"] for m in messages if m["role"] == "system")
+    user_msg = next(m["content"] for m in messages if m["role"] == "user")
+    assert "Reference notes" not in system_msg
+    assert "Reference notes" in user_msg
+    assert "Request: a bracket with a fillet" in user_msg
+    assert result.knowledge_context == "Reference notes: - [doc] a fillet radius must not exceed..."
+
+
+def test_decompose_prompt_uses_the_plain_prompt_when_no_knowledge_context_is_found(monkeypatch):
+    import llm_decompose
+
+    canned = '[{"description": "a bracket", "position_mm": {"x": 0, "y": 0, "z": 0}}]'
+    captured = {}
+
+    class _FakeLlm:
+        def create_chat_completion(self, **kwargs):
+            captured.update(kwargs)
+            return {"choices": [{"message": {"content": canned}}]}
+
+    monkeypatch.setattr(llm_decompose, "_get_llm", lambda model_path=None: _FakeLlm())
+    monkeypatch.setattr("knowledge.pipeline.retrieve_context_for_prompt", lambda prompt, config=None: "")
+    result = decompose_prompt("a plain bracket")
+    user_msg = next(m["content"] for m in captured["messages"] if m["role"] == "user")
+    assert user_msg == "a plain bracket"  # unchanged from pre-knowledge-subsystem behavior
+    assert result.knowledge_context == ""
+
+
+def test_decompose_prompt_tolerates_the_knowledge_subsystem_raising(monkeypatch):
+    """Section 3's graceful-degradation contract: a knowledge-subsystem
+    failure must never break decomposition."""
+    import llm_decompose
+
+    canned = '[{"description": "a bracket", "position_mm": {"x": 0, "y": 0, "z": 0}}]'
+
+    class _FakeLlm:
+        def create_chat_completion(self, **kwargs):
+            return {"choices": [{"message": {"content": canned}}]}
+
+    def _broken(prompt, config=None):
+        raise RuntimeError("index is corrupt")
+
+    monkeypatch.setattr(llm_decompose, "_get_llm", lambda model_path=None: _FakeLlm())
+    monkeypatch.setattr("knowledge.pipeline.retrieve_context_for_prompt", _broken)
+    result = decompose_prompt("a plain bracket")
+    assert result.fell_back is False
+    assert result.knowledge_context == ""
 
 
 @pytest.mark.skipif(not DEFAULT_MODEL_PATH.exists(), reason="requires the real Qwen3 .gguf model file on disk")

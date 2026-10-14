@@ -81,12 +81,41 @@ ARG_SCHEMA: dict[str, list[tuple[str, str]]] = {
     "extrude_face": [("target", "handle_offset"), ("direction", "categorical"), ("distance", "numeric")],
     "inset_pocket": [("target", "handle_offset"), ("direction", "categorical"), ("depth", "numeric"), ("margin", "numeric")],
     "shell": [("target", "handle_offset"), ("wall_thickness", "numeric")],
+    "smooth_subdivide": [("target", "handle_offset"), ("subdivisions", "count"), ("iterations", "count")],
+    "add_wireframe_from_edges": [("target", "handle_offset"), ("edge_radius", "numeric"), ("sections", "count")],
+    "weld_vertices": [("target", "handle_offset"), ("tolerance", "numeric")],
     "add_revolve": [("bottom_radius", "numeric"), ("top_radius", "numeric"), ("height", "numeric"),
                      ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric")],
     "add_shouldered_cylinder": [("bottom_radius", "numeric"), ("bottom_height", "numeric"), ("top_radius", "numeric"),
                                  ("top_height", "numeric"), ("transition_height", "numeric"),
                                  ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric")],
+    "add_sphere": [("radius", "numeric"), ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric")],
+    "add_torus": [("major_radius", "numeric"), ("minor_radius", "numeric"),
+                  ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric"), ("axis", "categorical")],
+    "add_capsule": [("radius", "numeric"), ("height", "numeric"),
+                     ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric"), ("axis", "categorical")],
+    "add_ellipsoid": [("radius_x", "numeric"), ("radius_y", "numeric"), ("radius_z", "numeric"),
+                       ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric")],
+    "add_polygon_frustum": [("sides", "count"), ("bottom_radius", "numeric"), ("top_radius", "numeric"), ("height", "numeric"),
+                             ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric"), ("axis", "categorical")],
+    "add_dome": [("radius", "numeric"), ("height", "numeric"),
+                 ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric"), ("axis", "categorical")],
+    "add_ring": [("outer_radius", "numeric"), ("inner_radius", "numeric"), ("height", "numeric"),
+                 ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric"), ("axis", "categorical")],
+    "add_loft": [("bottom_profile", "categorical"), ("bottom_param_a", "numeric"), ("bottom_param_b", "numeric"),
+                 ("bottom_param_c", "numeric"), ("top_profile", "categorical"), ("top_param_a", "numeric"),
+                 ("top_param_b", "numeric"), ("top_param_c", "numeric"), ("height", "numeric"),
+                 ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric")],
+    "add_sweep": [("profile_kind", "categorical"), ("param_a", "numeric"), ("param_b", "numeric"), ("param_c", "numeric"),
+                  ("path_kind", "categorical"), ("path_param_a", "numeric"), ("path_param_b", "numeric"), ("path_param_c", "numeric"),
+                  ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric")],
+    "add_tube": [("outer_radius", "numeric"), ("inner_radius", "numeric"), ("path_kind", "categorical"),
+                 ("path_param_a", "numeric"), ("path_param_b", "numeric"), ("path_param_c", "numeric"),
+                 ("center_x", "numeric"), ("center_y", "numeric"), ("center_z", "numeric")],
     "taper": [("target", "handle_offset"), ("axis", "categorical"), ("bottom_factor", "numeric"), ("top_factor", "numeric")],
+    "flare": [("target", "handle_offset"), ("axis", "categorical"), ("bottom_factor", "numeric"), ("top_factor", "numeric")],
+    "twist": [("target", "handle_offset"), ("axis", "categorical"), ("angle_deg", "numeric")],
+    "bend": [("target", "handle_offset"), ("axis", "categorical"), ("bend_direction", "categorical"), ("angle_deg", "numeric")],
     "fillet_edge": [("target", "handle_offset"), ("direction1", "categorical"), ("direction2", "categorical"), ("radius", "numeric")],
     "chamfer_edge": [("target", "handle_offset"), ("direction1", "categorical"), ("direction2", "categorical"), ("distance", "numeric")],
     "counterbore_hole": [("target", "handle_offset"), ("direction", "categorical"), ("offset_u", "numeric"), ("offset_v", "numeric"),
@@ -94,6 +123,23 @@ ARG_SCHEMA: dict[str, list[tuple[str, str]]] = {
     "drill_slot": [("target", "handle_offset"), ("direction", "categorical"), ("offset_u", "numeric"), ("offset_v", "numeric"),
                    ("radius", "numeric"), ("slot_length", "numeric"), ("slot_axis", "categorical"), ("depth", "numeric")],
     "add_rib": [("target", "handle_offset"), ("direction1", "categorical"), ("direction2", "categorical"), ("size", "numeric")],
+    "round_box_edges": [("target", "handle_offset"), ("radius", "numeric")],
+    "chamfer_box_edges": [("target", "handle_offset"), ("distance", "numeric")],
+    "mirror_merge": [("target", "handle_offset"), ("axis", "categorical")],
+    "add_boss_with_bore": [("target", "handle_offset"), ("direction", "categorical"), ("offset_u", "numeric"), ("offset_v", "numeric"),
+                            ("boss_radius", "numeric"), ("boss_height", "numeric"), ("bore_radius", "numeric")],
+    "counterbore_hole_pattern": [("target", "handle_offset"), ("direction", "categorical"), ("pattern", "categorical"), ("count", "count"),
+                                  ("hole_radius", "numeric"), ("head_radius", "numeric"), ("head_depth", "numeric"), ("head_style", "categorical"),
+                                  ("margin", "numeric"), ("circle_diameter", "numeric")],
+    "add_slot_pattern": [("target", "handle_offset"), ("direction", "categorical"), ("pattern", "categorical"), ("count", "count"),
+                          ("radius", "numeric"), ("slot_length", "numeric"), ("slot_axis", "categorical"), ("depth", "numeric"),
+                          ("margin", "numeric"), ("circle_diameter", "numeric")],
+    "add_knurl_pattern": [("target", "handle_offset"), ("direction", "categorical"), ("offset_u", "numeric"), ("offset_v", "numeric"),
+                           ("radius", "numeric"), ("height", "numeric"), ("ridge_count", "count")],
+    "radial_array_oriented": [("target", "handle_offset"), ("count", "count"), ("radius", "numeric")],
+    "linear_array_scaled": [("target", "handle_offset"), ("axis", "categorical"), ("count", "count"), ("spacing", "numeric"), ("scale_step", "numeric")],
+    "add_hex_socket": [("target", "handle_offset"), ("direction", "categorical"), ("offset_u", "numeric"), ("offset_v", "numeric"),
+                        ("across_flats", "numeric"), ("depth", "numeric")],
     "finalize": [("target", "handle_offset")],
     STOP: [],
 }
@@ -166,6 +212,10 @@ class ProgramModelBundle:
     arg_label_encoders: dict[str, dict[str, Any]]  # op -> categorical arg_name -> LabelEncoder
     config: ProgramModelConfig
     train_text_vectors: Any = None  # sparse TF-IDF matrix over training texts -- nearest_neighbor_similarity()'s reference set
+    train_op_sequences: list[tuple[str, ...]] = field(default_factory=list)  # row-aligned with train_text_vectors;
+                                                                              # real ops only, STOP/padding trimmed --
+                                                                              # the retrieval corpus predict_program()'s
+                                                                              # RAG path draws an op-sequence SHAPE from
     trained_on: dict[str, Any] = field(default_factory=dict)
 
     def save(self, path: Path) -> None:
@@ -282,10 +332,12 @@ def train_program_model(dataset_root: Path, config: ProgramModelConfig | None = 
             op_metrics[name] = float(estimator.score(X_op, y)) if hasattr(estimator, "score") else 1.0
         train_metrics["ops"][op] = op_metrics
 
+    train_op_sequences = [tuple(c.op for c in s.program[: config.k_slots]) for s in train_samples]
+
     bundle = ProgramModelBundle(
         vectorizer=vectorizer, slot_op_classifiers=slot_op_classifiers, slot_op_label_encoder=op_encoder,
         arg_estimators=arg_estimators, arg_label_encoders=arg_label_encoders, config=config,
-        train_text_vectors=X_text_sparse,
+        train_text_vectors=X_text_sparse, train_op_sequences=train_op_sequences,
         trained_on={"dataset_root": str(dataset_root), "train_count": len(train_samples)},
     )
     return bundle, train_metrics
@@ -314,11 +366,73 @@ class _ConstantClassifier:
         return 1.0
 
 
-def predict_program(bundle: ProgramModelBundle, text: str) -> list:
+import re
+
+_DIMENSION_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*mm\b", re.IGNORECASE)
+
+
+def _override_primary_shape_dimensions(op: str, args: dict, text: str) -> dict:
+    """When the text explicitly states the SHAPE-CREATING op's own primary
+    dimensions (the common case -- "a cylinder 20mm diameter, 15mm tall"),
+    use those literal numbers directly instead of the trained regressors'
+    approximation. Confirmed as a real, severe gap, not hypothetical: on
+    the exact text "a cylinder 20mm diameter, 15mm tall with a 6mm
+    diameter hole through it", the regressor predicted height=52.6mm for a
+    stated 15mm -- a >3x error -- because TF-IDF-driven regression has no
+    actual mechanism to read the digits out of the text, only to correlate
+    word patterns with typical training values. Literal numbers, when
+    present, are unambiguous ground truth and should always win.
+
+    Deliberately scoped to ONLY the first op (the one that creates the
+    base shape, i.e. one of sandbox.py's _CREATES set) and to its OWN
+    first len(numeric_fields) literal "Nmm" values in the text, in
+    ARG_SCHEMA's declared order -- not every op in a multi-step program.
+    Mapping a flat list of literal numbers to EVERY op's args across a
+    whole multi-op sequence (e.g. which number is a hole's margin vs its
+    depth) is a much harder, more error-prone problem; the base shape's
+    own overall size is both the most reliably extractable case (its
+    numbers are almost always stated first, before any feature detail)
+    and the most visible error to a user if wrong, so it is the one
+    handled here. If the text doesn't have enough explicit numbers to
+    cover this op's own dimensions, nothing is overridden -- never a
+    partial/guessed mapping.
+
+    A field whose name contains "radius" is halved from the literal
+    value: this project's own training-text convention (see
+    data/program_dataset.py's patterns) consistently states a DIAMETER in
+    text ("20mm diameter") while the matching tool argument is a radius
+    -- confirmed directly across _pattern_dome/_pattern_sphere/
+    _pattern_shouldered_cylinder/etc., not assumed."""
+    from sandbox import _CREATES
+
+    if op not in _CREATES:
+        return args
+    numeric_fields = [name for name, kind in ARG_SCHEMA[op] if kind == "numeric" and name not in ("center_x", "center_y", "center_z")]
+    if not numeric_fields:
+        return args
+    literals = [float(m) for m in _DIMENSION_RE.findall(text)]
+    if len(literals) < len(numeric_fields):
+        return args
+
+    overridden = dict(args)
+    for name, value in zip(numeric_fields, literals[: len(numeric_fields)]):
+        overridden[name] = value / 2.0 if "radius" in name else value
+    return overridden
+
+
+def predict_program(bundle: ProgramModelBundle, text: str, forced_ops: list[str] | None = None) -> list:
     """K-slot autoregressive loop: predicts one op per slot (features =
     TF-IDF + summary of the model's OWN previously predicted slots, not
     ground truth -- this is real inference, unlike training's teacher
-    forcing), stopping at STOP or finalize."""
+    forcing), stopping at STOP or finalize.
+
+    `forced_ops`, when given, is a RETRIEVED op-sequence (see
+    retrieve_nearest_op_sequence()/predict_program_rag() below) to use
+    INSTEAD of the per-slot classifiers' own independent choice at each
+    slot -- the RAG path. Argument prediction is unchanged either way:
+    every op (chosen or forced) still goes through the same trained
+    per-argument regressors, conditioned on the actual prior ops at that
+    point, exactly as training's teacher forcing was conditioned."""
     import numpy as np
 
     from sandbox import ToolCall
@@ -329,11 +443,14 @@ def predict_program(bundle: ProgramModelBundle, text: str) -> list:
     program: list[ToolCall] = []
 
     for slot in range(bundle.config.k_slots):
-        prior_features = _prior_slot_features(predicted_ops + [STOP] * (bundle.config.k_slots - len(predicted_ops)), slot, bundle.config.k_slots, op_encoder)
-        X = np.concatenate([X_text, prior_features]).reshape(1, -1)
-        clf = bundle.slot_op_classifiers[slot]
-        op_idx = clf.predict(X)[0]
-        op = op_encoder.inverse_transform([op_idx])[0]
+        if forced_ops is not None:
+            op = forced_ops[slot] if slot < len(forced_ops) else STOP
+        else:
+            prior_features = _prior_slot_features(predicted_ops + [STOP] * (bundle.config.k_slots - len(predicted_ops)), slot, bundle.config.k_slots, op_encoder)
+            X = np.concatenate([X_text, prior_features]).reshape(1, -1)
+            clf = bundle.slot_op_classifiers[slot]
+            op_idx = clf.predict(X)[0]
+            op = op_encoder.inverse_transform([op_idx])[0]
         predicted_ops.append(op)
 
         if op == STOP:
@@ -354,6 +471,7 @@ def predict_program(bundle: ProgramModelBundle, text: str) -> list:
                     args[name] = encoder.inverse_transform([idx])[0]
                 else:
                     args[name] = float(estimator.predict(X_arg)[0])
+            args = _override_primary_shape_dimensions(op, args, text)
 
         full_args = _unflatten_args(op, args, slot) if ARG_SCHEMA[op] else {}
         program.append(ToolCall(op=op, args=full_args))
@@ -362,6 +480,113 @@ def predict_program(bundle: ProgramModelBundle, text: str) -> list:
             break
 
     return program
+
+
+def _nearest_neighbor_index_and_similarity(bundle: ProgramModelBundle, text: str) -> tuple[int, float]:
+    """Shared by nearest_neighbor_similarity() so it reads off the same
+    rank-1 result retrieve_nearest_op_sequence()'s top-k scan already
+    computes, rather than vectorizing `text` and scanning
+    train_text_vectors a second time."""
+    idxs, sims = _top_k_neighbors(bundle, text, k=1)
+    if not idxs:
+        return -1, 0.0
+    return idxs[0], sims[0]
+
+
+def _top_k_neighbors(bundle: ProgramModelBundle, text: str, k: int) -> tuple[list[int], list[float]]:
+    if bundle.train_text_vectors is None:
+        raise ValueError("bundle has no stored train_text_vectors -- retrain to enable OOD detection/retrieval")
+    import numpy as np
+
+    x = bundle.vectorizer.transform([text])
+    sims = (bundle.train_text_vectors @ x.T).toarray().ravel()
+    if len(sims) == 0:
+        return [], []
+    k = min(k, len(sims))
+    top = np.argpartition(-sims, k - 1)[:k]
+    top = top[np.argsort(-sims[top])]  # argpartition doesn't sort within the partition -- sort just these k
+    return [int(i) for i in top], [float(sims[i]) for i in top]
+
+
+def retrieve_nearest_op_sequence(bundle: ProgramModelBundle, text: str, k: int = 5) -> tuple[tuple[str, ...], float]:
+    """The retrieval half of the RAG path: finds the `k` closest training
+    examples by TF-IDF cosine similarity and returns the MAJORITY-VOTE
+    op-sequence among them (ties broken toward the higher-similarity
+    occurrence) -- never a hallucinated sequence, always one actually
+    observed in training -- plus the single best match's similarity
+    score (for the unchanged OOD disclosure). predict_program_rag() uses
+    this sequence's SHAPE in place of the per-slot classifiers' own
+    independent guess; the trained per-argument regressors still
+    determine every actual numeric/categorical value, exactly as in the
+    non-retrieval path.
+
+    Confirmed empirically (a classifier-robustness probe across every
+    generic-composition pattern, see data/program_dataset.py's
+    _with_positional_noise for the finding that motivated this) that the
+    per-slot classifiers' own op CHOICE is the least robust part of this
+    architecture under realistic phrasing drift. Also confirmed empirically
+    that PURE 1-NN retrieval (k=1) overcorrects: it fixed the fragile
+    generic/hand-written cases but measurably regressed the 6 well-
+    trodden part families (exact_op_sequence_accuracy 0.916 -> 0.841 on
+    synthetic_test), where a single nearest neighbor is noisier than the
+    per-slot classifiers' own decision boundary fit across hundreds of
+    examples per family. Majority vote across k=5 neighbors is a direct
+    fix for that: for a dense, well-covered query it converges on the
+    same consensus shape the classifier already learned; for a sparse or
+    drifted query it still recovers the right shape because the top-k
+    neighbors, even if individually a bit further away, are still real
+    examples of the same underlying pattern more often than not."""
+    if not bundle.train_op_sequences:
+        raise ValueError("bundle has no stored train_op_sequences -- retrain to enable retrieval")
+    idxs, sims = _top_k_neighbors(bundle, text, k)
+    if not idxs:
+        return (STOP,), 0.0
+
+    votes: dict[tuple[str, ...], float] = {}
+    for rank, idx in enumerate(idxs):
+        seq = bundle.train_op_sequences[idx]
+        # weight by similarity (not a plain count) so a close match outvotes
+        # several merely-nearby ones, with rank as a tiny tiebreaker
+        votes[seq] = votes.get(seq, 0.0) + sims[rank] + (1e-6 * (len(idxs) - rank))
+    winner = max(votes, key=votes.get)
+    return winner, sims[0]
+
+
+def predict_program_rag(bundle: ProgramModelBundle, text: str) -> list:
+    """predict_program(), but with the op-sequence SHAPE drawn from
+    retrieval (retrieve_nearest_op_sequence()) rather than guessed
+    independently slot-by-slot."""
+    ops, _sim = retrieve_nearest_op_sequence(bundle, text)
+    return predict_program(bundle, text, forced_ops=list(ops))
+
+
+def predict_program_hybrid(bundle: ProgramModelBundle, text: str) -> tuple[list, bool]:
+    """Arbitrates between the classifier's own independent op-sequence and
+    RAG's retrieved one, rather than trusting either unconditionally.
+    Returns (program, used_rag).
+
+    Measured (this project's own honest 3-bucket eval, retrained bundle):
+    pure RAG (k=5) beats the classifier-only path on hand_written (+12.5
+    points) and generic_composition (+5.8 points) -- exactly the prompts
+    with thin or novel phrasing, where RAG's "always a real observed
+    sequence" guarantee matters -- but loses 3.3 points on synthetic_test,
+    the 6 deeply-trained part families, where a classifier that has fit a
+    boundary across hundreds of examples per family is less noisy than
+    looking at only the 5 nearest points.
+
+    The two methods AGREEING is itself a strong, free confidence signal:
+    when they land on the same op-sequence, there is no tradeoff to
+    arbitrate, so either result is equally trustworthy (this returns the
+    already-computed classifier program rather than recomputing). When
+    they DISAGREE, that disagreement is exactly the classifier's known
+    failure signature -- it chose an op combination that doesn't
+    correspond to any single real training example -- so RAG wins."""
+    classifier_program = predict_program(bundle, text)
+    classifier_ops = tuple(c.op for c in classifier_program)
+    rag_ops, _sim = retrieve_nearest_op_sequence(bundle, text)
+    if classifier_ops == tuple(rag_ops):
+        return classifier_program, False
+    return predict_program(bundle, text, forced_ops=list(rag_ops)), True
 
 
 def nearest_neighbor_similarity(bundle: ProgramModelBundle, text: str) -> float:
@@ -384,11 +609,8 @@ def nearest_neighbor_similarity(bundle: ProgramModelBundle, text: str) -> float:
     real support in training data and should be disclosed as a guess, not
     presented as understanding the prompt -- see ProgramPrediction /
     predict_program_checked() below for the disclosed-guess wrapper."""
-    if bundle.train_text_vectors is None:
-        raise ValueError("bundle has no stored train_text_vectors -- retrain to enable OOD detection")
-    x = bundle.vectorizer.transform([text])
-    sims = (bundle.train_text_vectors @ x.T).toarray().ravel()
-    return float(sims.max()) if len(sims) else 0.0
+    _idx, sim = _nearest_neighbor_index_and_similarity(bundle, text)
+    return sim
 
 
 @dataclass
@@ -399,7 +621,7 @@ class ProgramPrediction:
 
 
 def predict_program_checked(bundle: ProgramModelBundle, text: str) -> ProgramPrediction:
-    """predict_program() plus the honest out-of-distribution disclosure
+    """predict_program_rag() plus the honest out-of-distribution disclosure
     from nearest_neighbor_similarity() -- this is the entry point an
     application layer should call for arbitrary/untrusted user prompts,
     the same way Sandbox.execute()'s status field is meant to be checked
@@ -407,9 +629,24 @@ def predict_program_checked(bundle: ProgramModelBundle, text: str) -> ProgramPre
     SEPARATE, never-merged signal from execution status, same discipline
     program_eval.py already applies to its 3 report buckets: in_distribution
     answers "have I seen anything like this text," status answers "did the
-    predicted program build a valid mesh" -- neither implies the other."""
+    predicted program build a valid mesh" -- neither implies the other.
+
+    Uses the agreement-gated HYBRID by default (predict_program_hybrid) --
+    not pure RAG and not the classifier alone -- see that function's
+    docstring for the measured reasoning: it keeps RAG's gains on novel/
+    thin-density prompts while recovering the classifier's own strength on
+    the 6 deeply-trained part families, rather than trading one off
+    against the other unconditionally."""
+    if bundle.train_op_sequences:
+        program, _used_rag = predict_program_hybrid(bundle, text)
+        sim = nearest_neighbor_similarity(bundle, text)
+    else:
+        # older bundle saved before retrieval existed -- fall back to the
+        # original independent per-slot path rather than hard-failing.
+        program = predict_program(bundle, text)
+        sim = nearest_neighbor_similarity(bundle, text)
     return ProgramPrediction(
-        program=predict_program(bundle, text),
-        nearest_neighbor_similarity=(sim := nearest_neighbor_similarity(bundle, text)),
+        program=program,
+        nearest_neighbor_similarity=sim,
         in_distribution=sim >= bundle.config.ood_similarity_threshold,
     )

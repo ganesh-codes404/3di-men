@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
+from build_logger import log_build
 from llm_decompose import ActionablePoint, ask_clarifying_questions, fold_answers_into_prompt
 from parallel_builder import build_assembly_from_points, build_assembly_from_programs, build_assembly_from_prompt
 from sandbox import Sandbox, ToolCall, tool_schema
@@ -37,7 +38,17 @@ def _export_mesh(mesh) -> str:
 
 @app.route("/")
 def index():
+    """The landing page -- no build logic here, just an entry point into the
+    real tool at /workspace below."""
     return send_from_directory(Path(__file__).resolve().parent / "frontend", "index.html")
+
+
+@app.route("/workspace")
+def workspace():
+    """The actual builder UI (prompt flow + manual tool console) that used to
+    live at '/' -- moved here so '/' can be a real landing page without
+    touching any of the build/LLM/sandbox routes below."""
+    return send_from_directory(Path(__file__).resolve().parent / "frontend", "workspace.html")
 
 
 @app.route("/api/tools")
@@ -140,23 +151,43 @@ def api_build():
 
         assembly_topology = mesh_topology_stats(result.mesh)
 
+    points_response = [
+        {
+            "description": p.point.description,
+            "position_mm": list(p.point.position_mm),
+            "status": p.status,
+            "in_distribution": p.status != "out_of_distribution",
+            "nearest_neighbor_similarity": p.nearest_neighbor_similarity,
+            "program": p.program,
+            "error": p.error,
+            "topology": p.topology,
+        }
+        for p in result.points
+    ]
+
+    # see build_logger.py's module docstring -- this is the ONLY record of
+    # what actually happened for a given request (prompt, the LLM's raw
+    # output, and crucially each point's PREDICTED PROGRAM, not just
+    # whether it executed "ok") that survives past this response.
+    log_build(
+        prompt=body.get("prompt", "") or "(manual points)",
+        raw_llm_output=getattr(result, "raw_llm_output", None),
+        fell_back=result.fell_back_to_single_point,
+        points=points_response,
+        elapsed_seconds=elapsed,
+    )
+
     return jsonify({
         "mesh_url": mesh_url,
         "fell_back_to_single_point": result.fell_back_to_single_point,
         "assembly_topology": assembly_topology,
-        "points": [
-            {
-                "description": p.point.description,
-                "position_mm": list(p.point.position_mm),
-                "status": p.status,
-                "in_distribution": p.status != "out_of_distribution",
-                "nearest_neighbor_similarity": p.nearest_neighbor_similarity,
-                "error": p.error,
-                "topology": p.topology,
-            }
-            for p in result.points
-        ],
+        "points": points_response,
         "generation_time_seconds": elapsed,
+        # The real, actually-injected engineering-reference text for this
+        # build, if the knowledge/ subsystem retrieved anything relevant --
+        # "" (never fabricated) when it found nothing or is disabled. See
+        # knowledge/pipeline.py's retrieve_context_for_prompt.
+        "knowledge_context": getattr(result, "knowledge_context", "") or "",
     })
 
 

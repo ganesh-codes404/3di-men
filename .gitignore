@@ -37,6 +37,8 @@ node_modules/
 # secrets (none in this repo -- safety net for later)
 .env
 .env.*
+!.env.example
+!ml/cad/.env.example
 
 # generated model artifacts / data (regeneratable -- see docs/threedimen-architecture.md
 # for the point-cloud model, scripts/train_program_model.py for program_model.joblib)
@@ -44,6 +46,14 @@ ml/cad/data/cad_v1/
 ml/cad/checkpoints/
 ml/cad/models/
 ml/cad/webapp_output/
+ml/cad/training/checkpoints/
+ml/cad/training/data/
+ml/cad/logs/
+# user-ingested engineering reference documents + the knowledge/ subsystem's
+# persistent index -- private, user-supplied, potentially licensed material;
+# never committed (see knowledge/config.py). Test fixtures under
+# tests/fixtures/ are NOT ignored -- they're small, authored-in-repo content.
+ml/cad/knowledge_store/
 *.joblib
 *.stl
 *.glb

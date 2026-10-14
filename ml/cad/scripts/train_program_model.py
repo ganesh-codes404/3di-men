@@ -19,12 +19,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from data.program_dataset import sample_program_dataset, write_program_dataset
 from program_eval import evaluate_program_model, load_hand_written_program_samples
-from program_model import ProgramModelBundle, ProgramModelConfig, predict_program, train_program_model
+from program_model import ProgramModelBundle, ProgramModelConfig, predict_program, predict_program_hybrid, predict_program_rag, train_program_model
 
 DEFAULT_OUT = Path(__file__).resolve().parent.parent / "models" / "program_model.joblib"
 
 FAMILY_COUNTS = {"plate": 400, "flange": 400, "bracket": 400, "shaft": 400, "enclosure": 400, "gear": 400}
-N_GENERIC = 460  # was 440 before _pattern_shouldered_cylinder (and reworking _pattern_hollow_vessel) added another generic pattern needing coverage
+N_GENERIC = 920  # was 900; bumped again for _pattern_widening_vessel (44th generic pattern) -- added after
+                 # a live LLM test showed the classifier had zero exposure to a vessel that WIDENS toward
+                 # its opening (a vase/funnel), always defaulting to the narrowing-neck (bottle) direction
 
 
 def main() -> None:
@@ -49,22 +51,42 @@ def main() -> None:
     bundle.save(args.out)
     print(f"saved to {args.out}")
 
-    print("\n--- honest 3-bucket eval (never averaged) ---")
-
-    def predict_fn(text: str):
-        return predict_program(bundle, text)
-
     from data.program_dataset import read_program_split
 
     test_samples = read_program_split(dataset_root, "test")
     families_test = [s for s in test_samples if s.source_kind == "family"]
     generic_test = [s for s in test_samples if s.source_kind == "generic_composition"]
-
-    evaluate_program_model(predict_fn, families_test, "synthetic_test", "program_model").print_summary()
     hand_written = load_hand_written_program_samples(Path(__file__).resolve().parent.parent / "data" / "eval_hand_written.jsonl")
-    evaluate_program_model(predict_fn, hand_written, "hand_written", "program_model").print_summary()
-    if generic_test:
-        evaluate_program_model(predict_fn, generic_test, "generic_composition_synthetic", "program_model").print_summary()
+
+    # Hybrid (agreement-gated classifier/RAG arbitration) is what
+    # predict_program_checked() -- and so server.py/parallel_builder.py --
+    # actually uses by default now; the other two paths are kept and
+    # reported SEPARATELY, never averaged in, as a standing before/after
+    # comparison, not nostalgia.
+    def predict_fn_classifier(text: str):
+        return predict_program(bundle, text)
+
+    def predict_fn_rag(text: str):
+        return predict_program_rag(bundle, text)
+
+    def predict_fn_hybrid(text: str):
+        program, _used_rag = predict_program_hybrid(bundle, text)
+        return program
+
+    print("\n--- honest 3-bucket eval: classifier-only (legacy path) ---")
+    evaluate_program_model(predict_fn_classifier, families_test, "synthetic_test", "program_model").print_summary()
+    evaluate_program_model(predict_fn_classifier, hand_written, "hand_written", "program_model").print_summary()
+    evaluate_program_model(predict_fn_classifier, generic_test, "generic_composition_synthetic", "program_model").print_summary()
+
+    print("\n--- honest 3-bucket eval: RAG / retrieval, pure k=5 ---")
+    evaluate_program_model(predict_fn_rag, families_test, "synthetic_test", "program_model").print_summary()
+    evaluate_program_model(predict_fn_rag, hand_written, "hand_written", "program_model").print_summary()
+    evaluate_program_model(predict_fn_rag, generic_test, "generic_composition_synthetic", "program_model").print_summary()
+
+    print("\n--- honest 3-bucket eval: HYBRID (what predict_program_checked uses) ---")
+    evaluate_program_model(predict_fn_hybrid, families_test, "synthetic_test", "program_model").print_summary()
+    evaluate_program_model(predict_fn_hybrid, hand_written, "hand_written", "program_model").print_summary()
+    evaluate_program_model(predict_fn_hybrid, generic_test, "generic_composition_synthetic", "program_model").print_summary()
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ def test_a_point_with_no_mesh_is_reported_not_silently_dropped(tiny_bundle_path,
     def _fake_build_one(description):
         return {
             "status": "rejected", "executed_steps": 0, "error": "forced failure for test",
-            "nearest_neighbor_similarity": 0.9, "mesh": None, "topology": None,
+            "nearest_neighbor_similarity": 0.9, "program": [], "mesh": None, "topology": None,
         }
 
     # ProcessPoolExecutor workers can't easily be monkeypatched (separate
@@ -143,3 +143,89 @@ def test_placement_offsets_are_applied_before_combining(tiny_bundle_path, monkey
     # should span roughly 500mm+ in x, not just one shaft's own extent
     span_x = result.mesh.bounds[1][0] - result.mesh.bounds[0][0]
     assert span_x > 400
+
+
+# ---- relationship-based (dependency-wave) building ----
+
+def test_relationship_based_points_build_in_dependency_order(tiny_bundle_path):
+    """A boss attached_to_face of a plate, built through the REAL
+    predict+build pipeline (not hand-constructed meshes) -- proves the
+    wave ordering actually waits for the target's mesh before resolving
+    the dependent part's position, end to end."""
+    from assembly_plan import Relationship
+
+    points = [
+        ActionablePoint(description="a box 100mm x 60mm x 8mm", position_mm=(0.0, 0.0, 0.0), id="plate"),
+        ActionablePoint(
+            description="a cylinder 10mm diameter, 15mm tall", position_mm=(0.0, 0.0, 0.0), id="boss",
+            relationship=Relationship(kind="attached_to_face", target_id="plate", face="+z"),
+        ),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    by_id = {p.point.id: p for p in result.points}
+    assert by_id["plate"].status == "ok"
+    assert by_id["boss"].status == "ok"
+    # the boss's resolved z must be positive (pushed OUT from the plate's
+    # top face, not left at the origin where it would be buried in the plate)
+    assert by_id["boss"].point.position_mm[2] > 0
+    assert result.mesh is not None
+    assert result.mesh.is_watertight
+
+
+def test_invalid_relationship_is_rejected_before_building_anything(tiny_bundle_path):
+    """A dangling target_id is a structurally invalid plan -- every point
+    must come back "rejected" with a clear reason, and nothing should be
+    built at all (not even the independent "plate" point), matching this
+    project's standing rule that a malformed plan is caught before
+    geometry execution, not discovered partway through."""
+    from assembly_plan import Relationship
+
+    points = [
+        ActionablePoint(description="a box 100mm x 60mm x 8mm", position_mm=(0.0, 0.0, 0.0), id="plate"),
+        ActionablePoint(
+            description="a cylinder 10mm diameter, 15mm tall", position_mm=(0.0, 0.0, 0.0), id="boss",
+            relationship=Relationship(kind="attached_to_face", target_id="nonexistent", face="+z"),
+        ),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    assert result.mesh is None
+    assert all(p.status == "rejected" for p in result.points)
+    assert any("RelationshipError" in (p.error or "") for p in result.points)
+
+
+def test_relationship_cycle_is_rejected_before_building_anything(tiny_bundle_path):
+    from assembly_plan import Relationship
+
+    points = [
+        ActionablePoint(description="a box 40mm x 40mm x 10mm", position_mm=(0.0, 0.0, 0.0), id="a",
+                         relationship=Relationship(kind="concentric_with", target_id="b", axis="z")),
+        ActionablePoint(description="a box 40mm x 40mm x 10mm", position_mm=(0.0, 0.0, 0.0), id="b",
+                         relationship=Relationship(kind="concentric_with", target_id="a", axis="z")),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    assert result.mesh is None
+    assert all(p.status == "rejected" for p in result.points)
+
+
+def test_three_level_dependency_chain_builds_correctly(tiny_bundle_path):
+    """plate -> boss -> shaft, mirroring the spec's own illustrative
+    mounting-plate-with-boss example -- three dependency waves, each
+    resolved from the previous wave's REAL built geometry."""
+    from assembly_plan import Relationship
+
+    points = [
+        ActionablePoint(description="a box 120mm x 80mm x 8mm", position_mm=(0.0, 0.0, 0.0), id="plate"),
+        ActionablePoint(description="a cylinder 20mm diameter, 15mm tall", position_mm=(0.0, 0.0, 0.0), id="boss",
+                         relationship=Relationship(kind="attached_to_face", target_id="plate", face="+z")),
+        ActionablePoint(description="a cylinder 6mm diameter, 25mm long", position_mm=(0.0, 0.0, 0.0), id="shaft",
+                         relationship=Relationship(kind="concentric_with", target_id="boss", axis="z")),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    by_id = {p.point.id: p for p in result.points}
+    assert all(by_id[pid].status == "ok" for pid in ("plate", "boss", "shaft"))
+    # shaft must share boss's x/y exactly (concentric) -- boss's own x/y
+    # came from being centered on the plate's face, not the origin
+    boss_pos, shaft_pos = by_id["boss"].point.position_mm, by_id["shaft"].point.position_mm
+    assert shaft_pos[0] == pytest.approx(boss_pos[0], abs=0.5)
+    assert shaft_pos[1] == pytest.approx(boss_pos[1], abs=0.5)
+    assert result.mesh is not None and result.mesh.is_watertight

@@ -1,0 +1,14 @@
+Mounting Bracket Reference Notes
+
+Original short reference notes authored for 3di-men's test suite.
+
+A mounting bracket transfers load between two perpendicular or angled
+faces, typically through a base plate and one or more upright arms. For
+sheet-metal brackets, keep hole edge margin at least 1.5 times the hole
+diameter to avoid tearing the material during manufacture.
+
+Bolt circle patterns should use at least 3 bolts for rotational stability;
+4 bolts in a square or rectangular pattern is the most common arrangement
+for a mounting plate. The bolt circle diameter must be smaller than the
+part's own outer dimensions with enough margin for the hole's own edge
+distance, or the holes will break out of the part's edge.
