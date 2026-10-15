@@ -46,8 +46,12 @@ Nothing here changes the Mac setup. This is a separate, opt-in profile.
 
 ## 7. Get the model file onto the laptop
 
-- [ ] Copy the same `.gguf` used on the Mac (`Qwen3-4B-Instruct-2507`, Q4_K_M quantization)
-  onto the laptop's filesystem, by any method (scp, USB, cloud drive)
+This profile uses a bigger model than the Mac (Qwen3-8B instead of
+Qwen3-4B-Instruct-2507) -- the RTX 4060's VRAM has room for it. Download it
+directly:
+
+- [ ] `mkdir -p models`
+- [ ] `wget -P models https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf`
 
 ## 8. Set up the env profile
 

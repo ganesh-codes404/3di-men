@@ -77,10 +77,14 @@ short-lived experiment on borrowed hardware.
    (`sudo apt install -y cmake build-essential` if missing). The
    `--force-reinstall --no-cache-dir` matters -- pip will otherwise reuse the
    already-installed non-CUDA build from step 6.
-8. Copy the model `.gguf` file onto this machine (same file this project
-   already uses on the Mac -- `Qwen3-4B-Instruct-2507` Q4_K_M), and set
-   `MODEL_PATH` (or `MODEL_NAME`/`QUANTIZATION`) accordingly if it's not at
-   the default location.
+8. Download the model `.gguf` file. Unlike the Mac, this profile uses a
+   bigger model (Qwen3-8B instead of Qwen3-4B-Instruct-2507) since the RTX
+   4060's VRAM has room for it fully offloaded -- see the reasoning and
+   verified download command in `.env.rtx4060.example`'s comments. In short:
+   ```
+   mkdir -p models
+   wget -P models https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf
+   ```
 9. Copy `.env.rtx4060.example` to `.env` and adjust `N_THREADS` to this
    laptop's real core count (see the comment in that file for how to check).
 
