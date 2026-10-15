@@ -21,6 +21,7 @@ import numpy as np
 import trimesh
 
 from llm_decompose import ActionablePoint, decompose_prompt
+from spec_validation import validate_dimensions_against_description
 
 
 @dataclass
@@ -67,6 +68,22 @@ class PointBuildResult:
                           # pickling boundary and serializes straight to JSON for logging.
     mesh: "trimesh.Trimesh | None" = field(repr=False, default=None)
     topology: "dict | None" = None
+    dimension_match_rate: float | None = None  # spec_validation.py's correctness-to-spec check --
+        # fraction of the description's own "NNmm" dimension claims found somewhere on the
+        # built mesh (within tolerance). None when there was no mesh to check or no numeric
+        # claims in the description at all (not the same as a confirmed 100% match -- see
+        # unmatched_dimensions_mm). A structurally "ok" status has NEVER meant "matches the
+        # request" anywhere in this pipeline before this field existed (see ACCURACY_AUDIT.md
+        # section 3) -- this is the first place that distinction becomes visible.
+    unmatched_dimensions_mm: list[float] = field(default_factory=list)
+    repair_applied: bool = False  # repair.py's bounded repair loop (section 8) -- True only if a
+                                   # repair attempt actually IMPROVED the result's status
+    repair_attempts: list[str] = field(default_factory=list)  # every attempt tried, improved or not --
+                                                                 # never hidden, even a failed one
+    resolution_method: str = "statistical"  # "compositional" (compositional_decomposer.py's deterministic
+        # clause-by-clause resolution) or "statistical" (program_model.py's TF-IDF/classifier prediction) --
+        # disclosed, not hidden, same discipline as in_distribution/dimension_match_rate: a caller should be
+        # able to tell a literally-parsed program apart from a guessed one.
 
 
 @dataclass
@@ -96,11 +113,31 @@ def _build_one(description: str) -> dict:
     since ProcessPoolExecutor results must round-trip through pickling --
     trimesh.Trimesh pickles fine, but keeping the boundary explicit here
     documents that this crosses a process boundary."""
-    from program_model import predict_program_checked
-    from sandbox import Sandbox
+    from compositional_decomposer import compose_program_from_description
+    from program_model import ProgramPrediction, predict_program_checked
+    from repair import execute_with_bounded_repair
 
-    prediction = predict_program_checked(_worker_bundle, description)
-    result = Sandbox.execute(prediction.program)
+    # Try the general, deterministic clause-by-clause composer FIRST --
+    # see compositional_decomposer.py's module docstring for why this is
+    # the general fix (coverage by combination, not by trained whole-
+    # sentence example) rather than a patch for any one failure case. It
+    # returns None for anything it doesn't recognize (never a forced
+    # guess), in which case this falls back to the existing statistical
+    # path completely unchanged -- every description that path already
+    # handled continues to go through it exactly as before.
+    compositional_program = compose_program_from_description(description)
+    if compositional_program is not None:
+        prediction = ProgramPrediction(program=compositional_program, nearest_neighbor_similarity=1.0, in_distribution=True)
+        resolution_method = "compositional"
+    else:
+        prediction = predict_program_checked(_worker_bundle, description)
+        resolution_method = "statistical"
+
+    # Section 8's bounded repair loop, not a bare Sandbox.execute() call --
+    # see repair.py's own module docstring for exactly what's (safely)
+    # repairable and why most tempting "fixes" are deliberately excluded.
+    repaired = execute_with_bounded_repair(prediction.program)
+    result = repaired.result
 
     if not prediction.in_distribution:
         status = "out_of_distribution"
@@ -121,6 +158,9 @@ def _build_one(description: str) -> dict:
         "program": [{"op": c.op, "args": c.args} for c in prediction.program],
         "mesh": result.mesh,
         "topology": topology,
+        "repair_applied": repaired.was_repaired,
+        "repair_attempts": [a.description for a in repaired.attempts],
+        "resolution_method": resolution_method,
     }
 
 
@@ -205,11 +245,22 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                         except RelationshipError as exc:
                             status, error, own_mesh = "rejected", f"RelationshipError: {exc}", None
 
+                dimension_match_rate = None
+                unmatched_dimensions_mm: list[float] = []
+                if own_mesh is not None:
+                    dim_report = validate_dimensions_against_description(point.description, own_mesh)
+                    if dim_report.claims:  # None (not 1.0) when the description had no numeric claims at all
+                        dimension_match_rate = dim_report.match_rate
+                        unmatched_dimensions_mm = dim_report.unmatched_claims_mm
+
                 point_results[pid] = PointBuildResult(
                     point=ActionablePoint(description=point.description, position_mm=position_mm, id=pid, relationship=point.relationship),
                     status=status, executed_steps=raw["executed_steps"], error=error,
                     nearest_neighbor_similarity=raw["nearest_neighbor_similarity"], program=raw["program"],
                     mesh=own_mesh, topology=raw["topology"],
+                    dimension_match_rate=dimension_match_rate, unmatched_dimensions_mm=unmatched_dimensions_mm,
+                    repair_applied=raw.get("repair_applied", False), repair_attempts=raw.get("repair_attempts", []),
+                    resolution_method=raw.get("resolution_method", "statistical"),
                 )
                 # "out_of_distribution" and "suspect" still carry a mesh (a
                 # guess, or a geometrically dubious result) -- included in

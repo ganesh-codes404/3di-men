@@ -12,6 +12,7 @@ from knowledge.document_parser import (
     _strip_repeated_header_footer_lines,
     parse_html,
     parse_markdown,
+    parse_mediawiki_text,
     parse_pdf,
     parse_plain_text,
     parse_rst,
@@ -269,3 +270,39 @@ def test_parse_rst_real_acquired_cadquery_file_has_a_clean_title_and_sections():
     doc = parse_rst(real_file)
     assert doc.title == "Introduction"
     assert any(b.section == "What is CadQuery" for b in doc.blocks)
+
+
+def test_parse_mediawiki_text_tracks_headings_even_without_a_blank_line_before_them(tmp_path):
+    """Regression test for a real, confirmed failure against real content
+    fetched from Wikipedia's own explaintext API: a "== Heading ==" marker
+    is followed by only a SINGLE newline before the next paragraph (not a
+    blank line), so a blank-line-paragraph split groups the heading into
+    the same block as the following text instead of recognizing it."""
+    path = tmp_path / "Example.wikitext"
+    path.write_text(
+        "Intro paragraph with no heading above it.\n\n"
+        "== Applications ==\nStress concentration is reduced by this feature.\n\n"
+        "== Terminology ==\nDifferent tools use different names.\n"
+    )
+    doc = parse_mediawiki_text(path)
+    sections = [b.section for b in doc.blocks]
+    assert sections == [None, "Applications", "Terminology"]
+    assert "== Applications ==" not in doc.blocks[1].text
+    assert "Stress concentration" in doc.blocks[1].text
+
+
+def test_parse_mediawiki_text_derives_title_from_filename(tmp_path):
+    """Wikipedia's plain-text extracts carry no in-content title marker --
+    the filename (set by sources.py to the real article title) is the only
+    place the title is available."""
+    path = tmp_path / "Fillet_(mechanics).wikitext"
+    path.write_text("A fillet is a rounding of a corner.\n")
+    doc = parse_mediawiki_text(path)
+    assert doc.title == "Fillet (mechanics)"
+
+
+def test_parse_mediawiki_text_raises_on_empty_file(tmp_path):
+    path = tmp_path / "empty.wikitext"
+    path.write_text("")
+    with pytest.raises(DocumentParseError):
+        parse_mediawiki_text(path)

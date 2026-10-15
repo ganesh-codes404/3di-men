@@ -251,6 +251,64 @@ def test_sync_source_http_fetch_failure_is_reported(config, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# wikipedia_api acquisition -- urllib mocked
+# ---------------------------------------------------------------------------
+
+def _fake_wikipedia_urlopen(req, timeout=None):
+    import urllib.parse
+
+    url = req.full_url if hasattr(req, "full_url") else req
+    qs = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+    title = qs["titles"][0]
+    extract = f"This is a longer extract of reference text about {title}, well over the minimum chunk size."
+    body = {"query": {"pages": {"123": {"title": title, "extract": extract}}}}
+    return _FakeHttpResponse(json.dumps(body).encode())
+
+
+def test_sync_source_wikipedia_api_success(config, monkeypatch):
+    with patch("urllib.request.urlopen", side_effect=_fake_wikipedia_urlopen):
+        manifest = SourceManifest.load(config=config)
+        result = sync_source("wikipedia_engineering", manifest)
+
+    assert result.ok is True
+    entry = manifest.get("wikipedia_engineering")
+    assert result.files_fetched == len(entry.include_paths)
+    assert entry.sync_status == "synced"
+    assert entry.revision.startswith("snapshot-")
+    raw_dir = config.store_dir / "sources" / "raw" / "wikipedia_engineering"
+    assert (raw_dir / "Fillet_(mechanics).wikitext").exists()
+    assert "reference text about Fillet (mechanics)" in (raw_dir / "Fillet_(mechanics).wikitext").read_text()
+
+
+def test_sync_source_wikipedia_api_reports_a_missing_article(config):
+    def _fake_urlopen(req, timeout=None):
+        return _FakeHttpResponse(json.dumps({"query": {"pages": {"-1": {"missing": ""}}}}).encode())
+
+    with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+        manifest = SourceManifest.load(config=config)
+        result = sync_source("wikipedia_engineering", manifest)
+
+    assert result.ok is False
+    assert "does not exist" in result.error
+    assert manifest.get("wikipedia_engineering").sync_status == "sync_failed"
+
+
+def test_ingest_wikipedia_source_tags_provenance_and_url(config):
+    with patch("urllib.request.urlopen", side_effect=_fake_wikipedia_urlopen):
+        manifest = SourceManifest.load(config=config)
+        sync_source("wikipedia_engineering", manifest)
+
+    index = KnowledgeIndex(config=config)
+    result = ingest_source("wikipedia_engineering", manifest, index)
+    assert result.report.added
+    record = next(r for r in result.report.added if r.filename.startswith("Fillet"))
+    assert record.source_id == "wikipedia_engineering"
+    chunks = index.chunks_for_document(record.document_id)
+    assert chunks
+    assert chunks[0].source_url == "https://en.wikipedia.org/wiki/Fillet_(mechanics)"
+
+
+# ---------------------------------------------------------------------------
 # validate_source -- reachability check, no download
 # ---------------------------------------------------------------------------
 

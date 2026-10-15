@@ -24,9 +24,12 @@ from program_model import ProgramModelBundle, ProgramModelConfig, predict_progra
 DEFAULT_OUT = Path(__file__).resolve().parent.parent / "models" / "program_model.joblib"
 
 FAMILY_COUNTS = {"plate": 400, "flange": 400, "bracket": 400, "shaft": 400, "enclosure": 400, "gear": 400}
-N_GENERIC = 920  # was 900; bumped again for _pattern_widening_vessel (44th generic pattern) -- added after
-                 # a live LLM test showed the classifier had zero exposure to a vessel that WIDENS toward
-                 # its opening (a vase/funnel), always defaulting to the narrowing-neck (bottle) direction
+N_GENERIC = 1080  # was 920; bumped for 8 new generic patterns (add_loft/add_sweep-arc/add_sweep-helix/
+                 # add_tube-straight/add_tube-arc/smooth_subdivide/add_wireframe_from_edges/weld_vertices)
+                 # added after confirming (by grep, not assumption) these 6 tools had ZERO generic-
+                 # composition training examples despite being registered in sandbox.py/ARG_SCHEMA --
+                 # scaled proportionally to _GENERIC_PATTERNS' new slot count (49 -> 57) to keep roughly
+                 # the same per-pattern sample density as before, same reasoning as the 900->920 bump above
 
 
 def main() -> None:

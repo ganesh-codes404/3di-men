@@ -158,6 +158,7 @@ from reputation — see each entry's `license_note` in
 | [CadQuery Documentation](https://cadquery.readthedocs.io/) | Apache-2.0 | approved | `git` sparse-checkout of `doc/*.rst` |
 | [build123d Documentation](https://build123d.readthedocs.io/) | Apache-2.0 | approved | `git` sparse-checkout of `docs/*.rst` |
 | [Blender Manual](https://docs.blender.org/manual/en/latest/) | CC-BY-SA-4.0 | approved | direct HTTP fetch of individual `manual/*.rst` files (the repo is ~876MB, almost entirely screenshots — never cloned) |
+| [Wikipedia](https://en.wikipedia.org/) (curated mechanical/product-design articles) | CC-BY-SA-4.0 | approved | `wikipedia_api`: plain-text `explaintext=1` extracts via Wikipedia's own API — added specifically to cover product/design concepts (bottles, fasteners, threads) the other sources, being CAD-*tool* docs, serve only weakly |
 | [OCCT Overview Docs](https://dev.opencascade.org/doc/overview/html/) | LGPL-2.1 (a *software* license; no separate docs license found) | **needs_review — not synced** | would be `git` sparse-checkout of `dox/*.md` if approved |
 
 "Open educational engineering resources" (the mission's 6th candidate
@@ -176,8 +177,8 @@ IS the config, consistent with this project's existing `TOOL_OPS`/
 
 ```
 document_parser.py  -- PDF (PyMuPDF) / Markdown / reStructuredText / HTML
-                        (bs4) / plain text -> a single format-agnostic
-                        ParsedDocument
+                        (bs4) / MediaWiki plain-text extracts / plain text
+                        -> a single format-agnostic ParsedDocument
 chunking.py          -- section-aware packing into size-bounded Chunks,
                         with closed-vocabulary concept-type/domain tagging
 embeddings.py         -- TfidfEmbeddingBackend (swappable interface)

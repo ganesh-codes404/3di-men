@@ -103,6 +103,9 @@ STEP 3 -- describe EACH part using plain, dimension-first geometry language (a b
 Available operations (this is the CAD tool's real vocabulary -- every part must be describable using only these):
 - primitives: a box, a cylinder, a tapered cylinder / cone (a "spin" of two radii and a height), a sphere/ball, a torus/ring-donut shape, a capsule/pill shape (a cylinder with rounded ends), an egg-like ellipsoid (a stretched sphere), a flat-sided prism (hexagonal, octagonal, etc, optionally tapered), a dome (a rounded cap), or a flat ring/washer shape (outer and inner diameter)
 - an extruded 2D profile: rectangle, rounded rectangle, or L-shape, given a height
+- a lofted shape that smoothly blends between two different cross-section profiles (e.g. a rectangle at the bottom to an ellipse at the top) over a height -- for a body whose cross-section genuinely changes shape along its length, not just its size
+- a constant cross-section (round, rectangular, rounded-rectangular, or L-shaped) swept along a curved path -- a straight run, a circular arc, or a helix/coil
+- a round tube, solid or hollow, following a straight, arced, or helical path -- a handrail, a coiled spring shape, a curved pipe run
 - a gear profile (module, tooth count, face width, bore)
 - boolean union / difference / intersection of two shapes -- ONLY to combine primitives WITHIN one piece (e.g. a boss fused onto a plate), NEVER to combine two different mechanical parts from step 1 into one entry
 - a drilled hole, or a hole pattern (corner array, bolt circle, or linear row)
@@ -116,6 +119,8 @@ Available operations (this is the CAD tool's real vocabulary -- every part must 
 - face-based tools, working on a named face of a shape (top/bottom/+x/-x/+y/-y face): extrude a face outward into a raised boss, inset a face and cut a recessed pocket into it, add a raised cylindrical boss with a hole straight through its middle (a screw boss), or shell/hollow out the whole shape leaving a wall thickness
 - taper a shape along an axis with a straight/linear profile (narrower or wider at one end), or flare it with a smoothly curved profile
 - twist a shape along an axis, or bend it along its length into a curve
+- smooth and round off a shape's body and edges into a softer, more organic form (not a sharp fillet/chamfer on one named edge -- this rounds the whole shape)
+- convert a shape into a wireframe/tube-frame skeleton that follows its own edges -- a lattice or cage look, not a solid surface
 - round or flatten a single edge where two named faces meet (a rounded or chamfered/beveled edge) -- or round/chamfer ALL the edges and corners of a box-like shape at once, in one step
 - a structural support rib/gusset bridging the INSIDE (concave) corner of an already-bent/L-shaped piece -- only meaningful where two faces meet at an internal, empty-space corner, not a plain box's outer edge
 - a hollow vessel: a wide body CURVING smoothly (never stepping sharply) to a narrower neck on top, hollowed out to a wall thickness -- the shape a bottle/jar/cup/flask actually is (STEP 0 case (a) -- always use the exact phrasing shown there)
@@ -262,7 +267,19 @@ _POINTS_JSON_SCHEMA = json.dumps({
                 "required": ["kind", "target_id"],
             },
         },
-        "required": ["description", "position_mm"],
+        # "id" is required (not just description/position_mm) because every
+        # worked example in _SYSTEM_PROMPT already assigns one, even to a
+        # single point with no relationship -- and confirmed via real build
+        # logs (2026-10-15 water-bottle/bracket failures) that when the
+        # grammar left it optional, the model sometimes dropped "id" on
+        # exactly the point a LATER point's relationship.target_id went on
+        # to reference by name (e.g. target_id "body" with no point actually
+        # carrying id "body"), which assembly_plan.validate_relationships
+        # then correctly rejects as a dangling reference -- rejecting the
+        # whole decomposition even though the model's intent was clear.
+        # Forcing "id" to exist removes the structural option that let the
+        # model skip stating the very id its own relationship goes on to use.
+        "required": ["description", "position_mm", "id"],
     },
 })
 

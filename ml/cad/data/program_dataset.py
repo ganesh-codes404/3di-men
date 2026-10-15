@@ -869,6 +869,158 @@ def _pattern_hex_socket(rng: random.Random) -> tuple[str, list[ToolCall]]:
     return text, program
 
 
+def _pattern_loft(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """add_loft had ZERO generic-composition training examples despite
+    being registered in sandbox.py/ARG_SCHEMA since earlier this session --
+    confirmed directly (grepped this whole file) rather than assumed, while
+    auditing which tools are actually reachable from natural-language text.
+    With no examples, program_model.py has nothing to learn the text->tool
+    association from -- the tool exists but is functionally dead from the
+    classifier's point of view. Phrasing matches llm_decompose.py's own
+    "Available operations" vocabulary line for loft, added alongside this."""
+    length, width = rng.choice([40, 60, 80]), rng.choice([30, 40, 50])
+    radius = rng.choice([15, 20, 25])
+    height = rng.choice([60, 80, 100])
+    program = [
+        ToolCall("add_loft", {
+            "bottom_profile": "rounded_rect", "bottom_param_a": length, "bottom_param_b": width, "bottom_param_c": 5,
+            "top_profile": "ellipse", "top_param_a": radius, "top_param_b": radius, "top_param_c": 0,
+            "height": height, "center": [0, 0, 0], "sections": 24,
+        }),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = (
+        f"a lofted shape, {length:g}mm x {width:g}mm rounded rectangle at the bottom blending to a "
+        f"{2*radius:g}mm diameter ellipse at the top, {height:g}mm tall"
+    )
+    return text, program
+
+
+def _pattern_sweep_arc(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """Same gap as add_loft above: add_sweep had zero training examples."""
+    radius = rng.choice([5, 8, 10])
+    path_radius = rng.choice([40, 60, 80])
+    angle = rng.choice([45, 90, 120])
+    program = [
+        ToolCall("add_sweep", {
+            "profile_kind": "ellipse", "param_a": radius, "param_b": radius, "param_c": 0,
+            "path_kind": "arc", "path_param_a": path_radius, "path_param_b": angle, "path_param_c": 0,
+            "center": [0, 0, 0], "sections": 24, "path_segments": 48,
+        }),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a {2*radius:g}mm diameter round rail swept along a {angle:g} degree arc of {path_radius:g}mm radius"
+    return text, program
+
+
+def _pattern_sweep_helix(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """A coil/spring shape -- the helix path_kind case, kept as its own
+    pattern (not folded into _pattern_sweep_arc) so program_model.py sees
+    BOTH path kinds, not just arc."""
+    radius = rng.choice([3, 5, 8])
+    helix_radius = rng.choice([20, 30, 40])
+    pitch = rng.choice([10, 15, 20])
+    turns = rng.choice([3, 5, 8])
+    program = [
+        ToolCall("add_sweep", {
+            "profile_kind": "ellipse", "param_a": radius, "param_b": radius, "param_c": 0,
+            "path_kind": "helix", "path_param_a": helix_radius, "path_param_b": pitch, "path_param_c": turns,
+            "center": [0, 0, 0], "sections": 20, "path_segments": 64,
+        }),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a {2*radius:g}mm diameter coil, {helix_radius:g}mm radius, {pitch:g}mm pitch, {turns:g} turns"
+    return text, program
+
+
+def _pattern_tube_straight(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """Same gap as add_loft/add_sweep above: add_tube had zero training
+    examples. Straight-path case -- a simple hollow tube/pipe segment."""
+    outer = rng.choice([10, 15, 20])
+    inner = max(2, outer - rng.choice([2, 3, 4]))
+    length = rng.choice([80, 100, 150])
+    program = [
+        ToolCall("add_tube", {
+            "outer_radius": outer, "inner_radius": inner, "path_kind": "straight",
+            "path_param_a": length, "path_param_b": 0, "path_param_c": 0,
+            "center": [0, 0, 0], "sections": 24, "path_segments": 8,
+        }),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a hollow tube, {2*outer:g}mm outer diameter, {2*inner:g}mm inner diameter, {length:g}mm long"
+    return text, program
+
+
+def _pattern_tube_arc(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """The arc-path case -- a curved pipe/handrail run, kept separate from
+    _pattern_tube_straight so program_model.py sees both path kinds."""
+    outer = rng.choice([8, 10, 15])
+    inner = max(2, outer - rng.choice([2, 3]))
+    path_radius = rng.choice([50, 80, 100])
+    angle = rng.choice([90, 120, 180])
+    program = [
+        ToolCall("add_tube", {
+            "outer_radius": outer, "inner_radius": inner, "path_kind": "arc",
+            "path_param_a": path_radius, "path_param_b": angle, "path_param_c": 0,
+            "center": [0, 0, 0], "sections": 20, "path_segments": 48,
+        }),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = (
+        f"a curved pipe, {2*outer:g}mm outer diameter, {2*inner:g}mm inner diameter, "
+        f"bent through a {angle:g} degree arc of {path_radius:g}mm radius"
+    )
+    return text, program
+
+
+def _pattern_smooth_subdivide(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """smooth_subdivide/add_wireframe_from_edges/weld_vertices were added
+    this session (closing a gap found by cross-referencing acquired CAD
+    documentation against the tool roster -- see knowledge/sources.py and
+    MISSION_STATUS.md's Addendum 2) but, same as add_loft/add_sweep/
+    add_tube above, had zero training examples at the time they were
+    registered -- confirmed, not assumed."""
+    l, w, h = rng.choice([40, 50, 60]), rng.choice([40, 50, 60]), rng.choice([20, 30, 40])
+    subdivisions = rng.choice([1, 2])
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("smooth_subdivide", {"target": 0, "subdivisions": subdivisions, "iterations": 10}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a box {l:g}mm x {w:g}mm x {h:g}mm, smoothed and rounded into a softer organic form"
+    return text, program
+
+
+def _pattern_wireframe(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    l, w, h = rng.choice([40, 60, 80]), rng.choice([40, 60, 80]), rng.choice([40, 60, 80])
+    edge_radius = rng.choice([1, 2, 3])
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("add_wireframe_from_edges", {"target": 0, "edge_radius": edge_radius, "sections": 6}),
+        ToolCall("finalize", {"target": 1}),
+    ]
+    text = f"a box {l:g}mm x {w:g}mm x {h:g}mm converted into a wireframe skeleton, {edge_radius:g}mm thick edges"
+    return text, program
+
+
+def _pattern_weld(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """weld_vertices's natural use case is cleanup after another operation
+    (a mirror seam here), not a shape on its own -- kept as a 3-step
+    program so program_model.py sees it in realistic context."""
+    l, w, h = rng.choice([40, 60, 80]), rng.choice([30, 40, 50]), rng.choice([20, 30])
+    program = [
+        ToolCall("add_box", {"length": l, "width": w, "height": h, "center": [0, 0, 0]}),
+        ToolCall("mirror_merge", {"target": 0, "axis": "x"}),
+        ToolCall("weld_vertices", {"target": 1, "tolerance": 0.01}),
+        ToolCall("finalize", {"target": 2}),
+    ]
+    text = (
+        f"a box {l:g}mm x {w:g}mm x {h:g}mm mirrored and fused into one symmetric part, "
+        "with the seam vertices welded clean"
+    )
+    return text, program
+
+
 _GENERIC_PATTERNS = [
     _pattern_union, _pattern_cavity, _pattern_ring, _pattern_holes, _pattern_holes, _pattern_holes,
     _pattern_intersection, _pattern_mirror, _pattern_scaled, _pattern_linear_array, _pattern_circular_array,
@@ -889,6 +1041,15 @@ _GENERIC_PATTERNS = [
     _pattern_round_box_edges, _pattern_chamfer_box_edges, _pattern_mirror_merge, _pattern_boss_with_bore,
     _pattern_counterbore_hole_pattern, _pattern_add_slot_pattern, _pattern_knurl,
     _pattern_radial_array_oriented, _pattern_linear_array_scaled, _pattern_hex_socket,
+    # 6 tools added across two missions this session (add_loft/add_sweep/add_tube, then
+    # smooth_subdivide/add_wireframe_from_edges/weld_vertices) that were registered in
+    # sandbox.py/ARG_SCHEMA with zero generic-composition training examples -- confirmed
+    # by direct grep, not assumed. Without these, program_model.py has no text->tool
+    # association to learn for any of the 6, regardless of how well sandbox.py itself
+    # implements them.
+    _pattern_loft, _pattern_sweep_arc, _pattern_sweep_helix,
+    _pattern_tube_straight, _pattern_tube_arc,
+    _pattern_smooth_subdivide, _pattern_wireframe, _pattern_weld,
 ]
 
 

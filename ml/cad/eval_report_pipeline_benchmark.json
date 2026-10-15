@@ -1,0 +1,55 @@
+{
+  "summary": {
+    "baseline": {
+      "n_prompts": 1,
+      "subprocess_success_rate": 1.0,
+      "all_points_ok_rate": 1.0,
+      "all_watertight_rate": 0.0,
+      "fallback_rate": 0.0,
+      "mean_latency_seconds": 757.2387771606445,
+      "mean_knowledge_context_chars": 0.0,
+      "prompts_with_knowledge_context_used": 0
+    },
+    "rag": {
+      "n_prompts": 1,
+      "subprocess_success_rate": 1.0,
+      "all_points_ok_rate": 1.0,
+      "all_watertight_rate": 0.0,
+      "fallback_rate": 0.0,
+      "mean_latency_seconds": 810.828469991684,
+      "mean_knowledge_context_chars": 2102.0,
+      "prompts_with_knowledge_context_used": 1
+    }
+  },
+  "results": [
+    {
+      "level": "L1",
+      "prompt": "a cylinder 40mm diameter, 100mm tall",
+      "condition": "baseline",
+      "ok": true,
+      "elapsed_seconds": 757.2387771606445,
+      "fell_back_to_single_point": false,
+      "knowledge_context_chars": 0,
+      "n_points": 1,
+      "all_points_ok": true,
+      "all_watertight": false,
+      "mesh_produced": true,
+      "error": null
+    },
+    {
+      "level": "L1",
+      "prompt": "a cylinder 40mm diameter, 100mm tall",
+      "condition": "rag",
+      "ok": true,
+      "elapsed_seconds": 810.828469991684,
+      "fell_back_to_single_point": false,
+      "knowledge_context_chars": 2102,
+      "n_points": 1,
+      "all_points_ok": true,
+      "all_watertight": false,
+      "mesh_produced": true,
+      "error": null
+    }
+  ],
+  "total_wall_seconds": 1574.1401782035828
+}

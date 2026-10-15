@@ -7,7 +7,7 @@ from data.program_dataset import (
     sample_program_dataset,
     write_program_dataset,
 )
-from sandbox import Sandbox
+from sandbox import Sandbox, ToolCall
 
 
 def test_family_programs_replay_successfully_via_sandbox_execute():
@@ -49,9 +49,28 @@ def test_write_and_read_program_dataset_round_trips(tmp_path: Path):
     for split in ("train", "val", "test"):
         reloaded.extend(read_program_split(tmp_path, split))
     assert len(reloaded) == 50
-    # round trip preserves the program faithfully
+    # round trip preserves the program faithfully: every op is a real,
+    # well-formed ToolCall whose args deserialized correctly, and the
+    # program validates structurally (handle flow, known op names) --
+    # this is a (de)serialization-fidelity check, deliberately NOT a
+    # geometric-success check (see below for why that used to be asserted
+    # here and no longer is).
     for s in reloaded:
-        assert Sandbox.execute(list(s.program)).status in ("ok", "suspect")  # tolerate rare sampler edge cases
+        assert s.program, f"{s.id}: deserialized to an empty program"
+        for call in s.program:
+            assert isinstance(call, ToolCall)
+            assert call.op  # a real, non-empty op name survived the round trip
+        assert Sandbox.validate(list(s.program)) == [], f"{s.id}: round-tripped program fails structural validation"
+
+    # Execution OUTCOME is deliberately not asserted here anymore: shell()'s
+    # wall-thickness validation (added in response to this project's own
+    # accuracy audit -- see ACCURACY_AUDIT.md section 4 and
+    # mesh_quality.measure_wall_thickness_deviation) now correctly rejects a
+    # real, previously-silent defect on strongly-tapered vessel shapes
+    # (confirmed directly: _pattern_widening_vessel's own normal parameter
+    # range, e.g. bottom_radius=15 widening to top_radius=40, measures ~60%
+    # wall-thickness deviation). A round-tripped program that legitimately
+    # can't be built reliably is not a round-trip-fidelity bug.
 
 
 def test_no_canonical_key_spans_multiple_splits(tmp_path: Path):

@@ -1808,6 +1808,16 @@ class Sandbox:
         })
         return h
 
+    # Above this, shell()'s axis-scaled-copy approximation is rejected
+    # outright rather than silently returned -- see measure_wall_thickness_deviation's
+    # own docstring for why 90th-percentile deviation, not mean/median, and
+    # why 0.35 specifically: confirmed directly that a plain box scores
+    # 0.0 and a real shelled gear profile (the approximation's own
+    # documented worst case) scores 0.72 -- comfortably separated, so 0.35
+    # sits well clear of normal box/prismatic-shape noise while still
+    # catching a genuinely bad approximation, not just a merely imperfect one.
+    _SHELL_MAX_THICKNESS_DEVIATION = 0.35
+
     def shell(self, target: int, wall_thickness: float) -> int:
         """Hollows out the shape, leaving `wall_thickness` of material
         uniformly -- Blender's "solidify"/shell. Implemented as an
@@ -1819,10 +1829,17 @@ class Sandbox:
         accurate for box-like/prismatic shapes (an enclosure, a plate) and
         increasingly approximate for shapes with fine surface detail at a
         scale comparable to `wall_thickness` (e.g. a gear's teeth would
-        shrink proportionally, not stay a constant thickness) -- acceptable
-        for what this tool is actually used for (hollowing out an
-        enclosure-like solid), not a general-purpose BREP shell."""
-        from mesh_quality import remesh_flat_facets
+        shrink proportionally, not stay a constant thickness).
+
+        That approximation is now MEASURED, not just disclosed in a
+        docstring: mesh_quality.measure_wall_thickness_deviation ray-casts
+        real wall-thickness samples from the actual result and, if the
+        90th-percentile deviation from the requested thickness is too
+        large, this raises SandboxError instead of returning the bad
+        approximation as if it were a correct shell -- "fail explicitly
+        rather than presenting an approximation as an exact shell," not a
+        silent best-effort result."""
+        from mesh_quality import measure_wall_thickness_deviation, remesh_flat_facets
 
         mesh = self._get(target)
         half_extents = (mesh.bounds[1] - mesh.bounds[0]) / 2.0
@@ -1837,6 +1854,18 @@ class Sandbox:
         inner.apply_translation(center)
 
         result = remesh_flat_facets(mesh.difference(inner, engine="manifold"))
+
+        deviation = measure_wall_thickness_deviation(result, wall_thickness)
+        if deviation is not None and deviation > self._SHELL_MAX_THICKNESS_DEVIATION:
+            raise SandboxError(
+                f"shell: the requested wall_thickness ({wall_thickness:g}mm) cannot be produced reliably on "
+                f"this shape by shell()'s axis-scaled-copy approximation -- measured 90th-percentile wall-"
+                f"thickness deviation is {deviation:.0%}, over the {self._SHELL_MAX_THICKNESS_DEVIATION:.0%} "
+                "bound this tool accepts. This shape likely has fine surface detail (teeth, ribs, small "
+                "features) at a scale comparable to the requested wall thickness, where this approximation "
+                "is known to break down -- see shell()'s own docstring."
+            )
+
         self._consume(target)
         h = self._new_handle(result)
         self._record("shell", {"target": target, "wall_thickness": wall_thickness})
@@ -2119,6 +2148,29 @@ class Sandbox:
         self._record("add_rib", {"target": target, "direction1": direction1, "direction2": direction2, "size": size})
         return h
 
+    _BOX_VOLUME_FRACTION_TOLERANCE = 0.005  # 0.5% -- a box has no curved/faceted
+    # faces, so unlike e.g. add_sweep's analytic-vs-faceted error, a genuine
+    # axis-aligned box's meshed volume should match its bbox volume almost
+    # exactly; this tolerance is for floating-point/remeshing noise only.
+
+    def _is_axis_aligned_box(self, mesh: trimesh.Trimesh) -> bool:
+        """A watertight solid's volume equals its own minimal axis-aligned
+        bounding box's volume IF AND ONLY IF it occupies that entire
+        bounding box with no empty space -- which, for a solid contained
+        within its own minimal bbox by definition, is only possible when
+        the solid IS that box (any corner cut, pocket, rounding, or
+        non-box feature either reduces enclosed volume below the bbox
+        volume or would have enlarged the bbox itself). This makes
+        volume-vs-bbox-volume a sufficient, not just suggestive, test --
+        not a heuristic stand-in for "probably box-shaped."""
+        if not mesh.is_watertight or mesh.volume <= 0:
+            return False
+        length, width, height = mesh.extents
+        bbox_volume = float(length * width * height)
+        if bbox_volume <= 1e-9:
+            return False
+        return abs(mesh.volume - bbox_volume) / bbox_volume <= self._BOX_VOLUME_FRACTION_TOLERANCE
+
     def _minkowski_box(self, target: int, offset: float, corner_local_vertices: np.ndarray, op_name: str) -> int:
         """Shared machinery for round_box_edges/chamfer_box_edges: both are
         the Minkowski sum of the target's own bounding box with a small
@@ -2127,12 +2179,28 @@ class Sandbox:
         8 (shrunk-inward-by-offset) box corners -- a well-known exact
         construction, and one that sidesteps the tangent-face degenerate-
         boolean risk a literal 12-edge fillet/chamfer_edge chain would hit.
-        Reads the TARGET's own bounding box and REPLACES the whole shape
-        with this reconstruction -- correct for a genuinely box-shaped
-        target; on a non-box shape it replaces it with its rounded/
-        chamfered bounding box, not a modified version of the actual
-        geometry (a disclosed departure, not a silent wrong shape)."""
+
+        Confirmed EXACT (not approximate) specifically because of the
+        _is_axis_aligned_box precondition below: reading the target's own
+        bounding box and reconstructing from it is only mathematically
+        equivalent to "operating on the real geometry" when the target
+        genuinely IS its own bounding box. Every other target is REJECTED
+        outright (a typed SandboxError) rather than silently replaced with
+        its bounding box's rounded/chamfered reconstruction -- a real,
+        confirmed bug this session's own accuracy audit found (the earlier
+        behavior discarded the actual shape on any non-box target with no
+        warning), fixed here as a precondition rather than a disclosed
+        approximation, since "reject unsupported targets before modifying
+        geometry" is this project's own stated preference over silently
+        returning a different shape."""
         mesh = self._get(target)
+        if not self._is_axis_aligned_box(mesh):
+            raise SandboxError(
+                f"{op_name}: target {target} is not an axis-aligned box (volume {mesh.volume:.1f} vs. "
+                f"bounding-box volume {float(np.prod(mesh.extents)):.1f}) -- this operation reconstructs "
+                "from the bounding box, which is only exact for a genuine box-shaped target; refusing to "
+                "silently replace a non-box shape with its bounding box"
+            )
         length, width, height = mesh.extents
         hx, hy, hz = length / 2.0 - offset, width / 2.0 - offset, height / 2.0 - offset
         if hx <= 0 or hy <= 0 or hz <= 0:
@@ -2345,6 +2413,29 @@ class Sandbox:
 
     @staticmethod
     def execute(program: list[ToolCall]) -> "ProgramExecutionResult":
+        """Transactional, with a real recoverable checkpoint -- not just in
+        name. CONFIRMED, not assumed, that the previous version's recovery
+        was largely non-functional: every Sandbox tool method returns an
+        int HANDLE, not a trimesh.Trimesh, so the old code's
+        `elif isinstance(result, trimesh.Trimesh): last_mesh = result`
+        branch was dead for every op except `finalize` -- meaning a
+        mid-program exception on any step BEFORE finalize (the normal
+        case; finalize is always the last step) had NO real checkpoint to
+        fall back to and degraded straight to status="rejected", mesh=None,
+        discarding every successfully-built intermediate step's work. This
+        version tracks the real last-good mesh after EVERY successful,
+        immediately-validated step (via sb._shapes, not the return value's
+        type), so a step N failure can recover step N-1's actual geometry,
+        not nothing.
+
+        Also validates EACH step's own output immediately (empty-mesh and
+        watertightness checks) rather than only at the very end -- a
+        corrupted intermediate mesh (e.g. a boolean op that produced a
+        non-watertight result) is now caught at the step that caused it,
+        with THAT step identified in the error, instead of silently
+        flowing into further operations and only being noticed, with no
+        way to tell which step was actually responsible, after the whole
+        program finished."""
         from evaluation.geometry_eval import evaluate_mesh
 
         issues = Sandbox.validate(program)
@@ -2352,18 +2443,36 @@ class Sandbox:
             return ProgramExecutionResult(status="rejected", mesh=None, executed_steps=0, failing_step=0, error="; ".join(issues), geometry_report=None)
 
         sb = Sandbox(trace=False)
-        last_mesh: trimesh.Trimesh | None = None
+        last_mesh: trimesh.Trimesh | None = None  # set only by an explicit `finalize` call -- a program
+                                                    # that never finalizes has not "completed," even if every
+                                                    # individual step succeeded (unchanged from before)
+        last_good_mesh: trimesh.Trimesh | None = None  # the real recoverable checkpoint -- the most recent
+                                                          # successfully-built AND immediately-validated mesh,
+                                                          # from ANY step, not just finalize
+
+        def _mesh_for_result(result):
+            if isinstance(result, trimesh.Trimesh):
+                return result
+            if isinstance(result, int) and result in sb._shapes:
+                return sb._shapes[result]
+            return None
+
         for i, call in enumerate(program):
             try:
                 method = getattr(sb, call.op)
                 result = method(**call.args)
                 if call.op == "finalize":
                     last_mesh = result
-                elif isinstance(result, trimesh.Trimesh):
-                    last_mesh = result
+                current = _mesh_for_result(result)
+                if current is not None:
+                    if len(current.vertices) == 0:
+                        raise SandboxError(f"{call.op} (step {i}): produced an empty mesh")
+                    if not current.is_watertight:
+                        raise SandboxError(f"{call.op} (step {i}): result is not watertight immediately after this operation")
+                    last_good_mesh = current
             except Exception as e:
-                if last_mesh is not None:
-                    return ProgramExecutionResult(status="partial", mesh=last_mesh, executed_steps=i, failing_step=i, error=str(e), geometry_report=None)
+                if last_good_mesh is not None:
+                    return ProgramExecutionResult(status="partial", mesh=last_good_mesh, executed_steps=i, failing_step=i, error=str(e), geometry_report=None)
                 return ProgramExecutionResult(status="rejected", mesh=None, executed_steps=i, failing_step=i, error=str(e), geometry_report=None)
 
         if last_mesh is None:

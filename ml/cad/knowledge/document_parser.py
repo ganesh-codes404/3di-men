@@ -23,7 +23,7 @@ from pathlib import Path
 from knowledge.config import KnowledgeConfig
 from knowledge.schemas import ExtractionMethod
 
-SUPPORTED_SUFFIXES = {".pdf", ".md", ".markdown", ".txt", ".html", ".htm", ".rst"}
+SUPPORTED_SUFFIXES = {".pdf", ".md", ".markdown", ".txt", ".html", ".htm", ".rst", ".wikitext"}
 
 
 class DocumentParseError(Exception):
@@ -60,6 +60,8 @@ def parse_document(path: Path, config: KnowledgeConfig | None = None) -> ParsedD
         return parse_plain_text(path)
     if suffix == ".rst":
         return parse_rst(path)
+    if suffix == ".wikitext":
+        return parse_mediawiki_text(path)
     raise DocumentParseError(
         f"{path}: unsupported file type {suffix!r} -- supported: {sorted(SUPPORTED_SUFFIXES)}"
     )
@@ -78,6 +80,68 @@ def parse_plain_text(path: Path) -> ParsedDocument:
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
     blocks = [ParsedBlock(text=p, section=None, page=None) for p in paragraphs]
     return ParsedDocument(blocks=blocks, title=None, page_count=None, extraction_method="plain_text")
+
+
+# ---------------------------------------------------------------------------
+# MediaWiki plain-text extracts (Wikipedia's own `explaintext=1` API output
+# -- plain prose with MediaWiki's own "== Heading ==" markers preserved,
+# not full wikitext markup). A thin variant of parse_plain_text rather than
+# a new top-level format: the only difference is recognizing those heading
+# lines for section tracking instead of treating them as ordinary prose.
+# ---------------------------------------------------------------------------
+
+_MEDIAWIKI_HEADING_RE = re.compile(r"^(={2,6})\s*(.+?)\s*\1\s*$")
+
+
+def parse_mediawiki_text(path: Path) -> ParsedDocument:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if not text.strip():
+        raise DocumentParseError(f"{path}: file is empty")
+
+    # Line-by-line, not blank-line-paragraph-blob splitting (confirmed
+    # necessary, not hypothetical: Wikipedia's extract API puts only a
+    # SINGLE newline between a "== Heading ==" line and the paragraph that
+    # follows it, e.g. "== Applications ==\nStress concentration is...",
+    # so a blank-line split groups the heading marker into the same block
+    # as the next paragraph's text instead of recognizing it as a heading
+    # at all). Mirrors parse_markdown's own line-scanning approach, which
+    # already handles exactly this "heading immediately followed by
+    # content" shape correctly.
+    lines = text.split("\n")
+    blocks: list[ParsedBlock] = []
+    current_section: str | None = None
+    paragraph_lines: list[str] = []
+
+    def flush():
+        if paragraph_lines:
+            joined = "\n".join(paragraph_lines).strip()
+            if joined:
+                blocks.append(ParsedBlock(text=joined, section=current_section, page=None))
+            paragraph_lines.clear()
+
+    for line in lines:
+        heading = _MEDIAWIKI_HEADING_RE.match(line.strip())
+        if heading:
+            flush()
+            current_section = heading.group(2).strip()
+            continue
+        if not line.strip():
+            flush()
+        else:
+            paragraph_lines.append(line)
+    flush()
+
+    if not blocks:
+        raise DocumentParseError(f"{path}: no extractable text content after MediaWiki-text parsing")
+
+    # Wikipedia's own plain-text extracts carry no in-content title marker
+    # (the real title lives in the API response's own page.title field, not
+    # the text) -- the fetched file's own name IS the article title
+    # (sources.py saves it that way), so it's used as the title here rather
+    # than left None, matching every other parser's "always set a title
+    # when the format genuinely has one available" rule.
+    title = path.stem.replace("_", " ")
+    return ParsedDocument(blocks=blocks, title=title, page_count=None, extraction_method="mediawiki_text")
 
 
 # ---------------------------------------------------------------------------

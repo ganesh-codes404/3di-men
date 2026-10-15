@@ -161,6 +161,24 @@ def api_build():
             "program": p.program,
             "error": p.error,
             "topology": p.topology,
+            # Correctness-to-spec check (spec_validation.py) -- distinct from
+            # "status": a point can be status="ok" (structurally watertight)
+            # while dimension_match_rate < 1.0 (the built geometry's actual
+            # size doesn't match what the description itself claimed). None
+            # means the description had no numeric "NNmm" claims to check,
+            # not a confirmed match -- see ACCURACY_AUDIT.md section 3.
+            "dimension_match_rate": p.dimension_match_rate,
+            "unmatched_dimensions_mm": p.unmatched_dimensions_mm,
+            # Section 8's bounded repair loop (repair.py) -- True only if a
+            # repair attempt actually improved the result; every attempt
+            # (improved or not) is listed in repair_attempts, never hidden.
+            "repair_applied": p.repair_applied,
+            "repair_attempts": p.repair_attempts,
+            # "compositional" (compositional_decomposer.py's deterministic
+            # clause-by-clause resolution) or "statistical" (program_model.py's
+            # TF-IDF/classifier guess) -- disclosed so a caller can tell a
+            # literally-parsed program apart from a guessed one.
+            "resolution_method": p.resolution_method,
         }
         for p in result.points
     ]
@@ -321,9 +339,20 @@ def main():
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=5050)
+    # Defaults to loopback-only, unchanged from before -- binding wider is
+    # an explicit opt-in (e.g. --host 100.x.y.z for a specific Tailscale
+    # IP, or --host 0.0.0.0 for every interface) since this is a Flask
+    # DEV server with no authentication: anything that can reach the bound
+    # address can trigger a build or read exported meshes. A Tailscale IP
+    # is deliberately narrower than 0.0.0.0 -- only reachable from devices
+    # on your own private tailnet, not the local Wi-Fi/LAN too.
+    ap.add_argument("--host", default="127.0.0.1")
     args = ap.parse_args()
-    print(f"3di-men builder UI: http://127.0.0.1:{args.port}")
-    app.run(host="127.0.0.1", port=args.port, debug=False)
+    if args.host not in ("127.0.0.1", "localhost"):
+        print(f"WARNING: binding to {args.host} -- reachable from any device that can route to this "
+              "address. This is a Flask development server with no authentication.")
+    print(f"3di-men builder UI: http://{args.host}:{args.port}")
+    app.run(host=args.host, port=args.port, debug=False)
 
 
 if __name__ == "__main__":

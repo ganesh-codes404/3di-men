@@ -4,10 +4,13 @@ specific .gguf file being present). One real-model smoke test is gated
 behind the model file actually existing, so the rest of the suite stays
 fast and doesn't require this exact machine's setup."""
 
+import json
+
 import pytest
 
 from llm_decompose import (
     DEFAULT_MODEL_PATH,
+    _POINTS_JSON_SCHEMA,
     ActionablePoint,
     _correct_gear_mesh_spacing,
     _extract_gear_params,
@@ -171,6 +174,50 @@ def test_clarify_grammar_builds_successfully():
     from llama_cpp.llama_grammar import LlamaGrammar
 
     assert isinstance(_get_clarify_grammar(), LlamaGrammar)
+
+
+def test_points_json_schema_requires_id_on_every_point():
+    """Regression test for a real failure confirmed via build_log.jsonl on
+    2026-10-15: two separate real decompositions ("a water bottle", "a
+    simple bracket...") each had the model emit a later point's
+    relationship.target_id referencing a semantic name ("body"/"bracket")
+    that NO point in the same response actually carried as its own "id" --
+    because "id" was optional, so the model sometimes skipped stating it on
+    exactly the point its own later relationship went on to name.
+    assembly_plan.validate_relationships correctly rejected the whole
+    decomposition as a dangling reference in both real cases. "id" must be
+    required so the grammar-constrained decoder can no longer produce that
+    shape at all -- this test locks that in via the same jsonschema the
+    model's actual GBNF grammar is built from (LlamaGrammar.from_json_schema
+    uses this exact schema), without needing a real model call."""
+    import jsonschema
+
+    schema = json.loads(_POINTS_JSON_SCHEMA)
+
+    # the exact real-world failure shape: second point's relationship names
+    # "body", but no point anywhere in the list has "id": "body"
+    reproduces_the_real_bug = [
+        {"description": "a hollow vessel body", "position_mm": {"x": 0, "y": 0, "z": 0}},
+        {
+            "description": "a cap",
+            "position_mm": {"x": 0, "y": 0, "z": 0},
+            "relationship": {"kind": "attached_to_face", "target_id": "body", "face": "+z"},
+        },
+    ]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(reproduces_the_real_bug, schema)
+
+    # same shape, but every point states its own "id" -- must validate
+    fixed = [
+        {"id": "body", "description": "a hollow vessel body", "position_mm": {"x": 0, "y": 0, "z": 0}},
+        {
+            "id": "cap",
+            "description": "a cap",
+            "position_mm": {"x": 0, "y": 0, "z": 0},
+            "relationship": {"kind": "attached_to_face", "target_id": "body", "face": "+z"},
+        },
+    ]
+    jsonschema.validate(fixed, schema)
 
 
 def test_decompose_prompt_passes_a_grammar_to_the_llm(monkeypatch):

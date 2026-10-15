@@ -90,7 +90,7 @@ try:
     for p in result.points:
         points.append({{
             "status": p.status,
-            "watertight": (p.topology or {{}}).get("watertight") if p.topology else None,
+            "watertight": (p.topology or {{}}).get("is_watertight") if p.topology else None,
             "component_count": (p.topology or {{}}).get("component_count") if p.topology else None,
         }})
     out = {{

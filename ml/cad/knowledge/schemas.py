@@ -48,7 +48,7 @@ ConceptType = Literal[
                 # warns against ("infer metadata conservatively").
 ]
 
-ExtractionMethod = Literal["pdf_text", "pdf_ocr", "markdown", "plain_text", "html", "rst"]
+ExtractionMethod = Literal["pdf_text", "pdf_ocr", "markdown", "plain_text", "html", "rst", "mediawiki_text"]
 
 
 @dataclass
@@ -145,7 +145,7 @@ class IngestionReport:
 # ---------------------------------------------------------------------------
 
 LicenseStatus = Literal["approved", "needs_review", "rejected", "unverified"]
-AcquisitionMethod = Literal["git_sparse_checkout", "http_fetch", "local"]
+AcquisitionMethod = Literal["git_sparse_checkout", "http_fetch", "wikipedia_api", "local"]
 SourceSyncStatus = Literal["not_synced", "synced", "sync_failed"]
 SourceIngestStatus = Literal["not_ingested", "ingested", "ingest_failed", "partially_ingested"]
 

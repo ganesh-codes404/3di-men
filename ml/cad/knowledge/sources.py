@@ -192,6 +192,35 @@ DEFAULT_SOURCES: tuple[SourceEntry, ...] = (
         include_paths=("dox/user_guides/modeling_algos/modeling_algos.md", "dox/user_guides/modeling_data/modeling_data.md"),
         branch="master",
     ),
+    SourceEntry(
+        source_id="wikipedia_engineering",
+        title="Wikipedia: Mechanical/Product Design Reference Articles",
+        canonical_url="https://en.wikipedia.org/",
+        repo_url="https://en.wikipedia.org/w/api.php",
+        license="CC-BY-SA-4.0",
+        license_status="approved",
+        license_note=(
+            "Verified directly against Wikipedia's own API (action=query&meta=siteinfo&siprop=rightsinfo), "
+            "which reports 'Creative Commons Attribution-Share Alike 4.0' as the content license -- the "
+            "standard, well-documented Wikipedia content license, not assumed from reputation."
+        ),
+        # Added specifically to close a gap this session's own real retrieval
+        # testing found (MISSION_STATUS.md Addendum 1, section 5): the other
+        # 4 approved sources are CAD-TOOL API/operation documentation, which
+        # serves tool-operation-phrased prompts well but product-shape
+        # prompts (a water bottle, a container) only weakly. These articles
+        # are product/mechanical-DESIGN-concept content specifically, not
+        # another tool manual. `include_paths` holds Wikipedia ARTICLE
+        # TITLES here (not repo-relative file paths) -- the field's meaning
+        # is "the specific items to fetch from this source," which this
+        # acquisition method fulfills differently than a git checkout does.
+        acquisition_method="wikipedia_api",
+        include_paths=(
+            "Fillet (mechanics)", "Chamfer", "Screw thread", "Flange", "Fastener",
+            "Boss (engineering)", "Bottle", "Design for manufacturability", "Gear",
+        ),
+        branch=None,
+    ),
 )
 
 _GITHUB_HOSTS = ("github.com",)
@@ -370,6 +399,52 @@ def _http_fetch_files(entry: SourceEntry, dest: Path, config: KnowledgeConfig) -
     return fetched, 0, revision
 
 
+def _wikipedia_fetch_pages(entry: SourceEntry, dest: Path) -> tuple[int, int, str | None]:
+    """Fetches each include_paths entry as a Wikipedia ARTICLE TITLE via
+    the plain-text extracts API (explaintext=1) -- no wikitext markup to
+    parse, no HTML to scrape, just clean prose with "== Heading =="
+    markers (see knowledge/document_parser.py's parse_mediawiki_text).
+    No per-page incremental-change detection (unlike the git path's
+    commit-hash comparison): Wikipedia pages don't share one "repo
+    revision," and re-fetching ~9 short articles on every sync is cheap
+    enough at this source's actual scale not to need it -- `revision` is a
+    snapshot timestamp for display/provenance only, not a skip-logic key."""
+    import time as _time
+
+    if dest.exists():
+        shutil.rmtree(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    fetched = 0
+    for title in entry.include_paths:
+        params = urllib.parse.urlencode({
+            "action": "query", "titles": title, "prop": "extracts",
+            "explaintext": 1, "format": "json",
+        })
+        url = f"{entry.repo_url}?{params}"
+        try:
+            with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "3di-men-knowledge-sync/1.0"}), timeout=20
+            ) as resp:
+                data = json.loads(resp.read())
+        except Exception as exc:
+            raise SourceAcquisitionError(f"fetching Wikipedia article {title!r} failed: {type(exc).__name__}: {exc}") from exc
+
+        pages = data.get("query", {}).get("pages", {})
+        page = next(iter(pages.values()), None)
+        if page is None or "missing" in page:
+            raise SourceAcquisitionError(f"Wikipedia article {title!r} does not exist")
+        extract = (page.get("extract") or "").strip()
+        if not extract:
+            raise SourceAcquisitionError(f"Wikipedia article {title!r} has no extractable text")
+
+        filename = title.replace(" ", "_").replace("/", "_") + ".wikitext"
+        (dest / filename).write_text(extract)
+        fetched += 1
+
+    return fetched, 0, f"snapshot-{int(_time.time())}"
+
+
 def sync_source(source_id: str, manifest: SourceManifest) -> SourceSyncResult:
     """Refuses (does not silently skip) any source whose license_status is
     not 'approved' -- section 1/3's "skip or flag any source whose terms
@@ -396,6 +471,10 @@ def sync_source(source_id: str, manifest: SourceManifest) -> SourceSyncResult:
                 result = SourceSyncResult(source_id=source_id, ok=True, files_fetched=file_count, revision=new_revision)
         elif entry.acquisition_method == "http_fetch":
             fetched, unchanged, new_revision = _http_fetch_files(entry, dest, manifest.config)
+            result = SourceSyncResult(source_id=source_id, ok=True, files_fetched=fetched,
+                                       files_unchanged=unchanged, revision=new_revision)
+        elif entry.acquisition_method == "wikipedia_api":
+            fetched, unchanged, new_revision = _wikipedia_fetch_pages(entry, dest)
             result = SourceSyncResult(source_id=source_id, ok=True, files_fetched=fetched,
                                        files_unchanged=unchanged, revision=new_revision)
         else:
@@ -433,6 +512,12 @@ def _url_resolver(entry: SourceEntry, raw_root: Path):
             return f"{entry.repo_url}/src/commit/{entry.revision or entry.branch}/{rel}"
         if entry.acquisition_method == "http_fetch" and entry.repo_url:
             return f"{entry.repo_url}/src/branch/{entry.branch}/{rel}"
+        if entry.acquisition_method == "wikipedia_api":
+            # local_path.stem is "Fillet_(mechanics)" (the fetched filename,
+            # underscores for spaces) -- Wikipedia's own URL scheme uses the
+            # same underscore convention directly, no further encoding needed
+            # for the article titles this source is configured with.
+            return f"{entry.canonical_url}wiki/{local_path.stem}"
         return entry.canonical_url
     return resolve
 

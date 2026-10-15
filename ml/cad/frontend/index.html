@@ -359,14 +359,16 @@
   .reveal { opacity: 0; transform: translateY(10px); }
   .reveal.in { opacity: 1; transform: none; transition: opacity 0.5s ease, transform 0.5s ease; }
 
-  /* ---------- scroll reveal (everything below the hero, on scroll-into-view) ---------- */
-  .reveal-on-scroll {
-    opacity: 0; transform: translateY(22px);
-    transition: opacity 0.6s cubic-bezier(0.2, 0.7, 0.3, 1), transform 0.6s cubic-bezier(0.2, 0.7, 0.3, 1);
-  }
-  .reveal-on-scroll.in-view { opacity: 1; transform: none; }
-
-  /* ---------- interactive hover lift ---------- */
+  /* ---------- scroll reveal, hero recede, and backdrop parallax ----------
+     All three are driven directly by JS on every animation frame (see the
+     scroll-scrub script near the end of <body>), not CSS animation-timeline --
+     that spec's browser support is inconsistent enough that it was silently
+     falling back to a flat one-shot fade for a real share of visitors,
+     which read as "no different from normal scrolling." Setting `opacity`/
+     `transform` inline, continuously, from the actual scroll position gives
+     the same scrubbed feel in every browser, with no feature gamble. */
+  .reveal-on-scroll { opacity: 0; transform: translateY(40px) scale(0.96); }
+  .hero-grid, .bg-grid { will-change: transform; }
   .gallery-card, .usecase-card { transition: background 0.18s, box-shadow 0.18s, transform 0.18s ease; }
   .gallery-card:hover, .gallery-card:focus-within, .usecase-card:hover { transform: translateY(-3px); box-shadow: 0 14px 28px -20px rgba(0,0,0,0.6); }
 </style>
@@ -940,36 +942,68 @@
   setNavScrolled();
   window.addEventListener('scroll', setNavScrolled, { passive: true });
 
-  // one-time fade-and-rise for every section below the hero as it enters
-  // view -- NOT re-triggered on scroll back up, so revisiting a section
-  // never replays the animation.
-  const revealEls = document.querySelectorAll(
+  // Scroll-scrubbed reveal + hero recede + backdrop parallax, all driven
+  // directly from the real scroll position every frame -- not a one-shot
+  // trigger, and not CSS animation-timeline (dropped: that spec's browser
+  // support is inconsistent enough that it was silently degrading to a
+  // flat fade for a real share of visitors). A scroll listener just flags
+  // "recompute," and a single rAF loop does the actual work once per
+  // frame -- never more than once per frame no matter how many scroll
+  // events fire, and it does nothing at all while the page is still.
+  const revealEls = Array.from(document.querySelectorAll(
     '.section-head, .flagship, .value-item, .usecase-card, .gallery-card, .step, .closing-inner'
-  );
+  ));
   revealEls.forEach(el => el.classList.add('reveal-on-scroll'));
+  const heroGridEl = document.querySelector('.hero-grid');
+  const bgGridEl = document.querySelector('.bg-grid');
 
-  const staggerGroups = new Map();
-  revealEls.forEach(el => {
-    const parent = el.parentElement;
-    if (!staggerGroups.has(parent)) staggerGroups.set(parent, []);
-    staggerGroups.get(parent).push(el);
-  });
-  staggerGroups.forEach(siblings => {
-    siblings.forEach((el, i) => { el.style.transitionDelay = `${Math.min(i * 70, 280)}ms`; });
-  });
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  // ease-out-cubic: fast at the start of the scroll range, settling
+  // gently -- makes the scrub feel directed rather than linear/mechanical.
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
 
   if (reducedMotionNav) {
-    revealEls.forEach(el => el.classList.add('in-view'));
+    revealEls.forEach(el => { el.style.opacity = 1; el.style.transform = 'none'; });
   } else {
-    const revealObserver = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('in-view');
-          revealObserver.unobserve(entry.target);
+    let dirty = true;
+    const markDirty = () => { dirty = true; };
+    window.addEventListener('scroll', markDirty, { passive: true });
+    window.addEventListener('resize', markDirty, { passive: true });
+
+    function frame() {
+      if (dirty) {
+        dirty = false;
+        const vh = window.innerHeight;
+
+        revealEls.forEach(el => {
+          const r = el.getBoundingClientRect();
+          // 0 just as the element's top crosses 90% down the viewport
+          // (barely peeking in), 1 once it's crossed up to 58% -- a wide
+          // enough band to feel scrubbed, not snapped.
+          const p = easeOut(clamp01((vh * 0.9 - r.top) / (vh * 0.32)));
+          el.style.opacity = String(p);
+          el.style.transform = `translateY(${(1 - p) * 40}px) scale(${0.96 + p * 0.04})`;
+        });
+
+        if (heroGridEl) {
+          const r = heroGridEl.getBoundingClientRect();
+          // 0 while the hero sits fully in view, 1 once it has scrolled
+          // up by ~70% of its own height -- self-scaling to the hero's
+          // real size rather than a fixed pixel guess.
+          const p = clamp01(-r.top / Math.max(r.height * 0.7, 1));
+          heroGridEl.style.opacity = String(1 - p * 0.6);
+          heroGridEl.style.transform = `scale(${1 - p * 0.05}) translateY(${-p * 26}px)`;
         }
-      });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-    revealEls.forEach(el => revealObserver.observe(el));
+
+        if (bgGridEl) {
+          const max = document.documentElement.scrollHeight - vh;
+          const sp = max > 0 ? window.scrollY / max : 0;
+          bgGridEl.style.transform = `translateY(${sp * 90}px)`;
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
   }
 
   // highlight whichever section's content currently sits in the vertical
