@@ -39,6 +39,7 @@ node_modules/
 .env.*
 !.env.example
 !ml/cad/.env.example
+!ml/cad/.env.rtx4060.example
 
 # generated model artifacts / data (regeneratable -- see docs/threedimen-architecture.md
 # for the point-cloud model, scripts/train_program_model.py for program_model.joblib)
