@@ -154,7 +154,11 @@ def _render_flange(resolved: dict, kept: frozenset[str], cfg: WordingConfig) -> 
 
 def _render_bracket(resolved: dict, kept: frozenset[str], cfg: WordingConfig) -> str:
     material = _material_text(resolved["material"], cfg)
-    lead = f"L-shaped {material} bracket" if "material" in kept else "L-shaped bracket"
+    # "L-shape", not "L-shaped" -- matches _SYSTEM_PROMPT's own wording
+    # exactly (Example 1: "an L-shape bracket, ..."), for the same reason
+    # as the "in each leg" fix below: this is the lead word a TF-IDF match
+    # weighs most heavily, so it should match the LLM's real vocabulary.
+    lead = f"L-shape {material} bracket" if "material" in kept else "L-shape bracket"
     clauses = [lead]
 
     if "leg1_length_mm" in kept and "leg2_length_mm" in kept:
@@ -172,7 +176,14 @@ def _render_bracket(resolved: dict, kept: frozenset[str], cfg: WordingConfig) ->
     if "holes_per_arm" in kept or "hole_diameter_mm" in kept:
         count_str = f"{int(resolved['holes_per_arm'])} " if "holes_per_arm" in kept else ""
         d_str = f"{_fmt_num(resolved['hole_diameter_mm'], cfg.unit_style)} " if "hole_diameter_mm" in kept else ""
-        suffix = " per arm" if "holes_per_arm" in kept else ""
+        # "in each leg", not "per arm" -- llm_decompose.py's own _SYSTEM_PROMPT
+        # (Example 1) teaches the LLM to phrase this exact feature as "with
+        # two holes in each leg". Training text using "arm" instead of "leg"
+        # shares almost no vocabulary with that taught phrasing, which starves
+        # program_model.py's TF-IDF matching of signal on real LLM output --
+        # confirmed by a real decomposition producing a generic flat plate
+        # instead of an L-bracket for exactly this phrasing.
+        suffix = " in each leg" if "holes_per_arm" in kept else ""
         clauses.append(f"with {count_str}{d_str}holes{suffix}".strip())
     if "hole_edge_margin_mm" in kept:
         clauses.append(f"{_fmt_num(resolved['hole_edge_margin_mm'], cfg.unit_style)} from each edge")
