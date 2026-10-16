@@ -1037,6 +1037,10 @@ async function applyBuildResponse(data) {
 
 async function runBuild(answers) {
   const prompt = promptEl.value.trim();
+  // Close the popup the instant a build is kicked off, not just on success --
+  // the build itself can take minutes (or error out), and leaving a
+  // full-screen modal up for all of that blocks the entire page.
+  clarifyOverlay.classList.remove('show');
   buildBtn.disabled = true;
   skipBtn.disabled = true;
   continueBtn.disabled = true;
