@@ -241,6 +241,28 @@
   .entity-row .entity-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
   .entity-row .step-count { font-size: 10.5px; color: var(--text-faint); }
 
+  /* Feature-tree nesting: each entity's own ordered steps, shown directly
+     under it -- SolidWorks FeatureManager style (part -> its features),
+     replacing what used to be a separate flat "Steps" list showing only
+     the active entity. */
+  .tree-toggle {
+    background: transparent; border: none; color: var(--text-faint); cursor: pointer; font-size: 10px;
+    width: 16px; height: 20px; flex-shrink: 0; padding: 0;
+  }
+  .tree-steps {
+    display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-left: 14px;
+    border-left: 1px solid var(--border-soft); max-height: 220px; overflow-y: auto;
+  }
+  .tree-step { padding: 5px 8px; font-size: 11px; }
+  .tree-steps-empty { padding: 2px 8px; }
+  .step-cat-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block;
+  }
+  .step-cat-dot.cat-create { background: var(--accent-1); }
+  .step-cat-dot.cat-consumes_one { background: var(--accent-2); }
+  .step-cat-dot.cat-consumes_two { background: var(--ok); }
+  .step-cat-dot.cat-consumes_target { background: var(--warn); }
+
   .topo-chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .chip {
     font-size: 10px; color: var(--text-faint); background: var(--bg-input); border: 1px solid var(--border-soft);
@@ -292,6 +314,24 @@
   .vtool.active { background: var(--accent-grad); color: #ffffff; }
   .vtool:hover:not(.active) { background: var(--bg-input); color: var(--text); }
   .vtool:disabled { opacity: 0.4; cursor: default; }
+
+  /* Always visible (unlike #viewerToolbar, which is Tool-Console-tab-only)
+     since reference planes are useful in either tab. */
+  #refPlanesToggle {
+    position: absolute; bottom: 16px; left: 16px; display: flex; align-items: center; gap: 5px;
+    background: rgba(21, 23, 28, 0.82); backdrop-filter: blur(6px); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 10px; font-size: 11px; color: var(--text-dim); cursor: pointer; user-select: none;
+  }
+  #refPlanesToggle input { cursor: pointer; }
+
+  /* Separate canvas/renderer on purpose, not the same-canvas scissor-
+     viewport technique -- clicks on it then never reach the main canvas's
+     face/edge raycast handler at all, by construction, rather than needing
+     a click-region guard that's easy to regress later. */
+  #viewCube {
+    position: absolute; bottom: 16px; right: 16px; width: 84px; height: 84px;
+    background: rgba(21, 23, 28, 0.6); border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  }
 
   #dragLabel {
     position: absolute; display: none; pointer-events: none; transform: translate(-50%, -130%);
@@ -404,7 +444,7 @@
     <p class="hint">Blender-style direct access to 3di-men's own tool roster — pick a tool, fill in its real arguments, target a handle from an earlier step, or drag directly in the viewport. No LLM, no ML prediction: this goes straight to sandbox.py's tool calls, one step at a time. Each entity below is a separate part (like a gear and its shaft) built independently, then combined by position — never fused into one blob unless you union them yourself.</p>
 
     <div class="card">
-      <div class="card-title">Entities</div>
+      <div class="card-title">Feature Tree</div>
       <div id="entityList" class="entity-list"></div>
       <button class="add-part-btn" id="addEntityBtn">+ New entity</button>
     </div>
@@ -415,11 +455,6 @@
       <div id="toolArgsForm"></div>
       <button class="primary" id="addStepBtn">Add step</button>
       <div id="consoleFormError" style="display:none; font-size:11.5px; color:var(--bad);"></div>
-    </div>
-
-    <div class="card" id="stepsCard">
-      <div class="card-title">Steps</div>
-      <div id="consoleSteps" class="console-steps"></div>
       <div class="btn-row">
         <button class="secondary" id="undoStepBtn">Undo last step</button>
         <button class="secondary" id="clearStepsBtn">Clear all</button>
@@ -465,6 +500,10 @@
     <button class="vtool" data-mode="rotate" title="Drag a ring to rotate around one world axis (X/Y/Z only)" disabled>Rotate</button>
     <button class="vtool" data-mode="scale" title="Drag a handle to resize the shape" disabled>Scale</button>
   </div>
+  <label id="refPlanesToggle" title="Show/hide the front/top/right reference planes">
+    <input type="checkbox" id="refPlanesCheckbox" checked /> Planes
+  </label>
+  <canvas id="viewCube" title="Click a face to snap the view"></canvas>
   <div id="dragLabel"></div>
   <div id="edgeConfirmPopup">
     <span id="edgeConfirmValue"></span>
@@ -508,6 +547,109 @@ scene.add(dir2);
 const grid = new THREE.GridHelper(300, 20, 0x29283a, 0x14141d);
 scene.add(grid);
 
+// SolidWorks-style reference planes: Front (XY, normal Z), Top (XZ, normal
+// Y), Right (YZ, normal X), each through the world origin. depthWrite:false
+// + transparent:true matches this file's own existing ghost-mesh pattern
+// (see ghostMesh below) for a translucent, non-occluding overlay. The Top
+// plane is nudged a hair off y=0 to avoid z-fighting with GridHelper, which
+// already lies exactly in that same XZ plane.
+function makeReferencePlane(colorHex) {
+  const geo = new THREE.PlaneGeometry(400, 400);
+  const mat = new THREE.MeshBasicMaterial({
+    color: colorHex, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide,
+  });
+  return new THREE.Mesh(geo, mat);
+}
+const refPlaneFront = makeReferencePlane(0x3b82f6);   // XY plane (PlaneGeometry's own default orientation, normal +Z) -- blue, matches +Z
+const refPlaneTop = makeReferencePlane(0x3ddc84);     // rotate into the XZ plane, normal +Y -- green, matches +Y
+refPlaneTop.rotation.x = Math.PI / 2;
+refPlaneTop.position.y = 0.01;
+const refPlaneRight = makeReferencePlane(0xf2566e);   // rotate into the YZ plane, normal +X -- red, matches +X
+refPlaneRight.rotation.y = Math.PI / 2;
+const refPlanes = [refPlaneFront, refPlaneTop, refPlaneRight];
+refPlanes.forEach(p => scene.add(p));
+
+document.getElementById('refPlanesCheckbox').addEventListener('change', (evt) => {
+  refPlanes.forEach(p => p.visible = evt.target.checked);
+});
+
+// View-cube / axis-triad widget -- a SEPARATE canvas with its own tiny
+// scene/camera/renderer, not the same-canvas scissor-viewport technique.
+// This means clicks on it never reach the main canvas's onViewerPointerDown
+// face/edge raycast handler at all (different DOM element entirely), rather
+// than needing a click-region guard in that handler that's easy to regress
+// later -- the safer of the two standard approaches, at the cost of one
+// extra (tiny, ~84x84px) WebGL context.
+const viewCubeCanvas = document.getElementById('viewCube');
+const viewCubeScene = new THREE.Scene();
+const viewCubeCamera = new THREE.OrthographicCamera(-1.6, 1.6, 1.6, -1.6, 0.1, 10);
+const viewCubeRenderer = new THREE.WebGLRenderer({ canvas: viewCubeCanvas, antialias: true, alpha: true });
+viewCubeScene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const viewCubeLight = new THREE.DirectionalLight(0xffffff, 0.6);
+viewCubeLight.position.set(1, 1.5, 1);
+viewCubeScene.add(viewCubeLight);
+
+// BoxGeometry's 6-material array order is [+x, -x, +y, -y, +z, -z] -- same
+// color families as the reference planes above (X=red, Y=green, Z=blue),
+// with the negative faces a dimmer shade so all 6 are distinguishable.
+function vcMat(colorHex) { return new THREE.MeshStandardMaterial({ color: colorHex, roughness: 0.6 }); }
+const viewCubeMaterials = [
+  vcMat(0xf2566e), vcMat(0x7a3540), // +x, -x
+  vcMat(0x3ddc84), vcMat(0x2a6b4a), // +y, -y
+  vcMat(0x3b82f6), vcMat(0x27446e), // +z, -z
+];
+const viewCube = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), viewCubeMaterials);
+viewCubeScene.add(viewCube);
+// Each face's own outward normal in LOCAL cube space, same order as above --
+// used both to know which face was clicked and where to snap the main
+// camera to look from.
+const VIEW_CUBE_FACE_NORMALS = [
+  new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
+  new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0),
+  new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1),
+];
+
+function syncViewCube() {
+  // The cube itself stays static (identity orientation) -- instead orbit
+  // the MINI camera around it to match the MAIN camera's current viewing
+  // angle relative to its own orbit target, so the cube's displayed faces
+  // always reflect "which way you're currently looking," updated live as
+  // the user drags the main view.
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  viewCubeCamera.position.copy(dir.multiplyScalar(4));
+  viewCubeCamera.up.copy(camera.up);
+  viewCubeCamera.lookAt(0, 0, 0);
+}
+
+function resizeViewCube() {
+  const size = viewCubeCanvas.clientWidth || 84;
+  viewCubeRenderer.setPixelRatio(window.devicePixelRatio);
+  viewCubeRenderer.setSize(size, size, false);
+}
+resizeViewCube();
+window.addEventListener('resize', resizeViewCube);
+
+const viewCubeRaycaster = new THREE.Raycaster();
+viewCubeCanvas.addEventListener('pointerdown', (evt) => {
+  const rect = viewCubeCanvas.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((evt.clientX - rect.left) / rect.width) * 2 - 1,
+    -((evt.clientY - rect.top) / rect.height) * 2 + 1,
+  );
+  viewCubeRaycaster.setFromCamera(ndc, viewCubeCamera);
+  const hit = viewCubeRaycaster.intersectObject(viewCube)[0];
+  if (!hit || hit.face == null) return;
+  const normal = VIEW_CUBE_FACE_NORMALS[Math.floor(hit.face.materialIndex)];
+  // Snap the MAIN camera to look straight along that face's axis, keeping
+  // the current orbit target and zoom distance (just changing direction,
+  // not how far out or what you're centered on).
+  const distance = camera.position.distanceTo(controls.target);
+  camera.position.copy(controls.target).add(normal.clone().multiplyScalar(distance));
+  camera.up.set(0, 1, 0);
+  camera.lookAt(controls.target);
+  controls.update();
+});
+
 let currentMesh = null;
 let wireframeMesh = null;
 let showWireframe = false;
@@ -525,6 +667,8 @@ function animate() {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
+  syncViewCube();
+  viewCubeRenderer.render(viewCubeScene, viewCubeCamera);
 }
 animate();
 
@@ -999,7 +1143,6 @@ const toolOpSelectEl = document.getElementById('toolOpSelect');
 const toolArgsFormEl = document.getElementById('toolArgsForm');
 const addStepBtn = document.getElementById('addStepBtn');
 const consoleFormErrorEl = document.getElementById('consoleFormError');
-const consoleStepsEl = document.getElementById('consoleSteps');
 const consoleStatusEl = document.getElementById('consoleStatus');
 const undoStepBtn = document.getElementById('undoStepBtn');
 const clearStepsBtn = document.getElementById('clearStepsBtn');
@@ -1013,15 +1156,40 @@ function entityStatusBadge(entity) {
   return statusBadge(entity.lastStatus);
 }
 
-function renderEntityList() {
+// Feature tree: one nested renderer (assembly -> each entity/part -> its
+// own ordered steps), SolidWorks FeatureManager style -- replaces what used
+// to be two separate flat lists (#entityList showing only entity summaries,
+// #consoleSteps showing only the ACTIVE entity's steps). renderEntityList()
+// and renderConsoleSteps() stay as thin aliases below so none of their many
+// existing call sites (gizmo commits, face/edge commits, add/undo/clear,
+// the build-response handler) need to change.
+function renderFeatureTree() {
   if (entities.length === 0) {
     entityListEl.innerHTML = `<div class="console-empty">No entities yet — click "+ New entity" to start building a part.</div>`;
     activeEntityLabelEl.textContent = '—';
     return;
   }
-  entityListEl.innerHTML = entities.map(e => `
+  entityListEl.innerHTML = entities.map(e => {
+    const expanded = e.expanded !== false;  // default expanded; persisted on the entity itself since innerHTML is rebuilt on every render
+    const program = e.program || [];
+    const stepsHtml = program.length === 0
+      ? `<div class="console-empty tree-steps-empty">No steps yet.</div>`
+      : program.map((step, i) => {
+          const tool = toolsByOp[step.op];
+          const cat = tool ? tool.category : 'consumes_target';
+          return `
+            <div class="console-step tree-step">
+              <span class="step-cat-dot cat-${cat}" title="${cat.replace('_', ' ')}"></span>
+              <span class="step-idx">#${i}</span>
+              <span class="step-op">${step.op}</span>
+              <span class="step-args">${formatStepArgs(step.args)}</span>
+            </div>
+          `;
+        }).join('');
+    return `
     <div class="entity-row ${e.id === activeEntityId ? 'active' : ''}" data-id="${e.id}">
       <div class="row1">
+        <button class="tree-toggle" data-id="${e.id}" title="${expanded ? 'collapse' : 'expand'} features">${expanded ? '▾' : '▸'}</button>
         <input class="name-input" data-id="${e.id}" data-field="name" value="${escapeAttr(e.name)}" />
         <button class="entity-remove" data-id="${e.id}" title="remove this entity">&times;</button>
       </div>
@@ -1030,17 +1198,33 @@ function renderEntityList() {
         <div class="pos-field"><label>y</label><input type="number" step="any" data-id="${e.id}" data-field="y" value="${e.position_mm[1]}" /></div>
         <div class="pos-field"><label>z</label><input type="number" step="any" data-id="${e.id}" data-field="z" value="${e.position_mm[2]}" /></div>
       </div>
+      <div class="pos-row">
+        <div class="pos-field"><label>rx°</label><input type="number" step="any" data-id="${e.id}" data-field="rx" value="${(e.rotation_deg || [0,0,0])[0]}" /></div>
+        <div class="pos-field"><label>ry°</label><input type="number" step="any" data-id="${e.id}" data-field="ry" value="${(e.rotation_deg || [0,0,0])[1]}" /></div>
+        <div class="pos-field"><label>rz°</label><input type="number" step="any" data-id="${e.id}" data-field="rz" value="${(e.rotation_deg || [0,0,0])[2]}" /></div>
+      </div>
       <div class="entity-meta">
-        <span class="step-count">${e.program.length} step${e.program.length === 1 ? '' : 's'}</span>
+        <span class="step-count">${program.length} step${program.length === 1 ? '' : 's'}</span>
         ${entityStatusBadge(e)}
       </div>
+      ${expanded ? `<div class="tree-steps">${stepsHtml}</div>` : ''}
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   entityListEl.querySelectorAll('.entity-row').forEach(row => {
     row.addEventListener('click', (evt) => {
       if (evt.target.closest('input') || evt.target.closest('button')) return;
       setActiveEntity(parseInt(row.dataset.id, 10));
+    });
+  });
+  entityListEl.querySelectorAll('.tree-toggle').forEach(btn => {
+    btn.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      const e = entities.find(x => x.id == btn.dataset.id);
+      if (!e) return;
+      e.expanded = e.expanded === false;  // toggles: undefined/true -> false -> true
+      renderFeatureTree();
     });
   });
   entityListEl.querySelectorAll('[data-field="name"]').forEach(el => {
@@ -1060,6 +1244,16 @@ function renderEntityList() {
     });
     el.addEventListener('click', (evt) => evt.stopPropagation());
   });
+  entityListEl.querySelectorAll('[data-field="rx"], [data-field="ry"], [data-field="rz"]').forEach(el => {
+    el.addEventListener('input', () => {
+      const e = entities.find(x => x.id == el.dataset.id);
+      if (!e) return;
+      if (!e.rotation_deg) e.rotation_deg = [0, 0, 0];
+      const axis = { rx: 0, ry: 1, rz: 2 }[el.dataset.field];
+      e.rotation_deg[axis] = parseFloat(el.value) || 0;
+    });
+    el.addEventListener('click', (evt) => evt.stopPropagation());
+  });
   entityListEl.querySelectorAll('.entity-remove').forEach(btn => {
     btn.addEventListener('click', (evt) => {
       evt.stopPropagation();
@@ -1069,11 +1263,19 @@ function renderEntityList() {
         activeEntityId = entities.length > 0 ? entities[0].id : null;
         onActiveEntityChanged();
       }
-      renderEntityList();
+      renderFeatureTree();
       document.getElementById('assemblyCard').style.display = entities.length > 0 ? 'flex' : 'none';
     });
   });
+
+  // mirrors the old renderConsoleSteps' auto-scroll-to-bottom behavior,
+  // scoped to the active entity's own nested step list.
+  const activeSteps = entityListEl.querySelector('.entity-row.active .tree-steps');
+  if (activeSteps) activeSteps.scrollTop = activeSteps.scrollHeight;
 }
+
+function renderEntityList() { renderFeatureTree(); }
+function renderConsoleSteps() { renderFeatureTree(); }
 
 function setActiveEntity(id) {
   if (id === activeEntityId) return;
@@ -1094,7 +1296,7 @@ function onActiveEntityChanged() {
 }
 
 document.getElementById('addEntityBtn').addEventListener('click', () => {
-  const e = { id: nextEntityId++, name: `Part ${entities.length + 1}`, program: [], position_mm: [0, 0, 0], lastStatus: null, lastError: null, lastTopology: null };
+  const e = { id: nextEntityId++, name: `Part ${entities.length + 1}`, program: [], position_mm: [0, 0, 0], rotation_deg: [0, 0, 0], lastStatus: null, lastError: null, lastTopology: null };
   entities.push(e);
   activeEntityId = e.id;
   renderEntityList();
@@ -1216,26 +1418,6 @@ function formatStepArgs(args) {
   return Object.entries(args).map(([k, v]) => `${k}=${Array.isArray(v) ? '[' + v.join(',') + ']' : v}`).join(', ');
 }
 
-function renderConsoleSteps() {
-  const program = activeProgram();
-  if (!activeEntity()) {
-    consoleStepsEl.innerHTML = `<div class="console-empty">No entity selected — create or click one above first.</div>`;
-    return;
-  }
-  if (program.length === 0) {
-    consoleStepsEl.innerHTML = `<div class="console-empty">No steps yet — add one below, or drag directly in the viewport.</div>`;
-    return;
-  }
-  consoleStepsEl.innerHTML = program.map((step, i) => `
-    <div class="console-step">
-      <span class="step-idx">#${i}</span>
-      <span class="step-op">${step.op}</span>
-      <span class="step-args">${formatStepArgs(step.args)}</span>
-    </div>
-  `).join('');
-  consoleStepsEl.scrollTop = consoleStepsEl.scrollHeight;
-}
-
 addStepBtn.addEventListener('click', () => {
   if (!activeEntity()) { consoleFormErrorEl.style.display = 'block'; consoleFormErrorEl.textContent = 'Create or select an entity first.'; return; }
   const tool = toolsByOp[toolOpSelectEl.value];
@@ -1302,6 +1484,17 @@ async function previewConsoleMesh(opts) {
   const previewTargetId = program.length - 1;
   const fullProgram = [...program, { op: 'finalize', args: { target: previewTargetId } }];
 
+  // Per-entity request sequencing: addStep/undo/clear each call
+  // previewConsoleMesh() without waiting for a prior call to resolve (only
+  // the viewer toolbar's gizmo/select buttons check previewInFlight, not
+  // these form buttons). Every call is a stateless, fresh Sandbox() replay,
+  // so responses can resolve out of order -- without this, an older
+  // response could overwrite a newer one for the SAME still-active entity
+  // (the activeEntity() !== entity check below only catches switching
+  // entities, not this).
+  entity.requestSeq = (entity.requestSeq || 0) + 1;
+  const mySeq = entity.requestSeq;
+
   previewInFlight = true;
   updateViewerToolbarAvailability();
   consoleStatusEl.textContent = 'Building…';
@@ -1316,7 +1509,11 @@ async function previewConsoleMesh(opts) {
     // stale response guard: the user may have switched to a different
     // entity (or deleted this one) while this fetch was in flight --
     // never let a slow response overwrite whatever's now actually active.
-    if (activeEntity() !== entity) return;
+    // The requestSeq check additionally guards against THIS SAME entity
+    // having a newer request in flight (e.g. a double-click on "Add step")
+    // whose response could otherwise resolve first and then be clobbered
+    // by this older one resolving second.
+    if (activeEntity() !== entity || entity.requestSeq !== mySeq) return;
 
     entity.lastStatus = data.status;
     entity.lastError = data.error;
@@ -1340,7 +1537,15 @@ async function previewConsoleMesh(opts) {
       consoleDownloadLink.style.display = 'flex';
     } else {
       consoleDownloadLink.style.display = 'none';
-      clearViewer();
+      // Only wipe the viewer if nothing valid has ever been shown for THIS
+      // entity -- otherwise this leaves the last successfully-built mesh
+      // visible (the status text below already reports the rejection).
+      // Confirmed real failure mode if this guard is removed: a step that
+      // rejects (e.g. a bad handle reference caught by Sandbox.validate()
+      // before any geometry runs) would wipe a perfectly good previous
+      // mesh, reported as "the model disappears" -- not actually gone,
+      // just discarded for no reason tied to the mesh itself being bad.
+      if (!hasFramedConsoleOnce) clearViewer();
     }
     onConsoleMeshChanged();
 
@@ -1394,6 +1599,7 @@ async function buildCombinedAssembly() {
         name: e.name,
         program: [...e.program, { op: 'finalize', args: { target: e.program.length - 1 } }],
         position_mm: { x: e.position_mm[0], y: e.position_mm[1], z: e.position_mm[2] },
+        rotation_deg: { x: (e.rotation_deg || [0,0,0])[0], y: (e.rotation_deg || [0,0,0])[1], z: (e.rotation_deg || [0,0,0])[2] },
       })),
     };
     const res = await fetch('/api/execute_programs', {

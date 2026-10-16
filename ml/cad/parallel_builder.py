@@ -42,6 +42,22 @@ class PlacementTransform:
         m[:3, 3] = xyz
         return cls(m)
 
+    @classmethod
+    def rotation(cls, euler_deg) -> "PlacementTransform":
+        """Three fixed-order axis rotations -- X, then Y, then Z, each built
+        via trimesh's own rotation_matrix helper (the same convention
+        sandbox.py's single-axis rotate() tool already uses) rather than a
+        general quaternion, so this project has one rotation convention
+        throughout, not two. Pivots about the world origin, same as
+        sandbox.py's rotate() -- compose with translation() (X then Y then Z
+        rotation first, then the translation) to pivot about the part's own
+        local origin before moving it into place."""
+        rx_deg, ry_deg, rz_deg = euler_deg
+        rx = trimesh.transformations.rotation_matrix(np.radians(rx_deg), (1.0, 0.0, 0.0))
+        ry = trimesh.transformations.rotation_matrix(np.radians(ry_deg), (0.0, 1.0, 0.0))
+        rz = trimesh.transformations.rotation_matrix(np.radians(rz_deg), (0.0, 0.0, 1.0))
+        return cls(rz @ ry @ rx)
+
     def compose(self, other: "PlacementTransform") -> "PlacementTransform":
         return PlacementTransform(self.matrix @ other.matrix)
 
@@ -306,15 +322,21 @@ class RawAssemblyBuildResult:
 
 
 def build_assembly_from_programs(
-    entities: list[tuple[str, list, tuple[float, float, float]]],
+    entities: list[tuple[str, list, tuple[float, float, float], tuple[float, float, float]]],
 ) -> RawAssemblyBuildResult:
     """The manual tool console's counterpart to build_assembly_from_points --
-    same combine-by-translation logic, but for a user who has hand-authored
-    each entity's own raw Sandbox program directly (via the console's
-    form/gizmo/click-drag tools), not a text description for program_model
-    to predict from. Each entry is (name, program, position_mm); `program`
-    is expected to already end in its own "finalize" step, exactly like a
-    single-entity /api/execute_program call.
+    same combine-by-translation(-and-now-rotation) logic, but for a user who
+    has hand-authored each entity's own raw Sandbox program directly (via the
+    console's form/gizmo/click-drag tools), not a text description for
+    program_model to predict from. Each entry is
+    (name, program, position_mm, rotation_deg) -- rotation_deg is applied
+    (X, then Y, then Z, about the entity's own local origin, see
+    PlacementTransform.rotation()) BEFORE translating into position_mm, same
+    order sandbox.py's own rotate() tool implies. `program` is expected to
+    already end in its own "finalize" step, exactly like a single-entity
+    /api/execute_program call. build_assembly_from_points (the separate,
+    LLM-prompt path) is untouched by this -- it has its own, translation-only
+    placement resolution in assembly_plan.py and is out of scope here.
 
     Deliberately synchronous / single-process, unlike
     build_assembly_from_points' ProcessPoolExecutor: a manual console
@@ -328,7 +350,7 @@ def build_assembly_from_programs(
 
     results: list[EntityBuildResult] = []
     placed_meshes: list[trimesh.Trimesh] = []
-    for name, program, position_mm in entities:
+    for name, program, position_mm, rotation_deg in entities:
         exec_result = Sandbox.execute(program)
         topology = None
         if exec_result.mesh is not None:
@@ -342,7 +364,11 @@ def build_assembly_from_programs(
             )
         )
         if exec_result.mesh is not None:
-            transform = PlacementTransform.translation(position_mm)
+            # Rotation first (about the entity's own local origin), then
+            # translation into its final position_mm -- an all-zero
+            # rotation_deg reduces this exactly to the prior
+            # translation-only behavior, so this is provably additive.
+            transform = PlacementTransform.translation(position_mm).compose(PlacementTransform.rotation(rotation_deg))
             placed_meshes.append(transform.apply_to_mesh(exec_result.mesh))
 
     combined = trimesh.util.concatenate(placed_meshes) if placed_meshes else None

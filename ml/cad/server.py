@@ -9,6 +9,7 @@ program_model.py + sandbox.py, and returns the combined mesh plus a
 per-point status report. No part-family concept anywhere in this path.
 """
 import argparse
+import io
 import sys
 import time
 import uuid
@@ -16,6 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import trimesh
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
 from build_logger import log_build
@@ -81,6 +83,19 @@ def api_clarify():
 
 
 def _parse_position(raw) -> tuple[float, float, float]:
+    if isinstance(raw, dict):
+        return (float(raw.get("x", 0.0) or 0.0), float(raw.get("y", 0.0) or 0.0), float(raw.get("z", 0.0) or 0.0))
+    if isinstance(raw, (list, tuple)) and len(raw) == 3:
+        return (float(raw[0] or 0.0), float(raw[1] or 0.0), float(raw[2] or 0.0))
+    return (0.0, 0.0, 0.0)
+
+
+def _parse_rotation(raw) -> tuple[float, float, float]:
+    """Mirrors _parse_position exactly -- degrees about X/Y/Z, applied in
+    that fixed order (see PlacementTransform.rotation()). Missing/absent
+    defaults to (0,0,0), i.e. no rotation, so every existing caller that
+    never sends rotation_deg at all keeps today's translation-only
+    behavior unchanged."""
     if isinstance(raw, dict):
         return (float(raw.get("x", 0.0) or 0.0), float(raw.get("y", 0.0) or 0.0), float(raw.get("z", 0.0) or 0.0))
     if isinstance(raw, (list, tuple)) and len(raw) == 3:
@@ -265,9 +280,11 @@ def api_execute_programs():
     """The console's answer to "the gear and the shaft are separate
     entities, not one fused blob": each entity in `entities` is its own
     independent hand-authored program (own steps, own finalize), built
-    separately and then combined by translation -- exactly the same
-    combine-by-placement logic /api/build already uses for LLM-decomposed
-    parts, just fed by raw programs instead of program_model predictions."""
+    separately and then combined by translation (and, now, optional
+    rotation) -- exactly the same combine-by-placement logic /api/build
+    already uses for LLM-decomposed parts, just fed by raw programs instead
+    of program_model predictions. `rotation_deg` is optional per entity and
+    defaults to no rotation (see _parse_rotation)."""
     body = request.get_json(silent=True) or {}
     entities = []
     for item in body.get("entities") or []:
@@ -277,7 +294,7 @@ def api_execute_programs():
         if not program:
             continue
         name = str(item.get("name", "")).strip() or "part"
-        entities.append((name, program, _parse_position(item.get("position_mm"))))
+        entities.append((name, program, _parse_position(item.get("position_mm")), _parse_rotation(item.get("rotation_deg"))))
     if not entities:
         return jsonify({"error": "no entities with a program"}), 400
 
@@ -311,12 +328,36 @@ def api_execute_programs():
     })
 
 
+_MESH_EXPORT_FORMATS = {"stl": "model/stl", "glb": "model/gltf-binary", "obj": "model/obj"}
+
+
 @app.route("/api/mesh/<mesh_id>")
 def api_mesh(mesh_id):
     path = OUTPUT_DIR / mesh_id
     if not path.is_file() or path.suffix != ".stl":
         return jsonify({"error": "not found"}), 404
-    return send_file(path, mimetype="model/stl", download_name=mesh_id)
+
+    # Every build (including every live preview step in the Tool Console,
+    # not just a final download) calls _export_mesh() -- eagerly exporting
+    # every format on every one of those would triple disk writes for
+    # formats nobody asked for yet, and OUTPUT_DIR is only ever cleaned on
+    # server restart (see main()). So the on-disk file stays STL-only
+    # (all the viewer itself ever needs, via STLLoader) and GLB/OBJ are
+    # produced lazily, in memory, only when actually requested here.
+    fmt = request.args.get("format", "stl").lower()
+    if fmt not in _MESH_EXPORT_FORMATS:
+        return jsonify({"error": f"unsupported format {fmt!r}, expected one of {sorted(_MESH_EXPORT_FORMATS)}"}), 400
+    if fmt == "stl":
+        return send_file(path, mimetype="model/stl", download_name=mesh_id)
+
+    mesh = trimesh.load_mesh(path)
+    exported = mesh.export(file_type=fmt)
+    # OBJ is a text format (trimesh returns str); GLB is binary (bytes).
+    data = exported.encode("utf-8") if isinstance(exported, str) else exported
+    buf = io.BytesIO(data)
+    buf.seek(0)
+    download_name = f"{Path(mesh_id).stem}.{fmt}"
+    return send_file(buf, mimetype=_MESH_EXPORT_FORMATS[fmt], download_name=download_name)
 
 
 def main():

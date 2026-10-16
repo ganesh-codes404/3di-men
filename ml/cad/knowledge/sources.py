@@ -218,6 +218,16 @@ DEFAULT_SOURCES: tuple[SourceEntry, ...] = (
         include_paths=(
             "Fillet (mechanics)", "Chamfer", "Screw thread", "Flange", "Fastener",
             "Boss (engineering)", "Bottle", "Design for manufacturability", "Gear",
+            # Added to support the SolidWorks-style feature-tree console
+            # work: parametric/history-based modeling concept articles,
+            # each confirmed to resolve as a real Wikipedia page via the
+            # API (action=query&titles=...) before being added here, not
+            # guessed. These feed knowledge/chunking.py's existing
+            # "parametric_cad" domain keyword list ("feature tree", "feature
+            # order", "dependency relationship", "regenerat", "sketch",
+            # "geometric constraint") with no taxonomy changes needed.
+            "Parametric design", "Solid modeling", "Constructive solid geometry",
+            "Geometric constraint solving",
         ),
         branch=None,
     ),
@@ -416,7 +426,16 @@ def _wikipedia_fetch_pages(entry: SourceEntry, dest: Path) -> tuple[int, int, st
     dest.mkdir(parents=True, exist_ok=True)
 
     fetched = 0
-    for title in entry.include_paths:
+    for i, title in enumerate(entry.include_paths):
+        # A real burst-rate-limit confirmed directly against Wikipedia's
+        # anonymous API tier: firing all include_paths back-to-back with no
+        # delay reliably trips a 429 partway through a ~9-13 article batch
+        # (reproduced twice), even though an isolated single request right
+        # after a failure succeeds immediately -- i.e. it's this loop's own
+        # burst pattern, not a sustained block. A small delay between
+        # requests (not before the first one) is the standard fix.
+        if i > 0:
+            _time.sleep(3.0)
         params = urllib.parse.urlencode({
             "action": "query", "titles": title, "prop": "extracts",
             "explaintext": 1, "format": "json",
