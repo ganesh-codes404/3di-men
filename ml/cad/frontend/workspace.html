@@ -140,9 +140,24 @@
   #status, #consoleStatus { font-size: 12px; color: var(--warn); min-height: 14px; line-height: 1.5; }
   #status.error, #consoleStatus.error { color: var(--bad); }
 
-  /* ---------- clarify questions ---------- */
-  #clarifyCard { display: none; }
-  #clarifyCard.show { display: flex; }
+  /* ---------- clarify questions (popup) ---------- */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center;
+    padding: 24px; background: rgba(8, 9, 13, 0.62); backdrop-filter: blur(6px);
+  }
+  .modal-overlay.show { display: flex; }
+  #clarifyCard {
+    width: 100%; max-width: 440px; max-height: 80vh; overflow-y: auto;
+    box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border-soft);
+    perspective: 1200px;
+    transform: perspective(1200px) rotateX(-8deg) translateY(10px) scale(0.94);
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.25, 1.15), opacity 0.22s ease;
+  }
+  .modal-overlay.show #clarifyCard { transform: perspective(1200px) rotateX(0deg) translateY(0) scale(1); opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    #clarifyCard { transition: opacity 0.15s ease; transform: none !important; }
+  }
   .q-block { display: flex; flex-direction: column; gap: 5px; }
   .q-label { font-size: 12px; color: var(--text); line-height: 1.4; }
   .q-block input {
@@ -407,15 +422,6 @@
     <button class="primary" id="continueBtn">Continue</button>
   </div>
 
-  <div class="card" id="clarifyCard">
-    <div class="card-title">A few quick questions</div>
-    <div id="questionsList"></div>
-    <div class="btn-row">
-      <button class="secondary" id="skipBtn">Skip &amp; build as-is</button>
-      <button class="primary" id="buildBtn">Build</button>
-    </div>
-  </div>
-
   <div id="status"></div>
 
   <div id="info">
@@ -512,6 +518,21 @@
   </div>
 </div>
 </div> <!-- /body-row -->
+
+<!-- Clarifying questions now surface as a popup instead of a side-panel card,
+     since they block the build and deserve focus rather than competing for
+     attention with the rest of the prompt panel. The 3D perspective flip-in
+     on open gives it real depth rather than a flat fade. -->
+<div id="clarifyOverlay" class="modal-overlay">
+  <div class="card" id="clarifyCard" role="dialog" aria-modal="true" aria-labelledby="clarifyTitle">
+    <div class="card-title" id="clarifyTitle">A few quick questions</div>
+    <div id="questionsList"></div>
+    <div class="btn-row">
+      <button class="secondary" id="skipBtn">Skip &amp; build as-is</button>
+      <button class="primary" id="buildBtn">Build</button>
+    </div>
+  </div>
+</div>
 
 <script type="importmap">
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -770,7 +791,7 @@ const infoEl = document.getElementById('info');
 const continueBtn = document.getElementById('continueBtn');
 const buildBtn = document.getElementById('buildBtn');
 const skipBtn = document.getElementById('skipBtn');
-const clarifyCard = document.getElementById('clarifyCard');
+const clarifyOverlay = document.getElementById('clarifyOverlay');
 const questionsListEl = document.getElementById('questionsList');
 const viewerOverlay = document.getElementById('viewerOverlay');
 const viewerOverlayBody = document.getElementById('viewerOverlayBody');
@@ -778,7 +799,7 @@ const viewerOverlayBody = document.getElementById('viewerOverlayBody');
 let pendingQuestions = [];
 
 document.querySelectorAll('.examples button.ex').forEach(btn => {
-  btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; clarifyCard.classList.remove('show'); });
+  btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; clarifyOverlay.classList.remove('show'); });
 });
 
 let statusTimerInterval = null;
@@ -955,7 +976,7 @@ async function requestClarification() {
   if (!prompt) { setStatus('Type a prompt first.'); return; }
 
   continueBtn.disabled = true;
-  clarifyCard.classList.remove('show');
+  clarifyOverlay.classList.remove('show');
   startStatusTimer('Checking whether anything needs clarifying with the local LLM (first run also loads the model)…');
 
   try {
@@ -977,7 +998,8 @@ async function requestClarification() {
         block.innerHTML = `<label class="q-label">${q}</label><input type="text" data-i="${i}" placeholder="your answer (optional)" />`;
         questionsListEl.appendChild(block);
       });
-      clarifyCard.classList.add('show');
+      clarifyOverlay.classList.add('show');
+      questionsListEl.querySelector('input')?.focus();
       setStatus('Answer what you can, or skip straight to building.');
     }
   } catch (err) {
@@ -1009,7 +1031,7 @@ async function applyBuildResponse(data) {
   }
 
   infoEl.classList.add('show');
-  clarifyCard.classList.remove('show');
+  clarifyOverlay.classList.remove('show');
   if (data.mesh_url) setStatus('');
 }
 
@@ -1082,6 +1104,17 @@ buildBtn.addEventListener('click', () => {
 });
 promptEl.addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) requestClarification();
+});
+
+// A popup needs a way out besides its own buttons: clicking the dimmed
+// backdrop or pressing Escape acts like "Skip & build as-is" -- never a
+// silent dead end, since the build can't proceed until one of the three
+// (Build / Skip / backdrop-skip) fires.
+clarifyOverlay.addEventListener('click', e => {
+  if (e.target === clarifyOverlay && clarifyOverlay.classList.contains('show')) runBuild([]);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && clarifyOverlay.classList.contains('show')) runBuild([]);
 });
 
 /* ---------------- tabs ---------------- */
