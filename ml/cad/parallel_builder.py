@@ -22,7 +22,10 @@ import trimesh
 
 from llm_decompose import ActionablePoint, decompose_prompt
 from mesh_quality import bounding_box_overlap_fraction
-from spec_validation import validate_dimensions_against_description, validate_hole_count_against_description
+from spec_validation import (
+    validate_dimensions_against_description, validate_hole_count_against_description,
+    validate_hole_diameters_against_description,
+)
 
 
 @dataclass
@@ -126,6 +129,12 @@ class PointBuildResult:
     detected_hole_count: int | None = None  # evaluation/geometry_eval.py's GeometryReport, computed by every
         # build already but previously discarded by every caller. None when no mesh was built to check, OR
         # (its own disclosed scope) the detector only recognizes vertical, axis-aligned, watertight features.
+    unmatched_hole_diameters_mm: list[float] = field(default_factory=list)  # spec_validation.py's
+        # validate_hole_diameters_against_description -- any claimed hole/bore diameter (e.g. "a 12mm bore")
+        # that no DETECTED hole's own fitted-circle diameter matches within tolerance. Empty (not None) when
+        # every claim matched or there was nothing to check -- distinguishing "checked, all matched" from
+        # "nothing to check" isn't load-bearing here the way claimed_hole_count's None is, since an empty
+        # list already means "no unmatched claims" either way.
 
 
 @dataclass
@@ -335,7 +344,10 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
     is already resolved) build in parallel within their own wave, exactly
     as before -- most real assemblies are 1-2 waves deep, so this rarely
     costs more than the fully-parallel version did."""
-    from assembly_plan import RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg, validate_relationships
+    from assembly_plan import (
+        Relationship, RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg,
+        separate_coincident_face_attachments, validate_relationships,
+    )
 
     ids = _unique_point_ids(points)
     id_to_point = dict(zip(ids, points))
@@ -366,21 +378,44 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
             wave_points = [id_to_point[pid] for pid in wave]
             raw_results = list(pool.map(_build_one, [(p.description, p.program_override) for p in wave_points]))
 
+            # Pre-pass: sibling points in THIS wave that share the identical
+            # attached_to_face target+face+offset (a mirrored pair the LLM
+            # emitted without actually differentiating -- see
+            # assembly_plan.separate_coincident_face_attachments's own
+            # docstring) get auto-separated using their own ALREADY-BUILT
+            # mesh extents, before resolve_position ever sees the original
+            # coincident offsets below. Grouped by (target_id, face) across
+            # the whole wave, not just pairs we already suspect -- cheap,
+            # and the function itself is a no-op for any group that isn't
+            # exactly 2 members with identical offsets.
+            adjusted_relationships: dict[str, Relationship] = {}
+            face_attach_groups: dict[tuple[str, str], list[tuple[str, Relationship, trimesh.Trimesh]]] = {}
+            for pid, point, raw in zip(wave, wave_points, raw_results):
+                rel = point.relationship
+                if rel is not None and rel.kind == "attached_to_face" and raw["mesh"] is not None:
+                    key = (rel.target_id, rel.face or "+z")
+                    face_attach_groups.setdefault(key, []).append((pid, rel, raw["mesh"]))
+            for (target_id, _face), members in face_attach_groups.items():
+                target_mesh = placed_meshes_by_id.get(target_id)
+                if target_mesh is not None:
+                    adjusted_relationships.update(separate_coincident_face_attachments(members, target_mesh))
+
             for pid, point, raw in zip(wave, wave_points, raw_results):
                 own_mesh, status, error = raw["mesh"], raw["status"], raw["error"]
                 position_mm = point.position_mm
                 rotation_deg = (0.0, 0.0, 0.0)
+                effective_relationship = adjusted_relationships.get(pid, point.relationship)
 
-                if own_mesh is not None and point.relationship is not None:
-                    target_mesh = placed_meshes_by_id.get(point.relationship.target_id)
+                if own_mesh is not None and effective_relationship is not None:
+                    target_mesh = placed_meshes_by_id.get(effective_relationship.target_id)
                     if target_mesh is None:
                         status, error, own_mesh = "rejected", (
-                            f"cannot resolve relationship: target {point.relationship.target_id!r} "
+                            f"cannot resolve relationship: target {effective_relationship.target_id!r} "
                             "failed to build its own geometry"
                         ), None
                     else:
                         try:
-                            position_mm = resolve_position(point.relationship, target_mesh, own_mesh)
+                            position_mm = resolve_position(effective_relationship, target_mesh, own_mesh)
                             # resolve_position only computes WHERE a part's center
                             # belongs -- a cylinder/gear/capsule/etc built along its
                             # own default local Z axis (sandbox.py's convention)
@@ -390,7 +425,7 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                             # behind "a shaft floats beside its housing instead of
                             # running through it" -- the center lands right, the
                             # part itself is still oriented wrong.
-                            rotation_deg = resolve_rotation_deg(point.relationship)
+                            rotation_deg = resolve_rotation_deg(effective_relationship)
                         except RelationshipError as exc:
                             status, error, own_mesh = "rejected", f"RelationshipError: {exc}", None
 
@@ -441,12 +476,44 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                             f"{hole_report.detected_count} ({hole_report.detector_limitation})"
                         )
 
+                # Feature validation (hole/bore DIAMETER) -- same wiring
+                # principle again: GeometryReport.hole_diameters_mm was
+                # already measurable from each detected hole's own
+                # fitted-circle radius, just never checked against a
+                # claimed diameter until now. More precise than the
+                # general dimension check above, which can only compare
+                # against the mesh's overall extents, not a specific
+                # feature.
+                unmatched_hole_diameters_mm: list[float] = []
+                if own_mesh is not None:
+                    diameter_report = validate_hole_diameters_against_description(point.description, raw.get("geometry_report"))
+                    if diameter_report.claims and not diameter_report.all_matched:
+                        unmatched_hole_diameters_mm = diameter_report.unmatched_claims_mm
+                        mismatch_desc = ", ".join(f"{d:g}mm" for d in unmatched_hole_diameters_mm)
+                        problems.append(
+                            f"description claims a hole/bore diameter of {mismatch_desc} that no detected hole "
+                            f"matches within tolerance ({diameter_report.detector_limitation})"
+                        )
+
                 if status == "ok" and problems:
                     status = "suspect"
                     error = "; ".join(problems)
 
+                if pid in adjusted_relationships:
+                    # Disclosed, never silent -- same discipline as repair.py's
+                    # RepairAttempt log and collision_warnings: this part's real
+                    # placement differs from what the ORIGINAL (coincident)
+                    # relationship would have given, because a sibling shared
+                    # the identical target+face+offset.
+                    note = (
+                        f"auto-separated from a sibling that shared the identical attached_to_face placement -- "
+                        f"used offset_u={effective_relationship.offset_u:g}, offset_v={effective_relationship.offset_v:g} "
+                        "instead of the identical offset both were originally given"
+                    )
+                    error = f"{error}; {note}" if error else note
+
                 point_results[pid] = PointBuildResult(
-                    point=ActionablePoint(description=point.description, position_mm=position_mm, id=pid, relationship=point.relationship),
+                    point=ActionablePoint(description=point.description, position_mm=position_mm, id=pid, relationship=effective_relationship),
                     status=status, executed_steps=raw["executed_steps"], error=error,
                     nearest_neighbor_similarity=raw["nearest_neighbor_similarity"], program=raw["program"],
                     mesh=own_mesh, topology=raw["topology"],
@@ -455,6 +522,7 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                     repair_dropped_a_step=raw.get("repair_dropped_a_step", False),
                     resolution_method=raw.get("resolution_method", "statistical"),
                     claimed_hole_count=claimed_hole_count, detected_hole_count=detected_hole_count,
+                    unmatched_hole_diameters_mm=unmatched_hole_diameters_mm,
                 )
                 # "out_of_distribution" and "suspect" still carry a mesh (a
                 # guess, or a geometrically dubious result) -- included in

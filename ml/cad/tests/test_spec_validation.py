@@ -8,10 +8,13 @@ from sandbox import Sandbox
 from spec_validation import (
     DimensionValidationReport,
     HoleCountValidationReport,
+    HoleDiameterValidationReport,
     extract_claimed_dimensions_mm,
     extract_claimed_hole_count,
+    extract_claimed_hole_diameters_mm,
     validate_dimensions_against_description,
     validate_hole_count_against_description,
+    validate_hole_diameters_against_description,
 )
 
 
@@ -151,3 +154,49 @@ def test_validate_hole_count_is_vacuously_true_with_nothing_to_check():
     assert validate_hole_count_against_description("a box 50mm x 40mm x 10mm", {"detected_hole_count": 2}).matched is True
     # no geometry_report available (e.g. the build produced no mesh)
     assert validate_hole_count_against_description("a box with four holes", None).matched is True
+
+
+# Feature validation (hole/bore DIAMETER) -- wires GeometryReport.hole_diameters_mm
+# (evaluation/geometry_eval.py), already measurable from each detected hole's own
+# fitted-circle radius, into an actual check -- more precise than the general
+# dimension check above, which can only compare a claim against the mesh's overall
+# extents, not a specific feature.
+
+def test_extract_claimed_hole_diameters_mm_recognizes_hole_and_bore():
+    assert extract_claimed_hole_diameters_mm("a cylinder 30mm diameter, 20mm tall with a 12mm diameter hole through it") == [12.0]
+    assert extract_claimed_hole_diameters_mm("a cylinder 30mm diameter, 20mm tall with a 12mm diameter bore through it") == [12.0]
+    assert extract_claimed_hole_diameters_mm("a corner array of four 6.6mm diameter holes, each 15mm from a corner") == [6.6]
+
+
+def test_extract_claimed_hole_diameters_mm_returns_empty_when_none_mentioned():
+    assert extract_claimed_hole_diameters_mm("a box 50mm x 40mm x 10mm") == []
+
+
+def test_validate_hole_diameters_matches_a_correctly_built_bore():
+    report = validate_hole_diameters_against_description(
+        "a cylinder 30mm diameter, 20mm tall with a 12mm diameter bore through it",
+        {"hole_diameters_mm": [11.95]},
+    )
+    assert isinstance(report, HoleDiameterValidationReport)
+    assert report.all_matched is True
+    assert report.unmatched_claims_mm == []
+
+
+def test_validate_hole_diameters_flags_a_real_mismatch():
+    """The actual confirmed mission-brief case: a claimed 12mm bore that
+    doesn't match what was actually built (e.g. a radius/diameter mix-up
+    building a 24mm-diameter hole instead)."""
+    report = validate_hole_diameters_against_description(
+        "a cylinder 30mm diameter, 20mm tall with a 12mm diameter bore through it",
+        {"hole_diameters_mm": [24.0]},
+    )
+    assert report.all_matched is False
+    assert report.unmatched_claims_mm == [12.0]
+    assert report.detector_limitation  # the honesty disclosure is never empty
+
+
+def test_validate_hole_diameters_is_vacuously_true_with_nothing_to_check():
+    # no diameter claim in the text at all
+    assert validate_hole_diameters_against_description("a box with four holes", {"hole_diameters_mm": [5.0]}).all_matched is True
+    # no geometry_report available
+    assert validate_hole_diameters_against_description("a 12mm diameter hole through it", None).all_matched is False

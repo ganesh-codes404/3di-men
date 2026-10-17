@@ -5,7 +5,10 @@ arithmetic directly against values computable by hand, plus the
 validation/ordering logic's error paths."""
 import pytest
 
-from assembly_plan import Relationship, RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg, validate_relationships
+from assembly_plan import (
+    Relationship, RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg,
+    separate_coincident_face_attachments, validate_relationships,
+)
 from sandbox import Sandbox
 
 
@@ -307,6 +310,65 @@ def test_attached_to_face_accepts_an_offset_within_the_targets_own_face():
     assert pos_left[0] == pytest.approx(20.0)
     assert pos_right[0] == pytest.approx(-20.0)
     assert pos_left != pos_right  # Test J's own requirement: distinct instances, distinct transforms
+
+
+def test_separate_coincident_face_attachments_spaces_an_identical_pair():
+    """Unit-level confirmation of the actual fix for "the request for
+    gussets on opposite sides produces identical instances in the same
+    position": two gussets sharing the IDENTICAL attached_to_face
+    target+face+offset must come back with genuinely different,
+    non-zero-magnitude offsets, using their own real mesh extent (not a
+    guessed number) -- and both must still land within the target
+    face's own bounds (confirmed indirectly: resolve_position doesn't
+    raise for either adjusted relationship)."""
+    sb = Sandbox()
+    plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))
+    sb2 = Sandbox()
+    gusset_a = sb2._get(sb2.add_extrusion("triangle", param_a=20, param_b=20, param_c=0, height=4))
+    sb3 = Sandbox()
+    gusset_b = sb3._get(sb3.add_extrusion("triangle", param_a=20, param_b=20, param_c=0, height=4))
+
+    rel = Relationship(kind="attached_to_face", target_id="plate", face="+y")
+    adjusted = separate_coincident_face_attachments(
+        [("gusset_a", rel, gusset_a), ("gusset_b", rel, gusset_b)], plate,
+    )
+    assert set(adjusted.keys()) == {"gusset_a", "gusset_b"}
+    rel_a, rel_b = adjusted["gusset_a"], adjusted["gusset_b"]
+    assert (rel_a.offset_u, rel_a.offset_v) != (rel_b.offset_u, rel_b.offset_v)
+    assert (rel_a.offset_u, rel_a.offset_v) != (0.0, 0.0)  # genuinely moved, not a no-op
+
+    # both adjusted positions must still resolve without running off the plate's own face
+    pos_a = resolve_position(rel_a, plate, gusset_a)
+    pos_b = resolve_position(rel_b, plate, gusset_b)
+    assert pos_a != pos_b
+
+
+def test_separate_coincident_face_attachments_leaves_already_distinct_offsets_alone():
+    """Not this function's job: a pair that already has different
+    offsets (the LLM tried to differentiate them, even if imperfectly)
+    must come back untouched -- this only acts on a genuinely IDENTICAL
+    coincidence."""
+    sb = Sandbox()
+    plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))
+    sb2 = Sandbox()
+    gusset = sb2._get(sb2.add_extrusion("triangle", param_a=20, param_b=20, param_c=0, height=4))
+
+    rel_a = Relationship(kind="attached_to_face", target_id="plate", face="+y", offset_v=-10)
+    rel_b = Relationship(kind="attached_to_face", target_id="plate", face="+y", offset_v=10)
+    assert separate_coincident_face_attachments([("a", rel_a, gusset), ("b", rel_b, gusset)], plate) == {}
+
+
+def test_separate_coincident_face_attachments_is_a_noop_for_three_or_more():
+    """Deliberately scoped to exactly 2 -- a 3+-way coincidence falls back
+    to the existing collision-exclusion safety net rather than guessing
+    at a general layout."""
+    sb = Sandbox()
+    plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))
+    sb2 = Sandbox()
+    gusset = sb2._get(sb2.add_extrusion("triangle", param_a=20, param_b=20, param_c=0, height=4))
+    rel = Relationship(kind="attached_to_face", target_id="plate", face="+y")
+    members = [("a", rel, gusset), ("b", rel, gusset), ("c", rel, gusset)]
+    assert separate_coincident_face_attachments(members, plate) == {}
 
 
 def test_attached_to_face_raises_when_target_has_no_matching_face():

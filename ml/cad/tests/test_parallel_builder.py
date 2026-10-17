@@ -172,6 +172,46 @@ def test_relationship_based_points_build_in_dependency_order(tiny_bundle_path):
     assert result.mesh.is_watertight
 
 
+def test_coincident_face_attachments_are_auto_separated_not_silently_stacked(tiny_bundle_path):
+    """Mission-brief concern: "the request for gussets on opposite sides
+    produces identical instances in the same position." Two sibling
+    gussets attached to the SAME target+face with the IDENTICAL
+    offset_u/offset_v (the LLM emitted the relationship twice without
+    differentiating it -- a confirmed real failure mode) must not land
+    on top of each other, excluded-by-collision as a last resort, or
+    silently merged -- assembly_plan.separate_coincident_face_attachments
+    must auto-separate them using their own real built extents, and both
+    must survive into the final combined mesh at genuinely distinct
+    positions."""
+    from assembly_plan import Relationship
+
+    points = [
+        ActionablePoint(description="a box 60mm x 50mm x 6mm", position_mm=(0.0, 0.0, 0.0), id="base"),
+        ActionablePoint(
+            description="a triangular gusset, 20mm x 20mm, 4mm thick", position_mm=(0.0, 0.0, 0.0), id="gusset_a",
+            relationship=Relationship(kind="attached_to_face", target_id="base", face="+y"),
+        ),
+        ActionablePoint(
+            description="a triangular gusset, 20mm x 20mm, 4mm thick", position_mm=(0.0, 0.0, 0.0), id="gusset_b",
+            relationship=Relationship(kind="attached_to_face", target_id="base", face="+y"),  # IDENTICAL -- the bug case
+        ),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    by_id = {p.point.id: p for p in result.points}
+    assert by_id["gusset_a"].status == "ok"
+    assert by_id["gusset_b"].status == "ok"
+    # neither was excluded to resolve a collision -- both survive as requested
+    assert by_id["gusset_a"].excluded_from_assembly is False
+    assert by_id["gusset_b"].excluded_from_assembly is False
+    assert result.collision_warnings == []
+    # genuinely distinct positions now, not the identical offset both started with
+    pos_a, pos_b = by_id["gusset_a"].point.position_mm, by_id["gusset_b"].point.position_mm
+    assert pos_a != pos_b
+    assert "auto-separated" in (by_id["gusset_a"].error or "")
+    assert "auto-separated" in (by_id["gusset_b"].error or "")
+    assert result.mesh is not None
+
+
 def test_invalid_relationship_is_rejected_before_building_anything(tiny_bundle_path):
     """A dangling target_id is a structurally invalid plan -- every point
     must come back "rejected" with a clear reason, and nothing should be
@@ -247,7 +287,35 @@ def test_point_build_result_carries_a_real_correctness_to_spec_check(tiny_bundle
         if p.status == "ok":
             assert p.dimension_match_rate is not None
             assert 0.0 <= p.dimension_match_rate <= 1.0
-            assert isinstance(p.unmatched_dimensions_mm, list)
+
+
+def test_wrong_hole_count_cannot_hide_behind_a_high_match_score(tiny_bundle_path):
+    """Mission-brief concern: "the base can receive a 75% matching score
+    despite an incorrect hole count." validate_hole_count_against_description
+    is already wired into the same per-point status downgrade dimension_match_rate
+    uses (build_assembly_from_points's own "problems" list) -- this confirms
+    that chain actually holds for a real built mesh: a base claiming 4 holes
+    but only 3 actually drilled (program_override bypasses prediction
+    entirely, so this is the REAL geometry, not a guess) must come back
+    status="suspect" with the mismatch disclosed in its own error, and the
+    whole assembly must be INCOMPLETE, never a clean PASS just because the
+    other dimensions happen to match."""
+    points = [ActionablePoint(
+        description="a box 140mm x 100mm x 10mm with a corner array of four 8mm diameter holes, each 12mm from a corner",
+        position_mm=(0.0, 0.0, 0.0),
+        program_override=[
+            {"op": "add_box", "args": {"length": 140, "width": 100, "height": 10, "center": [0, 0, 0]}},
+            {"op": "drill_hole_pattern", "args": {"target": 0, "pattern": "corner_array", "count": 3, "radius": 4.0, "depth": 20, "margin": 12, "axis": "z"}},
+            {"op": "finalize", "args": {"target": 1}},
+        ],
+    )]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
+    point = result.points[0]
+    assert point.claimed_hole_count == 4
+    assert point.detected_hole_count == 3
+    assert point.status == "suspect"
+    assert "4 hole" in point.error and "3" in point.error
+    assert result.overall_status == "INCOMPLETE"
 
 
 def test_collision_warning_flags_two_siblings_resolved_to_the_same_position(tiny_bundle_path):
@@ -415,6 +483,31 @@ def test_overall_status_incomplete_when_built_envelope_violates_the_spec(tiny_bu
     result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
     assert result.points[0].status == "suspect"
     assert result.points[0].dimension_match_rate < 1.0
+    assert result.overall_status == "INCOMPLETE"
+
+
+def test_wrong_bore_diameter_cannot_hide_behind_a_high_match_score(tiny_bundle_path):
+    """Mission-brief concern (boss bore diameter): a claimed 12mm bore
+    that was actually built as 24mm (e.g. a radius/diameter mix-up) must
+    not come back a clean "ok" just because the overall cylinder
+    dimensions happen to match -- spec_validation.py's
+    validate_hole_diameters_against_description measures the ACTUAL
+    built hole from its own fitted-circle radius, independent of what
+    the program's own args claimed to be drilling."""
+    points = [ActionablePoint(
+        description="a cylinder 30mm diameter, 20mm tall with a 12mm diameter bore through it",
+        position_mm=(0.0, 0.0, 0.0),
+        program_override=[
+            {"op": "add_cylinder", "args": {"radius": 15, "height": 20, "center": [0, 0, 0], "axis": "z"}},
+            {"op": "drill_hole", "args": {"target": 0, "radius": 12.0, "depth": 30, "center": [0, 0, 0], "axis": "z"}},  # wrong: radius=12 means a 24mm hole, not the claimed 12mm
+            {"op": "finalize", "args": {"target": 1}},
+        ],
+    )]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
+    point = result.points[0]
+    assert point.unmatched_hole_diameters_mm == [12.0]
+    assert point.status == "suspect"
+    assert "12mm" in point.error
     assert result.overall_status == "INCOMPLETE"
 
 

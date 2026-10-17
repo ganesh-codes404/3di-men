@@ -33,6 +33,13 @@ class GeometryReport:
     cylindrical_patch_count: int
     detected_hole_count: int
     hole_circularity: list[float] = field(default_factory=list)  # 1.0 = perfect circle
+    hole_diameters_mm: list[float] = field(default_factory=list)  # row-aligned with hole_circularity --
+        # confirmed real gap this closes: _classify_wall_component already fits a circle to every
+        # detected hole and computes its real radius, but that radius was discarded the moment
+        # circularity was read off it -- nothing downstream could independently verify a claimed
+        # bore/hole diameter (e.g. "a 12mm bore") against what was actually built, only that SOME
+        # hole exists at all (detected_hole_count) and looks round (hole_circularity). See
+        # spec_validation.validate_hole_diameters_against_description, which this feeds.
     mirror_symmetry_score: float = 0.0  # 1.0 = perfect mirror symmetry about best-fit plane
 
     def as_dict(self) -> dict:
@@ -48,6 +55,7 @@ class GeometryReport:
             "cylindrical_patch_count": self.cylindrical_patch_count,
             "detected_hole_count": self.detected_hole_count,
             "hole_circularity": self.hole_circularity,
+            "hole_diameters_mm": self.hole_diameters_mm,
             "mirror_symmetry_score": self.mirror_symmetry_score,
         }
 
@@ -166,7 +174,8 @@ def _detect_holes_and_cylinders(mesh: trimesh.Trimesh) -> dict:
     machinery for the v1 procedural dataset (Section 8 of the technical report),
     not a general-purpose feature recognizer for arbitrary CAD/mesh orientations.
     """
-    holes = []
+    hole_circularity = []
+    hole_diameters_mm = []
     cylindrical_patches = 0
     for faces in _wall_components(mesh):
         result = _classify_wall_component(mesh, faces)
@@ -174,10 +183,12 @@ def _detect_holes_and_cylinders(mesh: trimesh.Trimesh) -> dict:
             continue
         cylindrical_patches += 1
         if result["is_concave"] and result["is_full_loop"]:
-            holes.append(result["circularity"])
+            hole_circularity.append(result["circularity"])
+            hole_diameters_mm.append(result["radius"] * 2.0)
     return {
-        "hole_count": len(holes),
-        "hole_circularity": holes,
+        "hole_count": len(hole_circularity),
+        "hole_circularity": hole_circularity,
+        "hole_diameters_mm": hole_diameters_mm,
         "cylindrical_patch_count": cylindrical_patches,
     }
 
@@ -215,5 +226,6 @@ def evaluate_mesh(mesh: trimesh.Trimesh) -> GeometryReport:
         cylindrical_patch_count=features["cylindrical_patch_count"],
         detected_hole_count=features["hole_count"],
         hole_circularity=features["hole_circularity"],
+        hole_diameters_mm=features["hole_diameters_mm"],
         mirror_symmetry_score=_mirror_symmetry_score(mesh),
     )

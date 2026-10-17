@@ -209,3 +209,84 @@ def validate_hole_count_against_description(
     if claimed is None or detected is None:
         return HoleCountValidationReport(claimed_count=claimed, detected_count=detected, matched=True)
     return HoleCountValidationReport(claimed_count=claimed, detected_count=detected, matched=claimed == detected)
+
+
+# Feature validation (hole/bore DIAMETER) -- same wiring principle as hole
+# count above: GeometryReport.hole_diameters_mm (evaluation/geometry_eval.py)
+# was already measurable from each detected hole's own fitted-circle radius
+# (_classify_wall_component computes it to score circularity), but that
+# radius was discarded the moment circularity was read off it -- nothing
+# anywhere checked whether a CLAIMED bore/hole diameter (e.g. "a 12mm bore")
+# matches what was actually built, only that SOME hole exists at all
+# (hole count) and looks round (circularity). More precise than the general
+# dimension check above: that one can only compare a claim against the
+# mesh's overall bounding-box extents/characteristic size, which can produce
+# a misleading "match" by coincidence (some unrelated extent happens to be
+# close to the claimed number) without ever checking the specific FEATURE
+# the claim was actually about.
+_HOLE_DIAMETER_RE = re.compile(r"(\d+(?:\.\d+)?)\s*mm\s*(?:diameter\s*)?(?:hole|bore)s?\b", re.IGNORECASE)
+
+
+def extract_claimed_hole_diameters_mm(description: str) -> list[float]:
+    """Every "NNmm [diameter] hole(s)/bore(s)" claim, in the order they
+    appear. Deliberately permissive like extract_claimed_dimensions_mm --
+    a false positive just means one extra claim checked, reported as
+    unmatched if nothing detected lines up, never a silently wrong
+    pass/fail."""
+    return [float(m.group(1)) for m in _HOLE_DIAMETER_RE.finditer(description)]
+
+
+@dataclass
+class HoleDiameterClaimResult:
+    claimed_mm: float
+    matched: bool
+    closest_detected_mm: float | None
+    deviation_fraction: float | None  # None when matched is False and nothing was even close
+
+
+@dataclass
+class HoleDiameterValidationReport:
+    claims: list[HoleDiameterClaimResult] = field(default_factory=list)
+    # Same disclosed scope as HoleCountValidationReport.detector_limitation --
+    # carried through here so a caller never treats a diameter mismatch as
+    # more certain than it actually is.
+    detector_limitation: str = (
+        "hole diameter is measured by fitting a circle to each detected vertical, axis-aligned "
+        "through-feature -- the same scope limitation as detected_hole_count (evaluation/geometry_eval.py); "
+        "a mismatch may reflect that scope, not necessarily a wrong build"
+    )
+
+    @property
+    def all_matched(self) -> bool:
+        return all(c.matched for c in self.claims)
+
+    @property
+    def unmatched_claims_mm(self) -> list[float]:
+        return [c.claimed_mm for c in self.claims if not c.matched]
+
+
+def validate_hole_diameters_against_description(
+    description: str, geometry_report: dict | None, tolerance_fraction: float = 0.15,
+) -> HoleDiameterValidationReport:
+    """Never raises, same convention as validate_dimensions_against_description.
+    Each claimed diameter is matched against whichever DETECTED hole
+    diameter (not just any mesh extent) is closest to it -- independent of
+    which detected hole index it "should" correspond to, same
+    not-index-anchored matching principle as the general dimension check."""
+    claims_mm = extract_claimed_hole_diameters_mm(description)
+    report = HoleDiameterValidationReport()
+    if not claims_mm:
+        return report
+
+    detected_mm = (geometry_report or {}).get("hole_diameters_mm") or []
+    for claimed in claims_mm:
+        if not detected_mm or claimed <= 0:
+            report.claims.append(HoleDiameterClaimResult(claimed, False, None, None))
+            continue
+        closest = min(detected_mm, key=lambda measured: abs(measured - claimed))
+        deviation = abs(closest - claimed) / claimed
+        report.claims.append(HoleDiameterClaimResult(
+            claimed_mm=claimed, matched=deviation <= tolerance_fraction,
+            closest_detected_mm=closest, deviation_fraction=deviation,
+        ))
+    return report

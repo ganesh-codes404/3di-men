@@ -235,6 +235,12 @@ def api_build():
             # description made no hole claim at all.
             "claimed_hole_count": p.claimed_hole_count,
             "detected_hole_count": p.detected_hole_count,
+            # Feature validation (spec_validation.py's hole/bore DIAMETER
+            # check) -- any claimed diameter (e.g. "a 12mm bore") that no
+            # detected hole's own measured diameter matches within
+            # tolerance. Empty when every claim matched or there was
+            # nothing to check.
+            "unmatched_hole_diameters_mm": p.unmatched_hole_diameters_mm,
             # True only when this point built a valid mesh on its own but was
             # then left out of mesh_url's combined mesh to resolve a collision
             # with another, unrelated part -- see

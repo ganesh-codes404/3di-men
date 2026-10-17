@@ -61,6 +61,59 @@ def test_base_plate_corner_array_holes_matches_audited_real_prompt():
     assert holes["depth"] > 10.0
 
 
+def test_base_plate_corner_array_holes_matches_llm_decompose_own_worked_phrasing():
+    """Confirmed real gap (mission-brief audit): NEITHER of
+    llm_decompose.py's own two worked examples for a corner-hole plate
+    ("a corner array of four holes, each 15mm from a corner" -- Example
+    4, no diameter given at all -- and "a corner array of four 6.6mm
+    diameter holes, each 15mm from a corner" -- Example 5, diameter
+    stated as an adjective BEFORE "holes") ever matched this resolver's
+    regex before this fix -- meaning the deterministic path never
+    actually fired for the one feature pattern it exists for, and every
+    real corner-hole request fell through to program_model.py's
+    statistical path, whose own per-argument regressor can predict an
+    approximate, wrong COUNT for a value that must be exact (reproduced
+    live: 4 requested holes, 3 actually drilled on a real stress-test
+    build). This is the taught, diameter-included phrasing -- Example 4's
+    own diameter-less phrasing is covered separately below."""
+    text = "a box 120mm x 80mm x 60mm with a corner array of four 6.6mm diameter holes, each 15mm from a corner"
+    program = compose_program_from_description(text)
+    assert program is not None
+    assert _ops(program) == ["add_box", "drill_hole_pattern", "finalize"]
+    holes = _args(program, "drill_hole_pattern")
+    assert holes["count"] == 4
+    assert holes["radius"] == 3.3  # 6.6mm diameter / 2
+    assert holes["margin"] == 15.0
+
+
+def test_base_plate_corner_array_without_a_diameter_falls_back_rather_than_guessing():
+    """llm_decompose.py's own Example 4: no hole diameter was given in
+    that request, so none belongs in the description either -- this must
+    still return None (never invent a radius sandbox.py's
+    drill_hole_pattern has no sensible default for), same discipline as
+    every other "nothing to guess from" case in this module."""
+    text = "a box 120mm x 80mm x 8mm with a corner array of four holes, each 15mm from a corner"
+    assert compose_program_from_description(text) is None
+
+
+def test_boss_bore_accepts_bore_as_a_synonym_for_hole():
+    """Confirmed real gap (mission-brief audit): "bore" is standard
+    engineering terminology for exactly this feature (a boss's own axial
+    bore) that a request -- or an LLM's own decomposition, retaining the
+    user's own wording -- can plausibly use instead of "hole". Previously
+    only the literal word "hole" was recognized, silently falling through
+    to the statistical path's own approximate per-argument regressor for
+    a bore diameter that should never be approximate (reproduced live: a
+    requested 12mm bore came back measurably wrong on a real build)."""
+    text = "a cylinder 30mm diameter, 20mm tall with a 12mm diameter bore through it"
+    program = compose_program_from_description(text)
+    assert program is not None
+    assert _ops(program) == ["add_cylinder", "drill_hole", "finalize"]
+    hole = _args(program, "drill_hole")
+    assert hole["radius"] == 6.0  # 12mm diameter / 2, exact -- not a regressed approximation
+    assert hole["axis"] == "z"
+
+
 def test_chamfer_box_edges_is_applied_before_any_hole_pattern():
     """round_box_edges/chamfer_box_edges require an unmodified, still-
     axis-aligned box target (Sandbox._is_axis_aligned_box) -- if a hole

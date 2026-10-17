@@ -321,3 +321,82 @@ def resolve_rotation_deg(relationship: Relationship) -> tuple[float, float, floa
         face_dir = relationship.face or "+z"
         return _ALIGN_LOCAL_Z_TO[face_dir]
     return (0.0, 0.0, 0.0)
+
+
+def separate_coincident_face_attachments(
+    members: list[tuple[str, Relationship, trimesh.Trimesh]], target_mesh: trimesh.Trimesh,
+) -> dict[str, Relationship]:
+    """Confirmed real gap (mission-brief audit): "the request for gussets
+    on opposite sides produces identical instances in the same position."
+    Two sibling points sharing the IDENTICAL attached_to_face
+    target+face+offset_u+offset_v (the LLM emitted the same relationship
+    twice instead of actually differentiating them -- a confirmed real
+    LLM failure mode, not a resolve_position bug) resolve to the
+    identical attach point. Without this, the only thing catching it is
+    parallel_builder._find_and_resolve_collisions AFTER the fact, which
+    excludes one of the two from the final mesh -- safe, but not what was
+    actually requested (a mirrored PAIR, not one part silently dropped).
+
+    This detects exactly that coincidence and auto-separates the pair
+    along whichever of the target face's own u/v directions has more
+    room, using each member's OWN ALREADY-BUILT mesh extent (projected
+    onto the face's own u/v basis, not a guessed or text-parsed size) --
+    the same "correct from real geometry the moment it's available,
+    never invent a number" discipline resolve_position itself follows,
+    and the geometric analogue of llm_decompose._correct_gear_mesh_spacing
+    (which does the same kind of after-the-fact correction from real
+    numbers, just for a meshing gear PAIR's center distance instead of a
+    face-attached pair's in-plane offset).
+
+    Deliberately scoped to exactly 2 members with an IDENTICAL offset_u/
+    offset_v -- a group that already has distinct offsets is left alone
+    (the LLM already tried to differentiate them, even imperfectly,
+    which is this function's own "not my job" case), and a pair that
+    doesn't fit on either axis returns {} rather than guessing at a
+    squeeze -- the existing collision-exclusion safety net still catches
+    that case downstream, same as before this function existed."""
+    if len(members) != 2:
+        return {}
+    (id_a, rel_a, mesh_a), (id_b, rel_b, mesh_b) = members
+    if rel_a.target_id != rel_b.target_id or rel_a.face != rel_b.face:
+        return {}
+    if abs(rel_a.offset_u - rel_b.offset_u) > 1e-6 or abs(rel_a.offset_v - rel_b.offset_v) > 1e-6:
+        return {}  # already distinct -- not this function's job
+
+    from mesh_quality import find_facet_by_direction
+
+    face_dir = rel_a.face or "+z"
+    direction = np.array(_FACE_DIRECTION_VECTORS[face_dir], dtype=float)
+    face = find_facet_by_direction(target_mesh, direction)
+    if face is None:
+        return {}
+    face_u_span = float(face.outer[:, 0].max() - face.outer[:, 0].min())
+    face_v_span = float(face.outer[:, 1].max() - face.outer[:, 1].min())
+
+    def _projected_extent(mesh: trimesh.Trimesh, basis: np.ndarray) -> float:
+        proj = mesh.vertices @ basis
+        return float(proj.max() - proj.min())
+
+    own_u = max(_projected_extent(mesh_a, face.u), _projected_extent(mesh_b, face.u))
+    own_v = max(_projected_extent(mesh_a, face.v), _projected_extent(mesh_b, face.v))
+    gap = 2.0  # small clearance beyond touching -- visibly two parts, not sharing an edge
+
+    u_fits = (own_u + gap) <= face_u_span
+    v_fits = (own_v + gap) <= face_v_span
+    if u_fits and (not v_fits or (face_u_span - own_u) >= (face_v_span - own_v)):
+        half = (own_u + gap) / 2.0
+        return {
+            id_a: Relationship(kind=rel_a.kind, target_id=rel_a.target_id, face=rel_a.face,
+                                offset_u=rel_a.offset_u - half, offset_v=rel_a.offset_v, standoff=rel_a.standoff),
+            id_b: Relationship(kind=rel_b.kind, target_id=rel_b.target_id, face=rel_b.face,
+                                offset_u=rel_b.offset_u + half, offset_v=rel_b.offset_v, standoff=rel_b.standoff),
+        }
+    if v_fits:
+        half = (own_v + gap) / 2.0
+        return {
+            id_a: Relationship(kind=rel_a.kind, target_id=rel_a.target_id, face=rel_a.face,
+                                offset_u=rel_a.offset_u, offset_v=rel_a.offset_v - half, standoff=rel_a.standoff),
+            id_b: Relationship(kind=rel_b.kind, target_id=rel_b.target_id, face=rel_b.face,
+                                offset_u=rel_b.offset_u, offset_v=rel_b.offset_v + half, standoff=rel_b.standoff),
+        }
+    return {}  # neither axis has room -- leave as-is; the collision-exclusion safety net still catches this

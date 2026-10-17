@@ -205,19 +205,48 @@ def _feature_round_box_edges(text: str, base: _BaseShape) -> list[dict] | None:
 
 
 def _feature_corner_array_holes(text: str, base: _BaseShape) -> list[dict] | None:
-    """Matches the exact phrasing that failed in the audited build:
-    "a corner array of four holes, each 8mm diameter and centered at 12mm
-    from adjacent edges" -- count, hole diameter, AND edge margin, all
-    read literally, not predicted. `margin` is sandbox.py's own inset-
-    from-each-edge parameter (drill_hole_pattern: hx = length/2 - margin),
-    so "Nmm from adjacent edges" maps onto it directly, with no unit
-    translation needed."""
+    """Confirmed real gap (mission-brief audit, not hypothetical): this
+    resolver's regex used to require "...holes, each Xmm diameter...Ymm
+    from..." -- a phrasing that matches NEITHER of llm_decompose.py's own
+    two worked examples for a corner-hole plate, which say
+    "a corner array of four holes, each 15mm from a corner" (Example 4,
+    no diameter at all -- none was given in that request) and
+    "a corner array of four 6.6mm diameter holes, each 15mm from a
+    corner" (Example 5, diameter stated as an adjective BEFORE "holes",
+    not after "each"). Verified directly: neither example's own exact
+    text ever matched the old regex, meaning this resolver never actually
+    fired for the one feature pattern it exists for -- every corner-hole
+    request fell through to program_model.py's statistical path, whose
+    own per-argument regressor can (and did, reproduced live: 4 requested
+    holes, 3 actually drilled) predict an approximate, wrong COUNT for a
+    value that must be exact.
+
+    Tries the diameter-before-holes phrasing the system prompt actually
+    teaches today first ("a corner array of four 6.6mm diameter holes,
+    each 15mm from a corner"), then falls back to the older
+    diameter-after-each phrasing this resolver was originally built for
+    ("a corner array of four holes, each 8mm diameter and centered at
+    12mm from adjacent edges" -- a real, previously-fixed audited case,
+    kept working, not replaced). When a request genuinely gives no hole
+    diameter at all (Example 4's own case: no diameter was given in that
+    request, so none belongs in its description either), this still
+    returns None rather than inventing a radius sandbox.py's
+    drill_hole_pattern has no sensible default for, same "never a forced
+    guess" discipline as this module's own docstring. `margin` is
+    sandbox.py's own inset-from-each-edge parameter (drill_hole_pattern:
+    hx = length/2 - margin), so "Nmm from a corner"/"Nmm from adjacent
+    edges" maps onto it directly, with no unit translation needed."""
     if base.op != "add_box":
         return None
     m = re.search(
-        rf"corner array of\s*(\w+)\s*holes,?\s*each\s*{_NUM}\s*mm\s*diameter.{{0,50}}?{_NUM}\s*mm\s*from",
+        rf"corner array of\s*(\w+)\s*{_NUM}\s*mm\s*diameter\s*holes,?\s*each\s*{_NUM}\s*mm\s*from",
         text, re.IGNORECASE,
     )
+    if not m:
+        m = re.search(
+            rf"corner array of\s*(\w+)\s*holes,?\s*each\s*{_NUM}\s*mm\s*diameter.{{0,50}}?{_NUM}\s*mm\s*from",
+            text, re.IGNORECASE,
+        )
     if not m:
         return None
     count = _parse_count(m.group(1))
@@ -274,8 +303,18 @@ def _feature_through_hole(text: str, base: _BaseShape) -> list[dict] | None:
     is used -- correct for the common "thin wall/plate with a hole through
     it" case; a box that needs the hole along its LONGEST axis instead
     (e.g. a tall post, hole along its height) is not covered and falls
-    back to the statistical path too."""
-    m = re.search(rf"{_NUM}\s*mm\s*diameter\s*hole\s*through\s*(?:it|the\s*middle|the\s*post)", text, re.IGNORECASE)
+    back to the statistical path too.
+
+    Accepts "bore" as a synonym for "hole" -- confirmed real gap (mission-
+    brief audit): "bore" is standard engineering terminology for exactly
+    this feature (a boss's/shaft's own axial bore) that a request or an
+    LLM's own decomposition can plausibly retain despite STEP 3's general
+    jargon-avoidance instruction, which doesn't call "bore" out by name.
+    Previously this resolver only recognized the literal word "hole",
+    silently falling through to the statistical path's own approximate
+    per-argument regressor for a value (the bore diameter) that should
+    never be approximate."""
+    m = re.search(rf"{_NUM}\s*mm\s*diameter\s*(?:hole|bore)\s*through\s*(?:it|the\s*middle|the\s*post)", text, re.IGNORECASE)
     if not m:
         m = re.search(rf"circular through-opening of\s*{_NUM}\s*mm\s*diameter", text, re.IGNORECASE)
     if not m:
