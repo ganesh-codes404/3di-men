@@ -12,6 +12,7 @@ from assembly_plan import Relationship
 from llm_decompose import (
     DEFAULT_MODEL_PATH,
     _POINTS_JSON_SCHEMA,
+    _SYSTEM_PROMPT,
     ActionablePoint,
     _correct_gear_mesh_spacing,
     _extract_gear_params,
@@ -23,6 +24,20 @@ from llm_decompose import (
     decompose_prompt,
     fold_answers_into_prompt,
 )
+
+
+def test_system_prompt_instructs_overlap_avoidance_and_a_final_self_check():
+    """Explicit user request: the LLM must understand overlaps between
+    parts and actively avoid them, understand how parts relate to each
+    other, and never hand off a half-built decomposition --
+    parallel_builder.py's collision exclusion (_find_and_resolve_collisions)
+    and repair.py's truncation strategy are reactive repair nets for when
+    something still goes wrong downstream, not a substitute for the LLM
+    getting the layout right the first time. These phrases anchor that
+    guidance in the prompt -- if a future edit drops them, this fails."""
+    assert "REAL clearance" in _SYSTEM_PROMPT  # overlap avoidance for unrelated parts (STEP 2's position_mm fallback)
+    assert "STEP 4" in _SYSTEM_PROMPT and "review your own array" in _SYSTEM_PROMPT  # the closing self-check pass
+    assert "half-built assembly" in _SYSTEM_PROMPT
 
 
 def test_extract_json_array_from_clean_output():
