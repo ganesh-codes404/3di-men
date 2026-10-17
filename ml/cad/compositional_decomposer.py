@@ -34,11 +34,10 @@ back to program_model.py's existing statistical path, unchanged. This is
 strictly additive: every description this module resolves is one
 program_model.py would otherwise have had to guess at; every description
 it doesn't resolve behaves exactly as it did before this module existed.
-This also means an unbuildable request (e.g. "a triangular prism" -- there
-is genuinely no triangular profile anywhere in sandbox.py's tool roster)
-correctly falls through to the existing path rather than being silently
-forced into some unrelated shape, which is itself a real improvement: the
-existing path at least discloses in_distribution/nearest_neighbor_similarity
+This also means a genuinely unbuildable request correctly falls through to
+the existing path rather than being silently forced into some unrelated
+shape, which is itself a real improvement: the existing path at least
+discloses in_distribution/nearest_neighbor_similarity
 for that guess, whereas a forced-wrong compositional match would hide the
 mismatch behind a confident-looking deterministic program.
 """
@@ -135,9 +134,34 @@ def _resolve_sphere(text: str) -> _BaseShape | None:
                        extent=(diameter, diameter, diameter))
 
 
+def _resolve_triangular_gusset(text: str) -> _BaseShape | None:
+    """"a triangular gusset, Bmm x Hmm, Tmm thick" -- a real triangular
+    PRISM (right angle at the gusset's own corner) via add_extrusion's
+    "triangle" profile_kind. Added specifically to close a confirmed,
+    previously-disclosed gap (this module's own earlier docstring: "a
+    triangular prism... is genuinely no triangular profile anywhere in
+    sandbox.py's tool roster") -- a real gusset is a triangular prism,
+    never equivalent to a box with a triangular cutout, which is what the
+    statistical fallback produced for this exact request before this
+    primitive existed."""
+    m = re.search(
+        rf"triangular (?:gusset|prism)\D*?{_NUM}\s*mm\s*x\s*{_NUM}\s*mm\D*?{_NUM}\s*mm\s*thick",
+        text, re.IGNORECASE,
+    )
+    if not m:
+        return None
+    base, height, thickness = (float(m.group(i)) for i in (1, 2, 3))
+    return _BaseShape(
+        op="add_extrusion",
+        args={"profile_kind": "triangle", "param_a": base, "param_b": height, "param_c": 0.0,
+              "height": thickness, "center": [0.0, 0.0, 0.0]},
+        extent=(base, height, thickness),
+    )
+
+
 # Order matters: compound/specific patterns before the generic ones they'd
 # otherwise also match as an incomplete prefix.
-_BASE_RESOLVERS = [_resolve_stepped_cylinder, _resolve_cylinder, _resolve_box, _resolve_sphere]
+_BASE_RESOLVERS = [_resolve_stepped_cylinder, _resolve_cylinder, _resolve_box, _resolve_sphere, _resolve_triangular_gusset]
 
 
 def _resolve_base_shape(text: str) -> _BaseShape | None:

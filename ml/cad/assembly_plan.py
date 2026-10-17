@@ -134,7 +134,24 @@ def resolve_position(relationship: Relationship, target_mesh: trimesh.Trimesh, o
     geometry is predicted/built at its own origin first, placed after) to
     know how far to offset so the two parts actually meet rather than
     overlapping or floating apart -- the one piece of geometry arithmetic
-    this project does not ask the LLM to do."""
+    this project does not ask the LLM to do.
+
+    Deliberately assumes `own_mesh`'s local origin IS its own placement-
+    relevant anchor point (true for box/cylinder/sphere/gear -- centered
+    at their own local origin by construction -- AND true by explicit
+    design for add_dome, whose own docstring states "center is the FLAT
+    BASE, not the bounding-box center," so attached_to_face already lands
+    a dome's base flush without any extra correction). A shape built with
+    NO meaningful local-origin convention at all (confirmed real gap:
+    add_extrusion's "l_shape" profile, whose own vertices just happen to
+    start at a corner for an unrelated caller's hole-math convenience, see
+    data/program_builders.py) cannot be distinguished from a deliberately
+    base-anchored one by geometry alone -- there is no reliable way to
+    "auto-correct" for the former without breaking the latter. That
+    narrower gap is fixed at its own source instead where it's
+    unambiguous: sandbox.py's "triangle" profile centers its own geometry
+    like every other true primitive, rather than special-casing this
+    shared resolver for one profile_kind's otherwise-ambiguous footprint."""
     target_bounds = target_mesh.bounds
     target_center = target_bounds.mean(axis=0)
 

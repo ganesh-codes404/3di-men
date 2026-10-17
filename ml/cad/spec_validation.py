@@ -40,16 +40,33 @@ import trimesh
 # own system prompt and tool vocabulary already use exclusively (see
 # llm_decompose.py's _SYSTEM_PROMPT -- every worked example is in mm, no
 # other unit ever appears in this project's own generated text).
-_DIMENSION_CLAIM_RE = re.compile(r"(\d+(?:\.\d+)?)\s*mm")
+#
+# The negative lookahead excludes a "NNmm from {the/a} {word} edge/corner/
+# face" phrase -- a PLACEMENT offset (how far a feature sits from a
+# reference edge/corner), not a built SIZE. Confirmed real bug this
+# closes: "a slot 10mm from the left edge" used to get checked against the
+# mesh's overall extents exactly like a stated dimension, producing a
+# false "unmatched: 10mm" warning on a perfectly correct build (the
+# project's own existing "Nmm from a corner" hole-margin phrasing, e.g.
+# compositional_decomposer.py's corner-array pattern, has always had this
+# same false-positive, just never surfaced as confusingly before).
+_DIMENSION_CLAIM_RE = re.compile(
+    r"(\d+(?:\.\d+)?)\s*mm(?!\s*(?:wide|deep|long|tall|thick)?\s*from\s+(?:the\s+|an?\s+)?(?:\w+\s+)?(?:edges?|corners?|faces?)\b)",
+    re.IGNORECASE,
+)
 
 
 def extract_claimed_dimensions_mm(description: str) -> list[float]:
-    """Every "NNmm"/"NN.Nmm" numeric claim in the text, in the order they
-    appear. Deliberately permissive (matches a count, like "four holes,
-    20mm from a corner," just as readily as a size) -- false positives
-    here just mean one extra claim checked against the mesh, which either
-    finds a real match (harmless) or doesn't (reported as unmatched, which
-    is still an honest, inspectable result, not a wrong pass/fail)."""
+    """Every "NNmm"/"NN.Nmm" numeric claim in the text that reads as a
+    built SIZE, in the order they appear -- a "NNmm from an edge/corner/
+    face" placement offset is deliberately excluded (see the regex's own
+    comment above). Still deliberately permissive beyond that (e.g. a bare
+    count like "four holes" with no "from an edge" qualifier would still
+    be picked up if phrased as "4mm" somewhere unrelated) -- a remaining
+    false positive here just means one extra claim checked against the
+    mesh, which either finds a real match (harmless) or doesn't (reported
+    as unmatched, still an honest, inspectable result, not a wrong
+    pass/fail)."""
     return [float(m.group(1)) for m in _DIMENSION_CLAIM_RE.finditer(description)]
 
 

@@ -164,3 +164,33 @@ def test_parse_point_program_override_skips_malformed_steps():
         {"op": "add_box", "args": {"length": 10}},
         {"op": "finalize", "args": {}},
     ]
+
+
+def test_exported_mesh_round_trips_through_stl():
+    """Export/reimport integrity (mission brief Phase 9, Test 11): a built
+    mesh exported via server._export_mesh (the same STL export every real
+    build uses) must reimport with its dimensions/volume/watertightness
+    preserved -- confirms the actual exported ARTIFACT is correct, not
+    just the in-memory mesh object before export ever touched disk."""
+    import numpy as np
+    import trimesh
+
+    from sandbox import Sandbox, ToolCall
+
+    prog = [
+        ToolCall("add_box", {"length": 40, "width": 30, "height": 20, "center": [0, 0, 0]}),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    result = Sandbox.execute(prog)
+    assert result.status == "ok"
+    original = result.mesh
+
+    mesh_url = server._export_mesh(original)
+    exported_path = server.OUTPUT_DIR / mesh_url.rsplit("/", 1)[-1]
+    assert exported_path.is_file()
+
+    reimported = trimesh.load_mesh(exported_path)
+    assert reimported.is_watertight
+    assert np.allclose(sorted(reimported.extents), sorted(original.extents))
+    assert abs(reimported.volume - original.volume) < 1e-3
+    exported_path.unlink()  # this test's own artifact, not a real build's -- clean up after itself

@@ -1021,12 +1021,35 @@ def _pattern_weld(rng: random.Random) -> tuple[str, list[ToolCall]]:
     return text, program
 
 
+def _pattern_triangular_gusset(rng: random.Random) -> tuple[str, list[ToolCall]]:
+    """Matches llm_decompose.py's own taught phrasing exactly ("a
+    triangular gusset, {base}mm x {height}mm, {thickness}mm thick") and
+    compositional_decomposer.py's deterministic resolver for the same
+    text -- this is the statistical fallback's ONLY exposure to the
+    "triangle" add_extrusion profile_kind otherwise (confirmed by grep:
+    nothing else in this corpus uses it), closing a confirmed, previously-
+    disclosed gap (compositional_decomposer.py's own module docstring: "a
+    triangular prism... is genuinely no triangular profile anywhere in
+    sandbox.py's tool roster") for the statistical path too, not just the
+    deterministic one."""
+    base = rng.choice([20, 30, 40])
+    height = rng.choice([20, 30, 40])
+    thickness = rng.choice([3, 4, 5, 6])
+    program = [
+        ToolCall("add_extrusion", {"profile_kind": "triangle", "param_a": base, "param_b": height, "param_c": 0.0,
+                                    "height": thickness, "center": [0, 0, 0]}),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    text = f"a triangular gusset, {base:g}mm x {height:g}mm, {thickness:g}mm thick"
+    return text, program
+
+
 _GENERIC_PATTERNS = [
     _pattern_union, _pattern_cavity, _pattern_ring, _pattern_holes, _pattern_holes, _pattern_holes,
     _pattern_intersection, _pattern_mirror, _pattern_scaled, _pattern_linear_array, _pattern_circular_array,
     _pattern_boss, _pattern_pocket, _pattern_shell, _pattern_fillet, _pattern_chamfer,
     _pattern_frustum, _pattern_cone, _pattern_tapered_box,
-    _pattern_counterbore, _pattern_drill_slot, _pattern_rib,
+    _pattern_counterbore, _pattern_drill_slot, _pattern_rib, _pattern_triangular_gusset,
     _pattern_shell_cylinder, _pattern_hollow_vessel, _pattern_widening_vessel, _pattern_shouldered_cylinder,
     # 20 more Blender-like tools
     _pattern_sphere, _pattern_sphere, _pattern_sphere,  # 3x weight: confirmed directly that this

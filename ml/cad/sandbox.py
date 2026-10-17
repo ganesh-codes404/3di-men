@@ -58,7 +58,7 @@ import trimesh
 
 Axis = Literal["x", "y", "z"]
 PatternKind = Literal["single", "bolt_circle", "linear_array", "corner_array"]
-ProfileKind = Literal["rect", "rounded_rect", "l_shape", "ellipse"]
+ProfileKind = Literal["rect", "rounded_rect", "l_shape", "triangle", "ellipse"]
 SweepPathKind = Literal["straight", "arc", "helix"]
 FaceDirection = Literal["+x", "-x", "+y", "-y", "+z", "-z"]
 HeadStyle = Literal["flat", "conical"]
@@ -158,6 +158,28 @@ def _l_shape_polygon(leg1: float, leg2: float, thickness: float) -> np.ndarray:
     return np.array([[0, 0], [leg1, 0], [leg1, thickness], [thickness, thickness], [thickness, leg2], [0, leg2]])
 
 
+def _right_triangle_polygon(base: float, height: float) -> np.ndarray:
+    """A right triangle, right angle at the corner, base along X and
+    height along Y -- but shifted so its own BOUNDING BOX is centered at
+    the local origin, matching add_box/add_cylinder/add_sphere's own
+    convention (every OTHER true primitive in this file is centered this
+    way). Deliberately NOT the origin-corner convention
+    _l_shape_polygon uses -- that convention exists only because
+    data/program_builders.py's build_bracket_program hard-codes hole
+    positions assuming it, a dependency this brand-new profile has none
+    of, so there is no reason to inherit the same limitation. A centered
+    footprint means assembly_plan.py's existing attached_to_face/
+    concentric_with math (which assumes a shape's local origin IS its own
+    placement-relevant center -- true for every other primitive) places a
+    triangular gusset correctly with no special-casing anywhere else.
+    Added specifically to close a confirmed, previously-disclosed gap
+    (compositional_decomposer.py's own module docstring: "a triangular
+    prism... is genuinely no triangular profile anywhere in sandbox.py's
+    tool roster") -- a real gusset is a triangular PRISM, never
+    equivalent to a box with a triangular cutout."""
+    return np.array([[0, 0], [base, 0], [0, height]]) - [base / 2.0, height / 2.0]
+
+
 def _ellipse_polygon(radius_x: float, radius_y: float, segments: int = 32) -> np.ndarray:
     theta = np.linspace(0, 2 * np.pi, segments, endpoint=False)
     return np.column_stack([radius_x * np.cos(theta), radius_y * np.sin(theta)])
@@ -172,6 +194,8 @@ def _profile_polygon(kind: "ProfileKind", param_a: float, param_b: float, param_
     drifting apart. Meaning by profile_kind:
       rect / rounded_rect: param_a=length, param_b=width, param_c=fillet_radius (0 for rect)
       l_shape:              param_a=leg1,   param_b=leg2,  param_c=thickness
+      triangle:              param_a=base,  param_b=height, param_c unused (right triangle,
+                             right angle at the origin -- see _right_triangle_polygon)
       ellipse:               param_a=radius_x, param_b=radius_y, param_c unused"""
     if kind == "rect":
         return _rounded_rect_polygon(param_a, param_b, 0.0)
@@ -179,6 +203,8 @@ def _profile_polygon(kind: "ProfileKind", param_a: float, param_b: float, param_
         return _rounded_rect_polygon(param_a, param_b, param_c)
     if kind == "l_shape":
         return _l_shape_polygon(param_a, param_b, param_c)
+    if kind == "triangle":
+        return _right_triangle_polygon(param_a, param_b)
     if kind == "ellipse":
         return _ellipse_polygon(param_a, param_b)
     raise SandboxError(f"unknown profile_kind {kind!r}")

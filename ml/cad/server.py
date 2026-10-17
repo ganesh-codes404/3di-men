@@ -261,6 +261,12 @@ def api_build():
         # _find_collisions/mesh_quality.bounding_box_overlap_fraction.
         # Always a list, empty when nothing was flagged.
         "collision_warnings": getattr(result, "collision_warnings", []),
+        # The single aggregate PASS/FAIL/INCOMPLETE this pipeline previously
+        # never computed anywhere -- see AssemblyBuildResult.overall_status's
+        # own docstring. A caller that only checks mesh_url/assembly_topology
+        # (which can look perfectly clean even when a required part failed)
+        # should check this field first.
+        "overall_status": result.overall_status,
     })
 
 

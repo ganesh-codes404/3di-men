@@ -172,6 +172,37 @@ def test_symmetric_about_raises_when_target_sits_on_the_mirror_plane():
         resolve_position(Relationship(kind="symmetric_about", target_id="frame", axis="x"), frame, wheel)
 
 
+def test_attached_to_face_places_a_triangular_gusset_flush_against_its_target():
+    """Confirmed real bug, fixed at its actual source: a triangular gusset
+    (sandbox.py's add_extrusion "triangle" profile) used to end up
+    floating well off its target face instead of flush against it,
+    because its own polygon's vertices started at a corner rather than
+    being centered on their own bounding box -- resolve_position's
+    attached_to_face math assumes a shape's local origin IS its own
+    placement-relevant center (true for every other true primitive here).
+    Fixed by centering the "triangle" profile itself
+    (_right_triangle_polygon), not by special-casing this shared resolver
+    -- confirming that fix end to end here, through the real,
+    UNMODIFIED resolve_position."""
+    sb = Sandbox()
+    plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))
+    sb2 = Sandbox()
+    gusset = sb2._get(sb2.add_extrusion("triangle", param_a=30, param_b=30, param_c=0, height=4))
+    # the triangle profile's own bbox center must be at its local origin,
+    # matching every other true primitive (see _right_triangle_polygon)
+    assert gusset.bounds.mean(axis=0) == pytest.approx([0.0, 0.0, 0.0])
+
+    pos = resolve_position(Relationship(kind="attached_to_face", target_id="plate", face="+y"), plate, gusset)
+    placed = gusset.copy()
+    placed.apply_translation(pos)
+
+    # flush against the plate's +y face (at y=25, since the plate is 50mm
+    # wide, centered at the origin) -- not floating off it
+    assert placed.bounds[0][1] == pytest.approx(25.0)
+    # centered on the plate's width (x=0), not shifted sideways
+    assert placed.bounds.mean(axis=0)[0] == pytest.approx(0.0)
+
+
 def test_attached_to_face_raises_when_target_has_no_matching_face():
     # a sphere has no flat facet aligned with any direction at all -- unlike
     # a faceted cylinder, which (confirmed directly) DOES have a near-+x

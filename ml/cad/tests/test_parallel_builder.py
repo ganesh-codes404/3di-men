@@ -359,3 +359,55 @@ def test_program_override_none_predicts_exactly_as_before(tiny_bundle_path):
     points = [ActionablePoint(description="a box 40mm x 40mm x 10mm", position_mm=(0.0, 0.0, 0.0))]
     result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
     assert result.points[0].resolution_method != "user_edited"
+
+
+def test_overall_status_pass_when_every_point_is_clean(tiny_bundle_path):
+    points = [ActionablePoint(description="a box 40mm x 40mm x 10mm", position_mm=(0.0, 0.0, 0.0))]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
+    assert result.overall_status == "PASS"
+
+
+def test_overall_status_fail_when_a_required_part_is_rejected(tiny_bundle_path):
+    """Confirmed real gap this closes: a part that completely fails to
+    build (no usable mesh at all) must make the WHOLE assembly FAIL, not
+    just disclose it in a per-part list a caller might not inspect."""
+    points = [ActionablePoint(
+        description="a box", position_mm=(0.0, 0.0, 0.0),
+        program_override=[{"op": "finalize", "args": {"target": 99}}],  # references a handle that was never created
+    )]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
+    assert result.points[0].status == "rejected"
+    assert result.overall_status == "FAIL"
+
+
+def test_overall_status_incomplete_when_a_part_is_only_partial(tiny_bundle_path):
+    """Confirmed real gap this closes: a hole that fully consumes its
+    target ("a slot operation returns an empty mesh") recovers the last
+    good checkpoint (status="partial") -- this must never be silently
+    promoted to PASS just because SOME mesh exists."""
+    points = [ActionablePoint(
+        description="a box", position_mm=(0.0, 0.0, 0.0),
+        program_override=[
+            {"op": "add_box", "args": {"length": 10, "width": 10, "height": 10, "center": [0, 0, 0]}},
+            {"op": "drill_hole", "args": {"target": 0, "radius": 50, "depth": 50, "center": [0, 0, 0], "axis": "z"}},
+            {"op": "finalize", "args": {"target": 1}},
+        ],
+    )]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
+    assert result.points[0].status == "partial"
+    assert result.overall_status == "INCOMPLETE"
+
+
+def test_overall_status_fail_on_a_real_collision(tiny_bundle_path):
+    points = [
+        ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0)),
+        ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0)),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    assert result.overall_status == "FAIL"
+
+
+def test_overall_status_incomplete_for_an_empty_assembly():
+    from parallel_builder import AssemblyBuildResult
+
+    assert AssemblyBuildResult(mesh=None, points=[], fell_back_to_single_point=False).overall_status == "INCOMPLETE"

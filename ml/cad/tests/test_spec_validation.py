@@ -29,6 +29,20 @@ def test_extract_claimed_dimensions_mm_returns_empty_for_no_numbers():
     assert extract_claimed_dimensions_mm("an L-shape bracket") == []
 
 
+def test_extract_claimed_dimensions_mm_excludes_edge_and_corner_offsets():
+    """Regression test for the mission brief's own exact reproduction:
+    "a slot positioned 10mm from the left edge" must NOT produce a
+    [10.0] size claim -- that 10mm is a placement offset, not a built
+    dimension. A real size claim earlier in the same sentence must still
+    be caught."""
+    assert extract_claimed_dimensions_mm("a slot positioned 10mm from the left edge of the plate") == []
+    assert extract_claimed_dimensions_mm("a corner array of four holes, each 15mm from a corner") == []
+    assert extract_claimed_dimensions_mm("centered at 12mm from adjacent edges") == []
+    assert extract_claimed_dimensions_mm(
+        "a plate 100mm x 60mm x 8mm with a corner array of four holes, each 20mm from a corner"
+    ) == [100.0, 60.0, 8.0]
+
+
 def test_validate_dimensions_matches_a_correctly_built_cylinder():
     sb = Sandbox()
     h = sb.add_cylinder(radius=15, height=80)
@@ -60,12 +74,15 @@ def test_validate_dimensions_reports_an_empty_report_for_no_claims():
     assert report.match_rate == 1.0
 
 
-def test_validate_dimensions_honestly_scoped_to_overall_extents_not_feature_details():
-    """A hole-pattern margin number is NOT an overall extent -- this is a
-    disclosed limitation of this scoped first version (see
-    spec_validation.py's own module docstring), not a bug: the check
-    should honestly report it as unmatched rather than silently ignoring
-    it or false-matching it against an unrelated extent."""
+def test_validate_dimensions_excludes_an_edge_offset_from_an_overall_extent_check():
+    """Regression test for a confirmed real bug: "20mm from a corner" is a
+    PLACEMENT offset (how far a hole sits from the plate's own edge), not
+    a built SIZE claim -- it used to get checked against the mesh's
+    overall extents exactly like a stated dimension, producing a false
+    "75% matched, unmatched: 20mm"-style warning on a perfectly correct
+    build. extract_claimed_dimensions_mm must exclude it entirely (not
+    include it as a failed/unmatched claim), while still catching the
+    real 100/60/8mm size claims in the same sentence."""
     sb = Sandbox()
     h = sb.add_box(100, 60, 8)
     h2 = sb.drill_hole_pattern(h, pattern="corner_array", count=4, radius=4, depth=8, axis="z", margin=20.0, circle_diameter=0, z=0)
@@ -73,10 +90,11 @@ def test_validate_dimensions_honestly_scoped_to_overall_extents_not_feature_deta
     report = validate_dimensions_against_description(
         "a plate 100mm x 60mm x 8mm with a corner array of four holes, each 20mm from a corner", mesh
     )
-    matched_values = {c.claimed_mm for c in report.claims if c.matched}
-    assert {100.0, 60.0, 8.0}.issubset(matched_values)
-    assert 20.0 in report.unmatched_claims_mm
-    assert 0.0 < report.match_rate < 1.0
+    claimed_values = {c.claimed_mm for c in report.claims}
+    assert {100.0, 60.0, 8.0}.issubset(claimed_values)
+    assert 20.0 not in claimed_values  # the edge-offset value never becomes a claim at all
+    assert report.all_matched is True  # with the margin excluded, every REAL claim here matches
+    assert report.match_rate == 1.0
 
 
 def test_validate_dimensions_never_raises_on_degenerate_mesh():

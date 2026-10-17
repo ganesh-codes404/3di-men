@@ -70,6 +70,26 @@ def test_add_extrusion_rounded_rect_and_l_shape():
     assert sb2._get(h2).is_watertight
 
 
+def test_add_extrusion_triangle_is_a_real_prism_centered_at_its_own_origin():
+    """Closes a confirmed, previously-disclosed gap
+    (compositional_decomposer.py's own module docstring: "a triangular
+    prism... is genuinely no triangular profile anywhere in sandbox.py's
+    tool roster") -- a gusset built this way is a true triangular PRISM
+    (exact volume = base*height/2*thickness), never equivalent to a box
+    with a triangular cutout. Deliberately centered at its own local
+    origin (unlike "l_shape", which stays origin-corner for
+    data/program_builders.py's own hole-math convenience) so
+    assembly_plan.py's placement math -- which assumes a shape's local
+    origin IS its own center, true for every other true primitive --
+    needs no special-casing for this one."""
+    sb = Sandbox()
+    h = sb.add_extrusion("triangle", param_a=30, param_b=30, param_c=0, height=4)
+    mesh = sb._get(h)
+    assert mesh.is_watertight
+    assert abs(mesh.volume - 30 * 30 / 2 * 4) < 1e-6
+    assert np.allclose(mesh.bounds.mean(axis=0), [0.0, 0.0, 0.0])
+
+
 def test_add_gear_profile_produces_watertight_gear():
     sb = Sandbox()
     h = sb.add_gear_profile(module_mm=2.0, tooth_count=16, face_width_mm=10, bore_diameter_mm=8)

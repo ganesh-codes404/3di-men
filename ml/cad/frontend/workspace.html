@@ -170,6 +170,13 @@
   #info { display: none; flex-direction: column; gap: 14px; }
   #info.show { display: flex; }
   #fallbackNote { font-size: 11.5px; color: var(--warn); background: var(--warn-bg); border-radius: 7px; padding: 8px 10px; line-height: 1.45; }
+  #overallStatusBanner {
+    font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 4px;
+  }
+  #overallStatusBanner.PASS { background: var(--ok-bg); color: var(--ok); }
+  #overallStatusBanner.INCOMPLETE { background: var(--warn-bg); color: var(--warn); }
+  #overallStatusBanner.FAIL { background: var(--bad-bg); color: var(--bad); }
 
   .points-list { display: flex; flex-direction: column; gap: 6px; }
   .point-card {
@@ -446,6 +453,7 @@
   <div id="status"></div>
 
   <div id="info">
+    <div id="overallStatusBanner" style="display:none;"></div>
     <div id="fallbackNote" style="display:none;">Note: the LLM's decomposition couldn't be parsed, so the whole prompt was treated as one part instead of being split up.</div>
 
     <div class="card" id="assemblyTopoCard" style="display:none;">
@@ -1160,10 +1168,24 @@ async function requestClarification() {
   }
 }
 
+function renderOverallStatusBanner(status) {
+  const el = document.getElementById('overallStatusBanner');
+  if (!status) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.className = status;
+  const labels = {
+    PASS: 'PASS — every part built and verified correct',
+    INCOMPLETE: 'INCOMPLETE — built, but at least one part is unverified (suspect, partial, or an unfamiliar-prompt guess)',
+    FAIL: 'FAIL — a required part failed, or a collision was detected',
+  };
+  el.textContent = labels[status] || status;
+}
+
 async function applyBuildResponse(data) {
   setPartsFromBuildResult(data.points);
   renderAssemblyTopology(data.assembly_topology);
   renderCollisionWarnings(data.collision_warnings);
+  renderOverallStatusBanner(data.overall_status);
   document.getElementById('fallbackNote').style.display = data.fell_back_to_single_point ? 'block' : 'none';
 
   const seconds = data.generation_time_seconds;

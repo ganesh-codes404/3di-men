@@ -126,6 +126,47 @@ class AssemblyBuildResult:
         # scoped to parts with NO relationship connecting them (a shaft through a boss's bore is
         # SUPPOSED to have one bbox almost entirely inside the other).
 
+    @property
+    def overall_status(self) -> str:
+        """Confirmed real gap this closes: before this property existed,
+        there was NO single aggregate success/fail field anywhere in this
+        pipeline -- a caller had to inspect every point's own status
+        string individually, and the combined mesh's own watertightness
+        (computed from whatever DID get placed) could look perfectly
+        clean even when a required part was empty, suspect, or outright
+        rejected. "A slot returns an empty mesh and a gusset is marked
+        suspect, but both are merged anyway... reported as green and
+        watertight" is exactly this gap, not a misunderstanding of
+        existing behavior.
+
+        - "FAIL": at least one point completely failed (status="rejected",
+          no usable mesh at all), or a real collision was detected between
+          unrelated parts. A mandatory requirement is definitively unmet.
+        - "INCOMPLETE": every point produced SOME mesh, but at least one is
+          not fully trustworthy (status in {"suspect", "partial",
+          "out_of_distribution"} -- built, but geometrically dubious, built
+          from an earlier failed step, or a low-confidence statistical
+          guess). Never silently promoted to PASS.
+        - "PASS": every point is status="ok" and no collisions were
+          flagged. The ONLY status that means "built and verified
+          correct," not just "something was produced."
+
+        Watertightness is already folded into each point's own status by
+        Sandbox.execute() -- this property doesn't re-check topology, it
+        aggregates what per-point status already disclosed, same
+        discipline as dimension_match_rate/claimed_hole_count: never
+        re-deriving the definition of correct from the generated parts
+        themselves."""
+        if not self.points:
+            return "INCOMPLETE"
+        if self.collision_warnings:
+            return "FAIL"
+        if any(p.status == "rejected" for p in self.points):
+            return "FAIL"
+        if any(p.status in ("suspect", "partial", "out_of_distribution") for p in self.points):
+            return "INCOMPLETE"
+        return "PASS"
+
 
 _worker_bundle: Any = None  # per-process cache -- loaded once per worker, not once per point
 
