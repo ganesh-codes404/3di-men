@@ -5,7 +5,7 @@ arithmetic directly against values computable by hand, plus the
 validation/ordering logic's error paths."""
 import pytest
 
-from assembly_plan import Relationship, RelationshipError, order_by_dependency, resolve_position, validate_relationships
+from assembly_plan import Relationship, RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg, validate_relationships
 from sandbox import Sandbox
 
 
@@ -89,6 +89,87 @@ def test_symmetric_about_mirrors_the_targets_position():
 
     pos = resolve_position(Relationship(kind="symmetric_about", target_id="tab_a", axis="x"), tab_a, tab_b_proto)
     assert pos == pytest.approx((-25.0, 4.0, 0.0))
+
+
+def test_resolve_rotation_deg_concentric_with_reorients_a_z_built_shaft():
+    """Regression test for a confirmed real bug: resolve_position alone only
+    computes WHERE a part's center lands -- every rotationally-symmetric
+    sandbox.py primitive (cylinder, capsule, torus, dome, ring, tube) and
+    every gear builds along its own local Z axis by default/always, so
+    without a matching rotation, a shaft concentric_with a boss on the y
+    axis ends up correctly CENTERED but still standing up along Z instead
+    of running along y through the boss -- exactly "floats beside its
+    housing," confirmed live with real meshes elsewhere. Applying this
+    rotation (about the part's own local origin) before resolve_position's
+    translation must make the part's own long axis actually point along
+    the relationship's declared axis."""
+    sb = Sandbox()
+    boss = sb._get(sb.add_cylinder(10, 15, [0, 0, 0], "z"))
+    sb2 = Sandbox()
+    shaft = sb2._get(sb2.add_cylinder(5, 70, [0, 0, 0], "z"))
+    assert shaft.extents == pytest.approx([10.0, 10.0, 70.0])
+
+    from parallel_builder import PlacementTransform
+
+    rel = Relationship(kind="concentric_with", target_id="boss", axis="y")
+    pos = resolve_position(rel, boss, shaft)
+    rot = resolve_rotation_deg(rel)
+    placed = PlacementTransform.translation(pos).compose(PlacementTransform.rotation(rot)).apply_to_mesh(shaft)
+    # the shaft's own 70mm length is now along y, not z
+    assert placed.extents == pytest.approx([10.0, 70.0, 10.0])
+
+
+def test_resolve_rotation_deg_concentric_with_z_is_a_no_op():
+    """axis="z" (sandbox.py's own default build axis) needs no reorientation
+    at all -- confirms the fix doesn't needlessly rotate the common case."""
+    assert resolve_rotation_deg(Relationship(kind="concentric_with", target_id="t", axis="z")) == (0.0, 0.0, 0.0)
+
+
+def test_resolve_rotation_deg_attached_to_face_points_outward_from_each_face():
+    """A boss/standoff attached to a face must rise OUTWARD along that
+    face's own normal, not stay pointing along its own default Z -- sign
+    matters here (unlike concentric_with), since a boss pointing into its
+    own target instead of away from it is a real, visible defect."""
+    sb = Sandbox()
+    housing = sb._get(sb.add_box(120, 80, 60, [0, 0, 0]))
+    sb2 = Sandbox()
+    boss = sb2._get(sb2.add_cylinder(10, 10, [0, 0, 0], "z"))
+    assert boss.extents == pytest.approx([20.0, 20.0, 10.0])
+
+    from parallel_builder import PlacementTransform
+
+    for face, long_axis_idx in [("+y", 1), ("-y", 1), ("+x", 0), ("-x", 0), ("+z", 2), ("-z", 2)]:
+        rel = Relationship(kind="attached_to_face", target_id="housing", face=face)
+        pos = resolve_position(rel, housing, boss)
+        rot = resolve_rotation_deg(rel)
+        placed = PlacementTransform.translation(pos).compose(PlacementTransform.rotation(rot)).apply_to_mesh(boss)
+        # the boss's own 10mm height (its rise direction) now lands along
+        # whichever world axis that face's normal points along
+        extents = list(placed.extents)
+        assert extents[long_axis_idx] == pytest.approx(10.0), f"face {face}: {extents}"
+
+
+def test_resolve_rotation_deg_symmetric_about_is_unchanged_for_now():
+    """Scoped deliberately narrow, same as resolve_position's own three
+    relationship kinds: symmetric_about's rotation is a separate, disclosed
+    limitation, not silently guessed at here."""
+    assert resolve_rotation_deg(Relationship(kind="symmetric_about", target_id="t", axis="x")) == (0.0, 0.0, 0.0)
+
+
+def test_symmetric_about_raises_when_target_sits_on_the_mirror_plane():
+    """Regression test for a confirmed real bug: 'a wheel symmetric_about
+    frame' with the frame centered at the origin (this project's own
+    default convention for a single main part) used to silently collapse
+    the wheel onto the frame's own center -- "flush against the frame"
+    instead of beside it. Mirroring something already on the mirror plane
+    is meaningless, so this must fail loudly instead."""
+    sb = Sandbox()
+    frame = sb._get(sb.add_box(400, 30, 60, [0, 0, 0]))  # centered at the origin -- the degenerate case
+    sb2 = Sandbox()
+    wheel = sb2._get(sb2.add_cylinder(300, 20, [0, 0, 0], "x"))
+
+    with pytest.raises(RelationshipError):
+        resolve_position(Relationship(kind="symmetric_about", target_id="frame", axis="x"), frame, wheel)
 
 
 def test_attached_to_face_raises_when_target_has_no_matching_face():

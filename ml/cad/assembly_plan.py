@@ -146,6 +146,29 @@ def resolve_position(relationship: Relationship, target_mesh: trimesh.Trimesh, o
 
     if relationship.kind == "symmetric_about":
         idx = _AXIS_INDEX[relationship.axis or "x"]
+        # This formula mirrors the TARGET's own position across that axis's
+        # plane through the origin -- correct for its intended use ("a
+        # matched pair of standoffs/tabs on opposite sides," per
+        # llm_decompose.py's own worked example: the target IS the other
+        # twin, itself already offset from the origin, e.g. at x=25). It is
+        # a confirmed real bug when the target sits ON the mirror plane
+        # (target_center[idx] == 0) -- negating zero is zero, so the
+        # "mirrored" part lands exactly on top of its target instead of
+        # beside it (reproduced live: "a wheel symmetric_about frame," with
+        # the frame centered at the origin -- this project's own default
+        # convention for a single main part -- collapses to the frame's own
+        # center). That's not a legitimate mirrored pair; it's a part that
+        # needs a fixed offset from a CENTRAL body, which symmetric_about
+        # was never designed to express -- fail loudly instead of silently
+        # placing it flush against its target.
+        if abs(target_center[idx]) < 1e-6:
+            raise RelationshipError(
+                f"symmetric_about target {relationship.target_id!r} sits exactly on the {relationship.axis or 'x'}=0 "
+                "mirror plane -- mirroring it produces the identical position, not an offset part. "
+                "symmetric_about is for a matched PAIR already offset from that plane (e.g. two tabs on either "
+                "side of a body), not for positioning a single part a fixed distance from a centered one -- use "
+                "plain position_mm for that instead."
+            )
         pos = list(target_center)
         pos[idx] = float(-target_center[idx])
         return (float(pos[0]), float(pos[1]), float(pos[2]))
@@ -175,3 +198,51 @@ def resolve_position(relationship: Relationship, target_mesh: trimesh.Trimesh, o
         return (float(world_pos[0]), float(world_pos[1]), float(world_pos[2]))
 
     raise RelationshipError(f"unsupported relationship kind {relationship.kind!r}")
+
+
+# Euler degrees (X then Y then Z, see parallel_builder.PlacementTransform.rotation)
+# that rotate a part's own local +Z axis to point along each world direction.
+# Every axis/face value in this project is one of these 6 axis-aligned
+# directions (never an arbitrary vector -- confirmed by RelationshipKind's
+# own Axis/FaceDirection types), so a small fixed lookup is exact, not an
+# approximation; no general vector-alignment math is needed.
+_ALIGN_LOCAL_Z_TO: dict[str, tuple[float, float, float]] = {
+    "+z": (0.0, 0.0, 0.0), "-z": (180.0, 0.0, 0.0),
+    "+x": (0.0, 90.0, 0.0), "-x": (0.0, -90.0, 0.0),
+    "+y": (-90.0, 0.0, 0.0), "-y": (90.0, 0.0, 0.0),
+}
+
+
+def resolve_rotation_deg(relationship: Relationship) -> tuple[float, float, float]:
+    """World-frame Euler rotation (X, then Y, then Z -- see
+    parallel_builder.PlacementTransform.rotation) to apply to a part's own
+    mesh, about its own local origin, BEFORE resolve_position's translation.
+
+    Confirmed real bug this fixes: every rotationally-symmetric primitive in
+    sandbox.py (cylinder, capsule, torus, dome, ring, tube) and every gear
+    defaults to (or always builds along) its own local Z axis. resolve_position
+    alone only computes WHERE a part's center should land -- it never
+    reorients the part itself, so a shaft built along Z stays pointing along
+    Z even when concentric_with axis="y" correctly centers it on the y-axis
+    line through its target boss. The shaft's CENTER ends up right; the
+    shaft itself is still standing up instead of running through the
+    housing -- visually "floating beside" the thing it's supposed to pass
+    through, confirmed live by reproducing exactly this with real meshes.
+
+    - concentric_with: align local Z with the shared axis. Sign doesn't
+      matter for any rotationally-symmetric part (a cylinder/gear look
+      identical pointing +y or -y), so "x"/"y"/"z" map to their + direction.
+    - attached_to_face: align local Z with the face's own OUTWARD normal
+      (sign matters here -- a boss must rise AWAY from its face, not into
+      the part it's attached to).
+    - symmetric_about: no rotation (out of scope for this fix -- see
+      resolve_position's own symmetric_about handling for the position-side
+      bug this project fixes separately).
+    """
+    if relationship.kind == "concentric_with":
+        axis = relationship.axis or "z"
+        return _ALIGN_LOCAL_Z_TO[f"+{axis}"]
+    if relationship.kind == "attached_to_face":
+        face_dir = relationship.face or "+z"
+        return _ALIGN_LOCAL_Z_TO[face_dir]
+    return (0.0, 0.0, 0.0)

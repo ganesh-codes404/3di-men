@@ -267,11 +267,50 @@ def _feature_through_hole(text: str, base: _BaseShape) -> list[dict] | None:
     return [{"op": "drill_hole", "args": {"radius": radius, "depth": depth, "center": [0.0, 0.0, 0.0], "axis": axis}}]
 
 
+_FACE_WORD_TO_DIRECTION = {
+    "top": "+z", "bottom": "-z", "+x": "+x", "-x": "-x", "+y": "+y", "-y": "-y",
+}
+
+
+def _feature_screw_boss_with_bore(text: str, base: _BaseShape) -> list[dict] | None:
+    """Matches data/program_dataset.py's own `_pattern_boss_with_bore`
+    training phrasing exactly (`_FACE_DIRECTION_WORDS`): "a screw boss on
+    {the top|the bottom|the +x|the -x|the +y|the -y} face: NNmm diameter,
+    NNmm tall, with a NNmm bore through the middle". Added specifically
+    because program_model.py's statistical path, confirmed live, correctly
+    recognizes "screw boss" but regresses `direction` to an arbitrary face
+    instead of the one actually named in the text -- an "unexplained
+    protruding cylinder" on the wrong side of the part. Resolving this
+    deterministically from the literal face word removes that guess
+    entirely for exactly this phrasing."""
+    if base.op != "add_box":
+        return None
+    # Bore clause required, not optional -- the training phrasing this
+    # mirrors always includes one, and guessing a bore_radius this file
+    # never saw stated would violate this module's own "never guess"
+    # discipline; a boss described without a bore clause falls back to
+    # the statistical path instead, same as any other unrecognized text.
+    m = re.search(
+        rf"screw boss on (?:the\s*)?(top|bottom|\+x|-x|\+y|-y)\s*face\s*:\s*{_NUM}\s*mm\s*diameter,\s*{_NUM}\s*mm\s*tall"
+        rf",\s*with\s*a\s*{_NUM}\s*mm\s*bore\s*through\s*the\s*middle",
+        text, re.IGNORECASE,
+    )
+    if not m:
+        return None
+    direction = _FACE_WORD_TO_DIRECTION[m.group(1).lower()]
+    boss_diameter, boss_height, bore_diameter = float(m.group(2)), float(m.group(3)), float(m.group(4))
+    return [{"op": "add_boss_with_bore", "args": {
+        "direction": direction, "offset_u": 0.0, "offset_v": 0.0,
+        "boss_radius": boss_diameter / 2.0, "boss_height": boss_height, "bore_radius": bore_diameter / 2.0,
+    }}]
+
+
 _FEATURE_RESOLVERS = [
     _feature_chamfer_box_edges,
     _feature_round_box_edges,
     _feature_corner_array_holes,
     _feature_bolt_circle_holes,
+    _feature_screw_boss_with_bore,
     _feature_through_hole,
 ]
 

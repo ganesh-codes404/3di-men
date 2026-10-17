@@ -7,6 +7,8 @@ primitive (a solid sphere) because the WHOLE combined sentence had never
 been seen as a trained example, even though each individual piece (a box,
 a cylinder, a hole through it, a stepped section) is ordinary on its own."""
 
+import pytest
+
 from compositional_decomposer import compose_program_from_description
 
 
@@ -127,6 +129,43 @@ def test_cylinder_hole_through_it_uses_the_cylinders_own_axis():
     hole = _args(program, "drill_hole")
     assert hole["radius"] == 3.0
     assert hole["axis"] == "z"
+
+
+def test_screw_boss_with_bore_resolves_the_stated_face_not_a_regressed_one():
+    """Real failure from the audit: program_model.py correctly recognizes
+    "screw boss" (it IS a trained pattern -- data/program_dataset.py's
+    _pattern_boss_with_bore) but regresses `direction` to an arbitrary
+    face instead of the one actually named in the text -- an "unexplained
+    protruding cylinder" on the wrong side. This exact phrasing (matching
+    that training generator's own text) must resolve deterministically to
+    the stated face."""
+    text = "a box 42mm x 42mm x 5mm with a screw boss on the top face: 22mm diameter, 6mm tall, with a 5mm bore through the middle"
+    program = compose_program_from_description(text)
+    assert program is not None
+    assert _ops(program) == ["add_box", "add_boss_with_bore", "finalize"]
+    boss = _args(program, "add_boss_with_bore")
+    assert boss["direction"] == "+z"
+    assert boss["boss_radius"] == 11.0
+    assert boss["boss_height"] == 6.0
+    assert boss["bore_radius"] == 2.5
+
+
+@pytest.mark.parametrize("face_word,expected_dir", [
+    ("top", "+z"), ("bottom", "-z"), ("+x", "+x"), ("-x", "-x"), ("+y", "+y"), ("-y", "-y"),
+])
+def test_screw_boss_with_bore_covers_every_face_direction(face_word, expected_dir):
+    text = f"a box 42mm x 42mm x 5mm with a screw boss on the {face_word} face: 22mm diameter, 6mm tall, with a 5mm bore through the middle"
+    program = compose_program_from_description(text)
+    assert program is not None
+    assert _args(program, "add_boss_with_bore")["direction"] == expected_dir
+
+
+def test_screw_boss_without_a_bore_clause_falls_back_rather_than_guessing():
+    """No training example or worked prompt ever omits the bore -- never
+    invent a bore_radius this module was never told, consistent with its
+    own "never guess" discipline. Falls back to the statistical path."""
+    text = "a box 42mm x 42mm x 5mm with a screw boss on the top face: 22mm diameter, 6mm tall"
+    assert compose_program_from_description(text) is None
 
 
 def test_flange_bolt_circle_holes_on_a_cylinder_base():

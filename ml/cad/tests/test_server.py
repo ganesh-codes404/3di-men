@@ -133,3 +133,34 @@ def test_api_execute_programs_reports_a_failing_entity_without_dropping_the_othe
     assert statuses["Good"] == "ok"
     assert statuses["Bad"] == "rejected"
     assert data["assembly_mesh_url"] is not None  # the good entity alone still forms a combined assembly
+
+
+def test_parse_point_program_override_roundtrips_plain_dicts():
+    program = server._parse_point_program_override([
+        {"op": "add_box", "args": {"length": 10, "width": 10, "height": 10, "center": [0, 0, 0]}},
+        {"op": "finalize", "args": {"target": 0}},
+    ])
+    assert program == [
+        {"op": "add_box", "args": {"length": 10, "width": 10, "height": 10, "center": [0, 0, 0]}},
+        {"op": "finalize", "args": {"target": 0}},
+    ]
+
+
+def test_parse_point_program_override_returns_none_when_absent():
+    # None (not []) distinguishes "nothing was sent" from "sent as an
+    # empty program" -- see ActionablePoint.program_override's own
+    # docstring for why that distinction matters to parallel_builder.py.
+    assert server._parse_point_program_override(None) is None
+
+
+def test_parse_point_program_override_skips_malformed_steps():
+    program = server._parse_point_program_override([
+        {"op": "add_box", "args": {"length": 10}},
+        {"args": {"length": 10}},  # missing "op" entirely -- skipped
+        "not even a dict",  # skipped
+        {"op": "finalize"},  # missing "args" -- defaults to {}
+    ])
+    assert program == [
+        {"op": "add_box", "args": {"length": 10}},
+        {"op": "finalize", "args": {}},
+    ]

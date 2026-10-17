@@ -103,6 +103,30 @@ def _parse_rotation(raw) -> tuple[float, float, float]:
     return (0.0, 0.0, 0.0)
 
 
+def _parse_point_program_override(raw_program) -> list[dict] | None:
+    """Plain {"op":..., "args":{...}} dicts, deliberately NOT sandbox.ToolCall
+    objects -- ActionablePoint.program_override stays a plain, JSON/pickle-
+    -friendly value, consistent with every other ActionablePoint field, and
+    keeps llm_decompose.py (which this type lives in) with zero dependency
+    on sandbox.py's tool-call type, matching this project's own standing
+    "the LLM/decomposition layer never touches CAD types directly" rule.
+    None (not an empty list) when no program was sent at all -- a point
+    edited to have an EMPTY program is a different, deliberate thing
+    (handled further down) from "nothing was ever provided."""
+    if raw_program is None:
+        return None
+    program = []
+    for item in raw_program:
+        if not isinstance(item, dict):
+            continue
+        op = str(item.get("op", "")).strip()
+        if not op:
+            continue
+        args = item.get("args")
+        program.append({"op": op, "args": args if isinstance(args, dict) else {}})
+    return program
+
+
 def _parse_manual_points(raw_points) -> list[ActionablePoint]:
     """Parses the playground's hand-edited/hand-added parts list -- the
     user-facing counterpart to llm_decompose's own point list, built the
@@ -117,7 +141,10 @@ def _parse_manual_points(raw_points) -> list[ActionablePoint]:
         description = str(item.get("description", "")).strip()
         if not description:
             continue
-        points.append(ActionablePoint(description=description, position_mm=_parse_position(item.get("position_mm"))))
+        points.append(ActionablePoint(
+            description=description, position_mm=_parse_position(item.get("position_mm")),
+            program_override=_parse_point_program_override(item.get("program_override")),
+        ))
     return points
 
 
@@ -194,6 +221,13 @@ def api_build():
             # TF-IDF/classifier guess) -- disclosed so a caller can tell a
             # literally-parsed program apart from a guessed one.
             "resolution_method": p.resolution_method,
+            # Feature validation (spec_validation.py's hole-count check) --
+            # GeometryReport.detected_hole_count was already computed by
+            # Sandbox.execute() on every build but discarded by every
+            # caller before this; claimed_hole_count is None when the
+            # description made no hole claim at all.
+            "claimed_hole_count": p.claimed_hole_count,
+            "detected_hole_count": p.detected_hole_count,
         }
         for p in result.points
     ]
@@ -221,6 +255,12 @@ def api_build():
         # "" (never fabricated) when it found nothing or is disabled. See
         # knowledge/pipeline.py's retrieve_context_for_prompt.
         "knowledge_context": getattr(result, "knowledge_context", "") or "",
+        # Confirmed real gap this closes: no assembly-level check anywhere
+        # previously caught two independently-placed parts ending up
+        # stacked on/inside each other -- see parallel_builder.py's
+        # _find_collisions/mesh_quality.bounding_box_overlap_fraction.
+        # Always a list, empty when nothing was flagged.
+        "collision_warnings": getattr(result, "collision_warnings", []),
     })
 
 

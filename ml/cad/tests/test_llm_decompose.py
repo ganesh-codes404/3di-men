@@ -8,6 +8,7 @@ import json
 
 import pytest
 
+from assembly_plan import Relationship
 from llm_decompose import (
     DEFAULT_MODEL_PATH,
     _POINTS_JSON_SCHEMA,
@@ -520,6 +521,77 @@ def test_correct_gear_mesh_spacing_leaves_mismatched_modules_untouched():
 
 def test_correct_gear_mesh_spacing_is_a_no_op_without_exactly_two_gears():
     points = [ActionablePoint("a gear profile, module 2, 16 teeth", (0.0, 0.0, 0.0))]
+    assert _correct_gear_mesh_spacing(points) == points
+
+
+def test_correct_gear_mesh_spacing_still_fires_when_gears_use_relationships():
+    """Regression test for a confirmed real bug: once a housing is also
+    present, _SYSTEM_PROMPT's own Example 5 teaches each gear to be
+    concentric_with its own shaft, which used to disable this corrector
+    entirely (relationship is not None for both gears) -- meaning the exact
+    assemblies this project most wants right (a housing-mounted gear train)
+    were the ones left uncorrected. Each gear's real position_mm is only a
+    placeholder when a relationship is set (see ActionablePoint.relationship's
+    own docstring) -- correcting the chain's free anchor point instead of the
+    gear's own placeholder is safe and should still apply the formula."""
+    points = [
+        ActionablePoint("a box 120mm x 80mm x 60mm", (0.0, 0.0, 0.0), id="housing"),
+        ActionablePoint(
+            "a cylinder 20mm diameter, 10mm tall", (0.0, 0.0, 0.0), id="boss_A",
+            relationship=Relationship(kind="attached_to_face", target_id="housing", face="+y"),
+        ),
+        ActionablePoint(
+            "a cylinder 10mm diameter, 70mm long", (0.0, 0.0, 0.0), id="shaft_A",
+            relationship=Relationship(kind="concentric_with", target_id="boss_A", axis="y"),
+        ),
+        ActionablePoint(
+            "a gear profile, module 2.5, 24 teeth", (0.0, 0.0, 0.0), id="gear_A",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_A", axis="y"),
+        ),
+        # the second, parallel shaft -- plain position_mm, no relationship,
+        # deliberately placed at the WRONG distance (40mm) to confirm the
+        # corrector actually moves it
+        ActionablePoint("a cylinder 10mm diameter, 70mm long", (40.0, 0.0, 0.0), id="shaft_B"),
+        ActionablePoint(
+            "a gear profile, module 2.5, 36 teeth", (40.0, 0.0, 0.0), id="gear_B",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_B", axis="y"),
+        ),
+    ]
+    corrected = _correct_gear_mesh_spacing(points)
+    expected = 2.5 * (24 + 36) / 2  # 75mm
+
+    by_id = {p.id: p for p in corrected}
+    assert by_id["shaft_B"].position_mm == (expected, 0.0, 0.0)
+    # the housing/boss/shaft/gear chain anchoring gear_A is untouched
+    assert by_id["housing"].position_mm == (0.0, 0.0, 0.0)
+    assert by_id["boss_A"].position_mm == (0.0, 0.0, 0.0)
+    assert by_id["shaft_A"].position_mm == (0.0, 0.0, 0.0)
+    assert by_id["gear_A"].position_mm == (0.0, 0.0, 0.0)
+    # id/relationship must survive the rebuild on every point, not just the
+    # moved ones (a confirmed separate real bug: the old rebuild dropped
+    # both fields unconditionally, risking dangling target_id references)
+    for p in corrected:
+        assert p.id == by_id[p.id].id
+    assert by_id["gear_B"].relationship.target_id == "shaft_B"
+    assert by_id["shaft_A"].relationship.target_id == "boss_A"
+
+
+def test_correct_gear_mesh_spacing_leaves_a_shared_anchor_untouched():
+    """Both gears attached directly to the SAME housing (no per-gear shaft)
+    have no unambiguous single point to shift -- this must be left
+    uncorrected rather than guessed at, exactly like the pre-existing
+    3+-gears and mismatched-modules bail-outs."""
+    points = [
+        ActionablePoint("a box 100mm x 100mm x 100mm", (0.0, 0.0, 0.0), id="housing"),
+        ActionablePoint(
+            "a gear profile, module 2.5, 14 teeth", (0.0, 0.0, 0.0), id="gear_A",
+            relationship=Relationship(kind="attached_to_face", target_id="housing", face="+x"),
+        ),
+        ActionablePoint(
+            "a gear profile, module 2.5, 22 teeth", (0.0, 0.0, 0.0), id="gear_B",
+            relationship=Relationship(kind="attached_to_face", target_id="housing", face="-x"),
+        ),
+    ]
     assert _correct_gear_mesh_spacing(points) == points
 
 

@@ -434,6 +434,39 @@ def measure_wall_thickness_deviation(
     return float(np.percentile(deviation, 90))
 
 
+def bounding_box_overlap_fraction(mesh_a: trimesh.Trimesh, mesh_b: trimesh.Trimesh) -> float:
+    """How much two ALREADY WORLD-PLACED meshes' axis-aligned bounding boxes
+    overlap, as a fraction of the SMALLER mesh's own bbox volume (0 = no
+    overlap, 1 = the smaller one's bbox is fully contained in the larger
+    one's). Deliberately AABB-vs-AABB, not a real mesh boolean intersection:
+    this project's own existing CSG machinery (Sandbox.boolean_intersection)
+    is exact but expensive and can itself fail on near-degenerate inputs;
+    for a coarse "did two independent parts end up stacked on top of each
+    other" check, a bounding-box estimate is far cheaper and -- for the
+    actual failure mode this exists to catch (two parts resolved to the
+    ~same position, confirmed real via the gear-mesh-spacing audit) --
+    just as decisive, since that failure produces near-total AABB overlap,
+    not a borderline case this coarser measure could miss.
+
+    Deliberately NOT used to flag every pair of parts in an assembly --
+    see parallel_builder.py's own caller for why parts connected by a
+    relationship (a shaft through a boss's bore, a boss into a housing
+    wall) are excluded before this ever runs: those are DESIGNED to have
+    one bbox almost entirely inside the other, which this coarse check
+    cannot distinguish from a genuine collision. It is only meaningful
+    between parts with no relationship connecting them."""
+    lo = np.maximum(mesh_a.bounds[0], mesh_b.bounds[0])
+    hi = np.minimum(mesh_a.bounds[1], mesh_b.bounds[1])
+    overlap_extent = np.maximum(hi - lo, 0.0)
+    overlap_volume = float(overlap_extent[0] * overlap_extent[1] * overlap_extent[2])
+    vol_a = float(np.prod(mesh_a.bounds[1] - mesh_a.bounds[0]))
+    vol_b = float(np.prod(mesh_b.bounds[1] - mesh_b.bounds[0]))
+    smaller_volume = min(vol_a, vol_b)
+    if smaller_volume <= 0.0:
+        return 0.0
+    return overlap_volume / smaller_volume
+
+
 def mesh_topology_stats(mesh: trimesh.Trimesh) -> dict:
     """Plain-dict, JSON-ready summary of a mesh's polygon topology -- the
     numbers this project's build tools have always computed internally to

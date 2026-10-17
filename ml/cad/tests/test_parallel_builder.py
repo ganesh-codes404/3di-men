@@ -248,3 +248,114 @@ def test_point_build_result_carries_a_real_correctness_to_spec_check(tiny_bundle
             assert p.dimension_match_rate is not None
             assert 0.0 <= p.dimension_match_rate <= 1.0
             assert isinstance(p.unmatched_dimensions_mm, list)
+
+
+def test_collision_warning_flags_two_siblings_resolved_to_the_same_position(tiny_bundle_path):
+    """Confirmed real gap this closes: nothing previously caught two
+    independently-placed parts ending up stacked on top of each other --
+    the exact shape of the gear-mesh-spacing bug this project already
+    fixed once elsewhere (see llm_decompose._correct_gear_mesh_spacing).
+    Two cylinders with NO relationship connecting them, both at the
+    identical position, must be flagged."""
+    points = [
+        ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0), id="a"),
+        ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0), id="b"),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    assert any("'a'" in w and "'b'" in w for w in result.collision_warnings)
+
+
+def test_collision_warning_does_not_false_positive_on_correctly_spaced_parts(tiny_bundle_path):
+    points = [
+        ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0), id="a"),
+        ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(200.0, 0.0, 0.0), id="b"),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    assert result.collision_warnings == []
+
+
+def test_collision_warning_excludes_relationship_connected_parts(tiny_bundle_path):
+    """A shaft concentric_with a boss's bore is SUPPOSED to sit almost
+    entirely inside the boss's own bounding box -- must never be flagged,
+    since that's this project's own most common, intentional placement
+    pattern, not a bug."""
+    from assembly_plan import Relationship
+
+    points = [
+        ActionablePoint(description="a cylinder 20mm diameter, 10mm tall", position_mm=(0.0, 0.0, 0.0), id="boss"),
+        ActionablePoint(
+            description="a cylinder 10mm diameter, 70mm long", position_mm=(0.0, 0.0, 0.0), id="shaft",
+            relationship=Relationship(kind="concentric_with", target_id="boss", axis="y"),
+        ),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    assert result.collision_warnings == []
+
+
+def test_relationship_connected_walks_transitive_chains_in_either_direction():
+    from assembly_plan import Relationship
+    from parallel_builder import _relationship_connected
+
+    relationships = {
+        "housing": None,
+        "boss": Relationship(kind="attached_to_face", target_id="housing", face="+y"),
+        "shaft": Relationship(kind="concentric_with", target_id="boss", axis="y"),
+        "gear": Relationship(kind="concentric_with", target_id="shaft", axis="y"),
+        "unrelated": None,
+    }
+    assert _relationship_connected("gear", "housing", relationships) is True  # 3 hops
+    assert _relationship_connected("housing", "gear", relationships) is True  # same chain, other direction
+    assert _relationship_connected("boss", "shaft", relationships) is True
+    assert _relationship_connected("gear", "unrelated", relationships) is False
+
+
+def test_find_collisions_uses_the_calibrated_threshold():
+    import trimesh
+
+    from parallel_builder import _find_collisions
+
+    stacked_a = trimesh.creation.box([20, 20, 20])
+    stacked_b = trimesh.creation.box([20, 20, 20])
+    far = trimesh.creation.box([20, 20, 20])
+    far.apply_translation([200, 0, 0])
+
+    warnings = _find_collisions({"a": stacked_a, "b": stacked_b, "c": far}, relationships={"a": None, "b": None, "c": None})
+    assert len(warnings) == 1
+    assert "'a'" in warnings[0] and "'b'" in warnings[0]
+
+
+def test_program_override_skips_prediction_and_builds_the_exact_hand_edited_program(tiny_bundle_path):
+    """New editable "Program steps" section (frontend/workspace.html's
+    Prompt tab) -- ActionablePoint.program_override, when set, must bypass
+    compositional_decomposer/program_model prediction ENTIRELY and build
+    exactly the hand-edited program instead, still through the same
+    Sandbox.execute()/repair/validation pipeline a predicted program goes
+    through (confirmed here via a real, measurably different built mesh,
+    not just a resolution_method label). Description deliberately has no
+    "NNmm" claims of its own (just "a box") -- a description claiming
+    different dimensions than the edited program actually builds is a
+    SEPARATE, correctly-firing concern (spec_validation.py's dimension
+    check, confirmed elsewhere), not what this test is isolating."""
+    points = [ActionablePoint(
+        description="a box", position_mm=(0.0, 0.0, 0.0),
+        program_override=[
+            {"op": "add_box", "args": {"length": 99.0, "width": 99.0, "height": 99.0, "center": [0.0, 0.0, 0.0]}},
+            {"op": "finalize", "args": {"target": 0}},
+        ],
+    )]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
+    p = result.points[0]
+    assert p.resolution_method == "user_edited"
+    assert p.status == "ok"
+    # the built geometry reflects the EDITED program (99mm), not whatever
+    # the original description alone would otherwise have predicted
+    assert p.mesh.extents == pytest.approx([99.0, 99.0, 99.0])
+
+
+def test_program_override_none_predicts_exactly_as_before(tiny_bundle_path):
+    """The default (no override) path must be byte-for-byte unaffected by
+    this feature existing -- confirms resolution_method is never
+    "user_edited" when program_override wasn't set at all."""
+    points = [ActionablePoint(description="a box 40mm x 40mm x 10mm", position_mm=(0.0, 0.0, 0.0))]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
+    assert result.points[0].resolution_method != "user_edited"

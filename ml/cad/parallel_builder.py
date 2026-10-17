@@ -21,7 +21,8 @@ import numpy as np
 import trimesh
 
 from llm_decompose import ActionablePoint, decompose_prompt
-from spec_validation import validate_dimensions_against_description
+from mesh_quality import bounding_box_overlap_fraction
+from spec_validation import validate_dimensions_against_description, validate_hole_count_against_description
 
 
 @dataclass
@@ -97,9 +98,16 @@ class PointBuildResult:
     repair_attempts: list[str] = field(default_factory=list)  # every attempt tried, improved or not --
                                                                  # never hidden, even a failed one
     resolution_method: str = "statistical"  # "compositional" (compositional_decomposer.py's deterministic
-        # clause-by-clause resolution) or "statistical" (program_model.py's TF-IDF/classifier prediction) --
-        # disclosed, not hidden, same discipline as in_distribution/dimension_match_rate: a caller should be
-        # able to tell a literally-parsed program apart from a guessed one.
+        # clause-by-clause resolution), "statistical" (program_model.py's TF-IDF/classifier prediction), or
+        # "user_edited" (ActionablePoint.program_override -- prediction skipped entirely, the user's own
+        # hand-edited program ran instead) -- disclosed, not hidden, same discipline as
+        # in_distribution/dimension_match_rate: a caller should be able to tell a literally-parsed program,
+        # a guessed one, and a hand-edited one apart.
+    claimed_hole_count: int | None = None  # spec_validation.py's hole-count check -- None when the
+        # description made no hole claim at all (not the same as a confirmed match -- see detected_hole_count)
+    detected_hole_count: int | None = None  # evaluation/geometry_eval.py's GeometryReport, computed by every
+        # build already but previously discarded by every caller. None when no mesh was built to check, OR
+        # (its own disclosed scope) the detector only recognizes vertical, axis-aligned, watertight features.
 
 
 @dataclass
@@ -111,6 +119,12 @@ class AssemblyBuildResult:
     knowledge_context: str = ""  # the engineering-reference text actually retrieved and shown to the
                                   # model for this prompt, if any (see llm_decompose.DecomposeResult) --
                                   # "" for the manual-points path too, which never calls decompose_prompt
+    collision_warnings: list[str] = field(default_factory=list)  # confirmed real gap this closes: no
+        # assembly-level check anywhere previously caught two independently-placed parts ending up
+        # stacked on/inside each other (the exact shape of the gear-mesh-spacing bug this project
+        # already fixed once) -- see bounding_box_overlap_fraction's own docstring for why this is
+        # scoped to parts with NO relationship connecting them (a shaft through a boss's bore is
+        # SUPPOSED to have one bbox almost entirely inside the other).
 
 
 _worker_bundle: Any = None  # per-process cache -- loaded once per worker, not once per point
@@ -123,31 +137,46 @@ def _init_worker(bundle_path: str) -> None:
     _worker_bundle = ProgramModelBundle.load(Path(bundle_path))
 
 
-def _build_one(description: str) -> dict:
+def _build_one(args: tuple[str, "list[dict] | None"]) -> dict:
     """Runs in a worker process. Returns a plain dict (not a dataclass with
     a trimesh payload attached) plus the mesh separately as exported bytes,
     since ProcessPoolExecutor results must round-trip through pickling --
     trimesh.Trimesh pickles fine, but keeping the boundary explicit here
-    documents that this crosses a process boundary."""
+    documents that this crosses a process boundary.
+
+    `args` is (description, program_override) -- see
+    ActionablePoint.program_override's own docstring. When an override is
+    given, prediction is skipped entirely and THIS program is run instead,
+    still through the exact same repair/validation pipeline every
+    predicted program goes through."""
+    description, program_override = args
     from compositional_decomposer import compose_program_from_description
     from program_model import ProgramPrediction, predict_program_checked
     from repair import execute_with_bounded_repair
+    from sandbox import ToolCall
 
-    # Try the general, deterministic clause-by-clause composer FIRST --
-    # see compositional_decomposer.py's module docstring for why this is
-    # the general fix (coverage by combination, not by trained whole-
-    # sentence example) rather than a patch for any one failure case. It
-    # returns None for anything it doesn't recognize (never a forced
-    # guess), in which case this falls back to the existing statistical
-    # path completely unchanged -- every description that path already
-    # handled continues to go through it exactly as before.
-    compositional_program = compose_program_from_description(description)
-    if compositional_program is not None:
-        prediction = ProgramPrediction(program=compositional_program, nearest_neighbor_similarity=1.0, in_distribution=True)
-        resolution_method = "compositional"
+    if program_override is not None:
+        prediction = ProgramPrediction(
+            program=[ToolCall(op=step["op"], args=dict(step["args"])) for step in program_override],
+            nearest_neighbor_similarity=1.0, in_distribution=True,
+        )
+        resolution_method = "user_edited"
     else:
-        prediction = predict_program_checked(_worker_bundle, description)
-        resolution_method = "statistical"
+        # Try the general, deterministic clause-by-clause composer FIRST --
+        # see compositional_decomposer.py's module docstring for why this is
+        # the general fix (coverage by combination, not by trained whole-
+        # sentence example) rather than a patch for any one failure case. It
+        # returns None for anything it doesn't recognize (never a forced
+        # guess), in which case this falls back to the existing statistical
+        # path completely unchanged -- every description that path already
+        # handled continues to go through it exactly as before.
+        compositional_program = compose_program_from_description(description)
+        if compositional_program is not None:
+            prediction = ProgramPrediction(program=compositional_program, nearest_neighbor_similarity=1.0, in_distribution=True)
+            resolution_method = "compositional"
+        else:
+            prediction = predict_program_checked(_worker_bundle, description)
+            resolution_method = "statistical"
 
     # Section 8's bounded repair loop, not a bare Sandbox.execute() call --
     # see repair.py's own module docstring for exactly what's (safely)
@@ -177,6 +206,11 @@ def _build_one(description: str) -> dict:
         "repair_applied": repaired.was_repaired,
         "repair_attempts": [a.description for a in repaired.attempts],
         "resolution_method": resolution_method,
+        # Already computed by Sandbox.execute() on every build -- previously
+        # discarded here (confirmed by grepping the whole repo: nothing
+        # outside sandbox.py itself ever read result.geometry_report before
+        # this). detected_hole_count feeds the new hole-count check below.
+        "geometry_report": result.geometry_report.as_dict() if result.geometry_report is not None else None,
     }
 
 
@@ -213,7 +247,7 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
     is already resolved) build in parallel within their own wave, exactly
     as before -- most real assemblies are 1-2 waves deep, so this rarely
     costs more than the fully-parallel version did."""
-    from assembly_plan import RelationshipError, order_by_dependency, resolve_position, validate_relationships
+    from assembly_plan import RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg, validate_relationships
 
     ids = _unique_point_ids(points)
     id_to_point = dict(zip(ids, points))
@@ -242,11 +276,12 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
             if not wave:
                 continue
             wave_points = [id_to_point[pid] for pid in wave]
-            raw_results = list(pool.map(_build_one, [p.description for p in wave_points]))
+            raw_results = list(pool.map(_build_one, [(p.description, p.program_override) for p in wave_points]))
 
             for pid, point, raw in zip(wave, wave_points, raw_results):
                 own_mesh, status, error = raw["mesh"], raw["status"], raw["error"]
                 position_mm = point.position_mm
+                rotation_deg = (0.0, 0.0, 0.0)
 
                 if own_mesh is not None and point.relationship is not None:
                     target_mesh = placed_meshes_by_id.get(point.relationship.target_id)
@@ -258,8 +293,37 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                     else:
                         try:
                             position_mm = resolve_position(point.relationship, target_mesh, own_mesh)
+                            # resolve_position only computes WHERE a part's center
+                            # belongs -- a cylinder/gear/capsule/etc built along its
+                            # own default local Z axis (sandbox.py's convention)
+                            # otherwise stays pointing along Z even when
+                            # concentric_with/attached_to_face says it should run
+                            # along x or y, which is exactly the confirmed real bug
+                            # behind "a shaft floats beside its housing instead of
+                            # running through it" -- the center lands right, the
+                            # part itself is still oriented wrong.
+                            rotation_deg = resolve_rotation_deg(point.relationship)
                         except RelationshipError as exc:
                             status, error, own_mesh = "rejected", f"RelationshipError: {exc}", None
+
+                # Confirmed real bug these two checks close together:
+                # dimension_match_rate/hole-count data was already computed
+                # correctly on every build but never gated anything -- a
+                # part whose built geometry didn't match ANY of its own
+                # stated dimensions, or had the wrong number of holes, could
+                # still come back status="ok" (a purely structural check:
+                # watertight + positive volume, with no concept of
+                # "correct"). The frontend never displayed either field,
+                # so the mismatch was completely invisible -- the exact
+                # "silent approximation" failure mode this project
+                # otherwise explicitly designs against (sandbox.py's own
+                # typed statuses, this point's own out_of_distribution
+                # flag, etc.). Reusing "suspect" (not a new status) keeps
+                # this additive: every existing consumer of the status enum
+                # already has to handle it. Collected into one list so a
+                # part that fails BOTH checks discloses both, not just
+                # whichever ran first.
+                problems: list[str] = []
 
                 dimension_match_rate = None
                 unmatched_dimensions_mm: list[float] = []
@@ -268,6 +332,30 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                     if dim_report.claims:  # None (not 1.0) when the description had no numeric claims at all
                         dimension_match_rate = dim_report.match_rate
                         unmatched_dimensions_mm = dim_report.unmatched_claims_mm
+                        if dimension_match_rate < 1.0:
+                            mismatch_desc = ", ".join(f"{d:g}mm" for d in unmatched_dimensions_mm)
+                            problems.append(f"built geometry doesn't match the description's own stated dimensions ({mismatch_desc})")
+
+                # Feature validation (hole count) -- same wiring principle as
+                # above: GeometryReport.detected_hole_count was already
+                # computed by Sandbox.execute() on every build (see
+                # _build_one's own "geometry_report" field), just never
+                # checked against anything until now.
+                claimed_hole_count = None
+                detected_hole_count = None
+                if own_mesh is not None:
+                    hole_report = validate_hole_count_against_description(point.description, raw.get("geometry_report"))
+                    claimed_hole_count = hole_report.claimed_count
+                    detected_hole_count = hole_report.detected_count
+                    if not hole_report.matched:
+                        problems.append(
+                            f"description claims {hole_report.claimed_count} hole(s), detector found "
+                            f"{hole_report.detected_count} ({hole_report.detector_limitation})"
+                        )
+
+                if status == "ok" and problems:
+                    status = "suspect"
+                    error = "; ".join(problems)
 
                 point_results[pid] = PointBuildResult(
                     point=ActionablePoint(description=point.description, position_mm=position_mm, id=pid, relationship=point.relationship),
@@ -277,6 +365,7 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                     dimension_match_rate=dimension_match_rate, unmatched_dimensions_mm=unmatched_dimensions_mm,
                     repair_applied=raw.get("repair_applied", False), repair_attempts=raw.get("repair_attempts", []),
                     resolution_method=raw.get("resolution_method", "statistical"),
+                    claimed_hole_count=claimed_hole_count, detected_hole_count=detected_hole_count,
                 )
                 # "out_of_distribution" and "suspect" still carry a mesh (a
                 # guess, or a geometrically dubious result) -- included in
@@ -287,13 +376,80 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                 # left out, and even then the point is still reported,
                 # never dropped from the response entirely.
                 if own_mesh is not None:
-                    placed = PlacementTransform.translation(position_mm).apply_to_mesh(own_mesh)
+                    # Rotate about the part's own local origin FIRST (where
+                    # it was actually built), then translate into its final
+                    # world position -- an all-zero rotation_deg (the
+                    # no-relationship case, same as before) reduces exactly
+                    # to the prior translation-only behavior.
+                    transform = PlacementTransform.translation(position_mm).compose(PlacementTransform.rotation(rotation_deg))
+                    placed = transform.apply_to_mesh(own_mesh)
                     placed_meshes_by_id[pid] = placed
 
     ordered_results = [point_results[pid] for pid in ids]
     placed_meshes = [placed_meshes_by_id[pid] for pid in ids if pid in placed_meshes_by_id]
     combined = trimesh.util.concatenate(placed_meshes) if placed_meshes else None
-    return AssemblyBuildResult(mesh=combined, points=ordered_results, fell_back_to_single_point=False)
+
+    collision_warnings = _find_collisions(placed_meshes_by_id, relationships)
+    return AssemblyBuildResult(
+        mesh=combined, points=ordered_results, fell_back_to_single_point=False,
+        collision_warnings=collision_warnings,
+    )
+
+
+def _relationship_connected(pid_a: str, pid_b: str, relationships: dict) -> bool:
+    """True if either part's relationship chain (direct or transitive)
+    reaches the other -- these pairs are DESIGNED to have one bbox nearly
+    or fully inside the other (a shaft through a boss's bore, a boss into
+    a housing wall) and must be excluded from the collision check below,
+    which cannot otherwise tell that apart from a real collision."""
+
+    def chain_reaches(start: str, target: str) -> bool:
+        seen: set[str] = set()
+        cur = start
+        while cur not in seen:
+            if cur == target:
+                return True
+            seen.add(cur)
+            rel = relationships.get(cur)
+            if rel is None:
+                return False
+            cur = rel.target_id
+        return False  # cycle guard -- validate_relationships already rejects real cycles upstream
+
+    return chain_reaches(pid_a, pid_b) or chain_reaches(pid_b, pid_a)
+
+
+def _find_collisions(placed_meshes_by_id: dict, relationships: dict, threshold: float = 0.3) -> list[str]:
+    """Confirmed real gap this closes (previously: nowhere in this pipeline
+    checked for unintended overlap between independently-placed parts) --
+    see AssemblyBuildResult.collision_warnings and
+    mesh_quality.bounding_box_overlap_fraction's own docstrings for the
+    full reasoning. Deliberately scoped to pairs with NO relationship
+    connecting them: a shaft concentric_with a boss's bore is SUPPOSED to
+    sit almost entirely inside the boss's own bounding box, which this
+    coarse AABB check cannot distinguish from a genuine collision, so
+    those pairs are excluded rather than producing constant false alarms
+    on exactly the placement pattern this project relies on most.
+
+    threshold=0.3 chosen from real calibration, not guessed: two gears
+    correctly meshing at their tooth tips overlap by ~5-10% of the smaller
+    gear's own bounding-box volume; the actual confirmed bug this project
+    already fixed once (two gears resolved to the identical position)
+    overlaps by 100%. 0.3 sits comfortably between the two."""
+    warnings: list[str] = []
+    ids = list(placed_meshes_by_id.keys())
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            id_a, id_b = ids[i], ids[j]
+            if _relationship_connected(id_a, id_b, relationships):
+                continue
+            overlap = bounding_box_overlap_fraction(placed_meshes_by_id[id_a], placed_meshes_by_id[id_b])
+            if overlap > threshold:
+                warnings.append(
+                    f"{id_a!r} and {id_b!r} overlap by {overlap:.0%} of the smaller part's bounding "
+                    "box, with no relationship between them explaining it -- check placement"
+                )
+    return warnings
 
 
 def build_assembly_from_prompt(prompt: str, bundle_path: Path, max_workers: int = 4) -> AssemblyBuildResult:

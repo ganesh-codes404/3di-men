@@ -278,6 +278,27 @@
   .step-cat-dot.cat-consumes_two { background: var(--ok); }
   .step-cat-dot.cat-consumes_target { background: var(--warn); }
 
+  .dim-mismatch {
+    font-size: 11px; color: var(--warn); background: var(--warn-bg); border: 1px solid var(--warn);
+    border-radius: 6px; padding: 5px 8px; line-height: 1.4;
+  }
+  .part-error { font-size: 11px; color: var(--bad); line-height: 1.4; }
+
+  .program-section { margin-top: 2px; }
+  .program-toggle {
+    background: transparent; border: none; color: var(--text-faint); cursor: pointer;
+    font-size: 10.5px; padding: 2px 0; text-align: left; width: 100%;
+  }
+  .program-toggle:hover { color: var(--text-dim); }
+  .program-steps { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+  .program-step { align-items: flex-start !important; }
+  .program-step-args {
+    flex: 1; min-width: 0; background: var(--bg-input); color: var(--text); border: 1px solid var(--border-soft);
+    border-radius: 5px; padding: 4px 6px; font-family: var(--font-mono); font-size: 10.5px; resize: vertical;
+  }
+  .program-step-args:focus { outline: none; border-color: var(--accent); }
+  .program-step-args-error { border-color: var(--bad) !important; }
+
   .topo-chips { display: flex; flex-wrap: wrap; gap: 5px; }
   .chip {
     font-size: 10px; color: var(--text-faint); background: var(--bg-input); border: 1px solid var(--border-soft);
@@ -431,6 +452,8 @@
       <div class="card-title">Assembly topology</div>
       <div class="stat-grid" id="assemblyTopoGrid"></div>
     </div>
+
+    <div id="collisionWarnings"></div>
 
     <div class="card" id="partsCard">
       <div class="card-title">Parts — edit, add, or reposition, then rebuild</div>
@@ -839,6 +862,27 @@ function statusBadge(status) {
   return `<span class="badge-status ${status}">${labels[status] || status}</span>`;
 }
 
+function dimensionMismatchNote(part) {
+  // Only something to show once a real check ran (dimension_match_rate is
+  // null when the description had no "NNmm" claims to check at all) AND
+  // it found a problem -- a fully-matching part stays visually quiet,
+  // same as a clean topology chip set.
+  if (part.dimension_match_rate == null || part.dimension_match_rate >= 1.0) return '';
+  const pct = Math.round(part.dimension_match_rate * 100);
+  const mm = (part.unmatched_dimensions_mm || []).map(d => `${d}mm`).join(', ');
+  return `<div class="dim-mismatch">⚠ ${pct}% of stated dimensions matched the built geometry -- unmatched: ${mm}</div>`;
+}
+
+function holeCountMismatchNote(part) {
+  // claimed_hole_count is null when the description made no hole claim at
+  // all; detected_hole_count is null when there was no mesh, or the
+  // detector's own disclosed scope (vertical/axis-aligned features only)
+  // didn't apply -- either way, nothing to flag.
+  if (part.claimed_hole_count == null || part.detected_hole_count == null) return '';
+  if (part.claimed_hole_count === part.detected_hole_count) return '';
+  return `<div class="dim-mismatch">⚠ description claims ${part.claimed_hole_count} hole(s), detector found ${part.detected_hole_count} (hole detection only recognizes vertical, axis-aligned through-features -- may reflect that scope, not necessarily a wrong build)</div>`;
+}
+
 function topoChips(topo) {
   if (!topo) return '';
   const watertight = topo.is_watertight
@@ -865,6 +909,32 @@ function escapeAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
+function renderProgramSteps(part) {
+  // The actual step-by-step tool-call program (op + args) the LLM's
+  // decomposition was turned into -- previously computed by the backend
+  // on every build (program_model.py/compositional_decomposer.py's
+  // prediction) and returned in the /api/build response, but never shown
+  // anywhere in this tab. Each step's args are a raw, directly-editable
+  // JSON object -- simplest honest way to let a user edit ANY argument
+  // of ANY tool call without rebuilding this tab's whole dynamic-arg-
+  // form system a second time (the Tool Console tab already has one, for
+  // hand-authored programs built step by step there instead).
+  if (part.program.length === 0) {
+    return `<div class="console-empty">No program yet -- build this part first.</div>`;
+  }
+  return `
+    <div class="program-steps">
+      ${part.program.map((step, i) => `
+        <div class="console-step program-step">
+          <span class="step-idx">#${i}</span>
+          <span class="step-op">${escapeAttr(step.op)}</span>
+          <textarea class="program-step-args" data-id="${part.id}" data-step-idx="${i}" rows="1" spellcheck="false">${escapeAttr(JSON.stringify(step.args))}</textarea>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 function renderParts() {
   const container = document.getElementById('pointResults');
   container.innerHTML = '';
@@ -884,15 +954,29 @@ function renderParts() {
       </div>
       <div class="row1">${badge}</div>
       ${topoChips(part.topology)}
+      ${dimensionMismatchNote(part)}
+      ${holeCountMismatchNote(part)}
+      ${part.error ? `<div class="part-error">${escapeAttr(part.error)}</div>` : ''}
+      <div class="program-section">
+        <button class="program-toggle" type="button" data-id="${part.id}">
+          ${part.programExpanded ? '▾' : '▸'} Program steps (${part.program.length})${part.programEdited ? ' — edited, not yet rebuilt' : ''}
+        </button>
+        ${part.programExpanded ? renderProgramSteps(part) : ''}
+      </div>
     `;
-    if (part.error) row.title = part.error;
     container.appendChild(row);
   }
 
   container.querySelectorAll('[data-field="description"]').forEach(el => {
     el.addEventListener('input', () => {
       const part = currentParts.find(p => p.id == el.dataset.id);
-      if (part) { part.description = el.value; part.status = null; part.topology = null; }
+      if (!part) return;
+      part.description = el.value; part.status = null; part.topology = null;
+      // A hand-edited program was tuned against the OLD description's own
+      // predicted program -- changing the description implies wanting a
+      // fresh prediction for the new text, not silently keeping geometry
+      // that no longer corresponds to what's written here.
+      if (part.programEdited) { part.programEdited = false; part.program = []; part.programExpanded = false; }
     });
   });
   container.querySelectorAll('[data-field="x"], [data-field="y"], [data-field="z"]').forEach(el => {
@@ -910,6 +994,40 @@ function renderParts() {
       renderParts();
     });
   });
+  container.querySelectorAll('.program-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const part = currentParts.find(p => p.id == btn.dataset.id);
+      if (!part) return;
+      part.programExpanded = !part.programExpanded;
+      renderParts();
+    });
+  });
+  container.querySelectorAll('.program-step-args').forEach(el => {
+    el.addEventListener('change', () => {
+      const part = currentParts.find(p => p.id == el.dataset.id);
+      if (!part) return;
+      const stepIdx = parseInt(el.dataset.stepIdx, 10);
+      let parsedArgs;
+      try {
+        parsedArgs = JSON.parse(el.value);
+      } catch (err) {
+        el.classList.add('program-step-args-error');
+        el.title = 'Not valid JSON: ' + err.message;
+        return;
+      }
+      el.classList.remove('program-step-args-error');
+      el.title = '';
+      part.program[stepIdx].args = parsedArgs;
+      // Marks this part stale (same convention as editing description/
+      // position above) AND tells runManualRebuild() to send this exact
+      // program instead of asking the backend to re-predict one --
+      // parallel_builder.py then runs it through the identical
+      // repair/validation pipeline a predicted program goes through,
+      // just skipping prediction itself (see ActionablePoint.program_override).
+      part.programEdited = true;
+      part.status = null; part.topology = null;
+    });
+  });
 }
 
 function setPartsFromBuildResult(points) {
@@ -920,12 +1038,39 @@ function setPartsFromBuildResult(points) {
     status: p.status,
     topology: p.topology,
     error: p.error,
+    // Previously computed by the backend but never stored or shown here --
+    // a part whose built geometry didn't match ANY of its own stated
+    // dimensions could look identical to a fully correct one in this UI.
+    // dimension_match_rate/resolution_method are disclosed directly now;
+    // status itself is also downgraded server-side when they disagree
+    // (see parallel_builder.py), so this is a second, explicit disclosure
+    // of WHY, not the only signal something's off.
+    dimension_match_rate: p.dimension_match_rate,
+    unmatched_dimensions_mm: p.unmatched_dimensions_mm,
+    repair_applied: p.repair_applied,
+    resolution_method: p.resolution_method,
+    claimed_hole_count: p.claimed_hole_count,
+    detected_hole_count: p.detected_hole_count,
+    // The actual step-by-step tool-call program the LLM's decomposition
+    // was turned into (compositional/statistical prediction, or a prior
+    // user edit) -- previously computed and returned by /api/build but
+    // never shown anywhere in this tab. programEdited starts false on
+    // every fresh build result: a NEW build's own prediction is the
+    // current truth until the user changes it again.
+    program: JSON.parse(JSON.stringify(p.program || [])),
+    programEdited: false,
+    programExpanded: false,
   }));
   renderParts();
 }
 
 document.getElementById('addPartBtn').addEventListener('click', () => {
-  currentParts.push({ id: nextPartId++, description: '', position_mm: [0, 0, 0], status: null, topology: null, error: null });
+  currentParts.push({
+    id: nextPartId++, description: '', position_mm: [0, 0, 0], status: null, topology: null, error: null,
+    dimension_match_rate: null, unmatched_dimensions_mm: [], repair_applied: false, resolution_method: null,
+    claimed_hole_count: null, detected_hole_count: null,
+    program: [], programEdited: false, programExpanded: false,
+  });
   renderParts();
   document.getElementById('partsCard').scrollIntoView({ behavior: 'smooth', block: 'end' });
 });
@@ -967,6 +1112,12 @@ function renderAssemblyTopology(topo) {
   card.style.display = 'flex';
   renderTopologyGrid(document.getElementById('assemblyTopoGrid'), topo);
   updateViewerOverlay(topo, 'Combined mesh');
+}
+
+function renderCollisionWarnings(warnings) {
+  const el = document.getElementById('collisionWarnings');
+  if (!warnings || warnings.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = warnings.map(w => `<div class="dim-mismatch">⚠ ${escapeAttr(w)}</div>`).join('');
 }
 
 /* ---------------- clarify stage ---------------- */
@@ -1012,6 +1163,7 @@ async function requestClarification() {
 async function applyBuildResponse(data) {
   setPartsFromBuildResult(data.points);
   renderAssemblyTopology(data.assembly_topology);
+  renderCollisionWarnings(data.collision_warnings);
   document.getElementById('fallbackNote').style.display = data.fell_back_to_single_point ? 'block' : 'none';
 
   const seconds = data.generation_time_seconds;
@@ -1070,7 +1222,17 @@ async function runBuild(answers) {
 
 async function runManualRebuild() {
   const parts = currentParts
-    .map(p => ({ description: p.description.trim(), position_mm: { x: p.position_mm[0], y: p.position_mm[1], z: p.position_mm[2] } }))
+    .map(p => ({
+      description: p.description.trim(),
+      position_mm: { x: p.position_mm[0], y: p.position_mm[1], z: p.position_mm[2] },
+      // Only sent once the user has actually edited this part's program
+      // (see the "Program steps" section below) -- otherwise undefined,
+      // so the backend predicts it as usual, exactly as before this
+      // feature existed. JSON.stringify drops keys whose value is
+      // undefined, so an unedited part's request body is byte-identical
+      // to before.
+      program_override: p.programEdited ? p.program : undefined,
+    }))
     .filter(p => p.description);
   if (parts.length === 0) { setStatus('Add at least one part with a description first.', true); return; }
 

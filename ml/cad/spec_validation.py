@@ -122,3 +122,73 @@ def validate_dimensions_against_description(
             closest_measured_mm=closest, deviation_fraction=deviation,
         ))
     return report
+
+
+# Feature validation (hole count) -- same scoped-honesty discipline as the
+# dimension check above, not a general feature verifier. Added because
+# GeometryReport.detected_hole_count (evaluation/geometry_eval.py) was
+# already computed by Sandbox.execute() on every build but discarded by
+# every caller (confirmed by grep: nothing outside sandbox.py itself ever
+# read it) -- this wires the data that already existed into an actual
+# check, rather than adding new measurement machinery.
+_HOLE_COUNT_WORDS = {
+    "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+}
+# "<count word/digit> [NNmm [diameter]] hole(s)" -- matches this project's
+# own established phrasings ("a 6mm diameter hole through it", "a corner
+# array of four holes", "four 6.6mm diameter holes, each..."). Deliberately
+# simple/permissive like extract_claimed_dimensions_mm above: a false
+# positive just means one extra claim checked, reported as unmatched if
+# nothing lines up, never a silently wrong pass/fail.
+_HOLE_COUNT_RE = re.compile(r"\b(\w+)\s+(?:[\d.]+\s*mm\s*(?:diameter\s*)?)?holes?\b", re.IGNORECASE)
+
+
+def extract_claimed_hole_count(description: str) -> int | None:
+    """Sums every "<count> ... hole(s)" phrase found (a description can
+    mention more than one group -- a bolt circle AND a separate mounting
+    hole). Returns None when the text mentions no holes at all, distinct
+    from a found total of zero."""
+    total = 0
+    found = False
+    for m in _HOLE_COUNT_RE.finditer(description):
+        word = m.group(1).lower()
+        count = _HOLE_COUNT_WORDS.get(word)
+        if count is None:
+            try:
+                count = int(word)
+            except ValueError:
+                continue
+        total += count
+        found = True
+    return total if found else None
+
+
+@dataclass
+class HoleCountValidationReport:
+    claimed_count: int | None  # None when the description made no hole claim at all
+    detected_count: int | None  # None when no GeometryReport was available to check against
+    matched: bool  # True whenever there was nothing to check (vacuously) OR counts agree exactly
+
+    # detected_hole_count's own disclosed scope (evaluation/geometry_eval.py:
+    # "only understands vertical (Z-axis) cylindrical features on largely
+    # axis-aligned, watertight, extruded parts") -- carried through here so
+    # a caller never treats a mismatch as more certain than it actually is.
+    detector_limitation: str = (
+        "hole detection only recognizes vertical (Z-axis) cylindrical through-features "
+        "on largely axis-aligned, watertight parts -- a mismatch may reflect that scope, "
+        "not necessarily a wrong build"
+    )
+
+
+def validate_hole_count_against_description(
+    description: str, geometry_report: dict | None,
+) -> HoleCountValidationReport:
+    """Never raises, same convention as validate_dimensions_against_description.
+    Exact-count comparison (no tolerance -- a hole count claim is a whole
+    number, there's no meaningful "15% off" for "four holes")."""
+    claimed = extract_claimed_hole_count(description)
+    detected = geometry_report.get("detected_hole_count") if geometry_report else None
+    if claimed is None or detected is None:
+        return HoleCountValidationReport(claimed_count=claimed, detected_count=detected, matched=True)
+    return HoleCountValidationReport(claimed_count=claimed, detected_count=detected, matched=claimed == detected)
