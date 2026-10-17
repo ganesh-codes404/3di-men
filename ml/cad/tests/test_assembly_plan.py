@@ -37,7 +37,15 @@ def test_attached_to_face_different_faces_give_different_positions():
     top_pos = resolve_position(Relationship(kind="attached_to_face", target_id="box", face="+z"), box, dome)
     front_pos = resolve_position(Relationship(kind="attached_to_face", target_id="box", face="+y"), box, plate)
     assert top_pos != front_pos
-    assert top_pos[2] == pytest.approx(17.5 + 7.5)  # box half-height + dome's own half-extent (flat-base convention)
+    # box half-height + 0: add_dome's own local origin IS its flat base (see
+    # resolve_position's own docstring) -- no extra offset beyond the box's
+    # own half-height is needed for the base to land exactly on the face.
+    # (Previously asserted 17.5 + 7.5 = 25.0, a confirmed real bug: that
+    # value baked in a half-dome-height GAP between the box top and the
+    # dome's actual base instead of flush contact -- caught by reproducing
+    # this exact case through the real pipeline, position AND rotation
+    # together, which this isolated assertion never did before.)
+    assert top_pos[2] == pytest.approx(17.5)
     assert front_pos[1] > 0  # pushed out along +y, not left at the box's own center
 
 
@@ -183,7 +191,18 @@ def test_attached_to_face_places_a_triangular_gusset_flush_against_its_target():
     Fixed by centering the "triangle" profile itself
     (_right_triangle_polygon), not by special-casing this shared resolver
     -- confirming that fix end to end here, through the real,
-    UNMODIFIED resolve_position."""
+    UNMODIFIED resolve_position.
+
+    Applies resolve_rotation_deg too, not just resolve_position in
+    isolation -- parallel_builder.py always applies both together for any
+    attached_to_face relationship (resolve_rotation_deg rotates the
+    gusset's own local Z, its 4mm thickness, to align with the face
+    normal), and a SECOND confirmed real bug only shows up once rotation
+    is actually applied: the old position formula used the gusset's
+    in-plane "height" dimension (30mm) as the offset instead of its
+    thickness (4mm), leaving a 13mm gap off the plate's face even though
+    an isolated, no-rotation check of resolve_position alone couldn't see
+    it (that was this test's own prior, misleading setup)."""
     sb = Sandbox()
     plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))
     sb2 = Sandbox()
@@ -192,15 +211,102 @@ def test_attached_to_face_places_a_triangular_gusset_flush_against_its_target():
     # matching every other true primitive (see _right_triangle_polygon)
     assert gusset.bounds.mean(axis=0) == pytest.approx([0.0, 0.0, 0.0])
 
-    pos = resolve_position(Relationship(kind="attached_to_face", target_id="plate", face="+y"), plate, gusset)
-    placed = gusset.copy()
-    placed.apply_translation(pos)
+    from parallel_builder import PlacementTransform
+
+    rel = Relationship(kind="attached_to_face", target_id="plate", face="+y")
+    pos = resolve_position(rel, plate, gusset)
+    rot = resolve_rotation_deg(rel)
+    placed = PlacementTransform.translation(pos).compose(PlacementTransform.rotation(rot)).apply_to_mesh(gusset)
 
     # flush against the plate's +y face (at y=25, since the plate is 50mm
-    # wide, centered at the origin) -- not floating off it
+    # wide, centered at the origin) -- not floating off it, and not
+    # embedded past it either
     assert placed.bounds[0][1] == pytest.approx(25.0)
+    assert placed.bounds[1][1] == pytest.approx(29.0)  # the gusset's own 4mm thickness, extending outward
     # centered on the plate's width (x=0), not shifted sideways
     assert placed.bounds.mean(axis=0)[0] == pytest.approx(0.0)
+
+
+def test_attached_to_face_side_face_uses_the_parts_own_height_not_its_diameter():
+    """Confirmed, reproduced real bug (not hypothetical): for any SIDE face
+    (+-x/+-y), resolve_rotation_deg rotates a part so its own local Z axis
+    (its height) ends up aligned with the face normal -- but the old
+    resolve_position formula computed the normal-direction offset from the
+    part's UNROTATED x/y/z extents dotted against the normal, which is
+    only correct for +z (no rotation needed there). For an ANISOTROPIC
+    part -- diameter very different from height, e.g. llm_decompose.py's
+    own Example 5 boss (5mm radius, 30mm height) attached to a housing's
+    +y face -- the old formula used the boss's DIAMETER (10mm) as the
+    offset instead of its HEIGHT (30mm), embedding it 10mm into the
+    housing instead of standing flush on its surface. This reproduces
+    that exact case through BOTH resolve_position and resolve_rotation_deg
+    together (the way parallel_builder.py actually uses them)."""
+    sb = Sandbox()
+    housing = sb._get(sb.add_box(120, 80, 60, [0, 0, 0]))  # +y face at y=40
+    sb2 = Sandbox()
+    boss = sb2._get(sb2.add_cylinder(5, 30, [0, 0, 0], "z"))  # 10mm diameter, 30mm height
+
+    from parallel_builder import PlacementTransform
+
+    rel = Relationship(kind="attached_to_face", target_id="housing", face="+y")
+    pos = resolve_position(rel, housing, boss)
+    rot = resolve_rotation_deg(rel)
+    placed = PlacementTransform.translation(pos).compose(PlacementTransform.rotation(rot)).apply_to_mesh(boss)
+
+    # the boss's own 30mm height now stands flush on the housing's +y face
+    # (y=40) and rises outward to y=70 -- never embedded into the housing
+    # (the old formula landed it at y=[30, 60], 10mm INSIDE the housing)
+    assert placed.bounds[0][1] == pytest.approx(40.0)
+    assert placed.bounds[1][1] == pytest.approx(70.0)
+
+
+def test_attached_to_face_raises_when_offset_runs_off_the_targets_own_face():
+    """Confirmed real failure mode this guards against: "a gusset at
+    X=-45mm on a 60mm-wide plate" -- an offset large enough to push the
+    attachment point past the target's own face boundary used to be
+    accepted silently, placing the part off the edge of its target instead
+    of onto it. Checked against the face's OWN actual extent, not a
+    hardcoded number."""
+    sb = Sandbox()
+    plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))  # +y face spans roughly u in [-30, 30]
+    sb2 = Sandbox()
+    gusset = sb2._get(sb2.add_extrusion("triangle", param_a=30, param_b=30, param_c=0, height=4))
+
+    with pytest.raises(RelationshipError):
+        resolve_position(
+            Relationship(kind="attached_to_face", target_id="plate", face="+y", offset_u=-45), plate, gusset
+        )
+
+
+def test_attached_to_face_accepts_an_offset_within_the_targets_own_face():
+    """The other half of the same check: a legitimate offset (e.g.
+    llm_decompose.py's own Example 6 left/right gusset pair, slid apart
+    along a 60mm-wide plate) must still be accepted -- this isn't a
+    blanket ban on any nonzero offset, only on one that actually runs off
+    the target's own face.
+
+    Uses offset_v, not offset_u, for this specific face -- a 60x50x6 box's
+    +y face is only 6mm tall (its own Z extent) by 60mm wide (its own X
+    extent), and _plane_basis's cross-product-derived (u, v) for a +y
+    normal maps u to -Z (the 6mm dimension) and v to -X (the 60mm
+    dimension) -- confirmed directly, not assumed. Which of offset_u/
+    offset_v corresponds to which world direction depends on the face's
+    own normal and isn't a fixed per-axis rule; see llm_decompose.py's
+    Example 6 for the one worked case this project corrects for."""
+    sb = Sandbox()
+    plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))
+    sb2 = Sandbox()
+    gusset = sb2._get(sb2.add_extrusion("triangle", param_a=30, param_b=30, param_c=0, height=4))
+
+    pos_left = resolve_position(
+        Relationship(kind="attached_to_face", target_id="plate", face="+y", offset_v=-20), plate, gusset
+    )
+    pos_right = resolve_position(
+        Relationship(kind="attached_to_face", target_id="plate", face="+y", offset_v=20), plate, gusset
+    )
+    assert pos_left[0] == pytest.approx(20.0)
+    assert pos_right[0] == pytest.approx(-20.0)
+    assert pos_left != pos_right  # Test J's own requirement: distinct instances, distinct transforms
 
 
 def test_attached_to_face_raises_when_target_has_no_matching_face():

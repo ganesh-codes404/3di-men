@@ -580,11 +580,40 @@ def predict_program_hybrid(bundle: ProgramModelBundle, text: str) -> tuple[list,
     already-computed classifier program rather than recomputing). When
     they DISAGREE, that disagreement is exactly the classifier's known
     failure signature -- it chose an op combination that doesn't
-    correspond to any single real training example -- so RAG wins."""
+    correspond to any single real training example -- so RAG wins,
+    PROVIDED the winning neighbor's own similarity to `text` clears
+    bundle.config.ood_similarity_threshold (the same floor
+    nearest_neighbor_similarity() already uses to flag a prediction
+    out_of_distribution elsewhere -- reused here, not a second invented
+    number).
+
+    Confirmed real gap this closes (a mission-brief audit, not
+    hypothetical): disagreement alone used to force RAG's sequence
+    unconditionally, with no floor on how similar that "winning" neighbor
+    actually was. For a text with no genuinely close training neighbor at
+    all, the winner is only the LEAST-dissimilar of five already-poor
+    matches -- forcing its op-sequence onto an unrelated text is exactly
+    how an unrequested cylinder or rounded block (an op present in some
+    training pattern that happens to share surface vocabulary with the
+    query -- e.g. "round"/"block"/"smooth" -- not the shape actually
+    requested) could reach a built model. Traced to real training
+    patterns that can do this: data/program_dataset.py's
+    _pattern_round_box_edges, its boss-with-bore patterns, and its
+    "smoothed... into a softer, more organic form" wording.
+
+    Below that floor, the classifier's own (unforced) sequence is used
+    instead -- not because it's guaranteed correct, but because it's at
+    least derived from THIS text's own per-slot read, not a forced
+    transplant from an unrelated training example. Either way,
+    in_distribution (predict_program_checked) is computed from this same
+    real nearest-neighbor similarity, so a low-confidence result is still
+    honestly disclosed, never silently promoted by this gate."""
     classifier_program = predict_program(bundle, text)
     classifier_ops = tuple(c.op for c in classifier_program)
-    rag_ops, _sim = retrieve_nearest_op_sequence(bundle, text)
+    rag_ops, rag_sim = retrieve_nearest_op_sequence(bundle, text)
     if classifier_ops == tuple(rag_ops):
+        return classifier_program, False
+    if rag_sim < bundle.config.ood_similarity_threshold:
         return classifier_program, False
     return predict_program(bundle, text, forced_ops=list(rag_ops)), True
 

@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -81,6 +82,53 @@ def test_in_distribution_text_scores_above_threshold(tiny_program_dataset):
     prediction = predict_program_checked(bundle, "rectangular aluminum mounting plate, 120 mm x 80 mm, with four 10 mm mounting holes")
     assert prediction.in_distribution
     assert prediction.nearest_neighbor_similarity >= bundle.config.ood_similarity_threshold
+
+
+def test_predict_program_hybrid_does_not_force_a_weakly_matched_rag_sequence(tiny_program_dataset):
+    """Confirmed real gap (mission-brief audit): predict_program_hybrid used
+    to force RAG's retrieved op-sequence onto ANY disagreement with the
+    classifier, with no floor on how similar that "winning" neighbor
+    actually was -- forcing an unrelated training example's op-sequence
+    (which can include ops like add_cylinder or round_box_edges that share
+    no real connection to the actual request) onto a text with no genuinely
+    close neighbor at all is exactly how an unrequested cylinder or rounded
+    block could reach a built model. Below bundle.config.ood_similarity_
+    threshold, the classifier's own (unforced) program must be used
+    instead, even when it disagrees with RAG's retrieved sequence."""
+    from program_model import ProgramModelConfig, predict_program, predict_program_hybrid, train_program_model
+
+    bundle, _ = train_program_model(tiny_program_dataset, ProgramModelConfig(seed=0))
+    text = "a spaceship"  # confirmed elsewhere in this file: zero real training overlap, low similarity
+    classifier_program = predict_program(bundle, text)
+    disagreeing_ops = tuple(c.op for c in classifier_program) + ("add_cylinder",)  # force a real disagreement
+
+    with patch("program_model.retrieve_nearest_op_sequence", return_value=(disagreeing_ops, 0.05)):
+        program, used_rag = predict_program_hybrid(bundle, text)
+
+    assert used_rag is False
+    assert [c.op for c in program] == [c.op for c in classifier_program]
+
+
+def test_predict_program_hybrid_still_uses_rag_when_the_match_is_strong(tiny_program_dataset):
+    """The other half of the same gate: a genuinely close match (similarity
+    at/above ood_similarity_threshold) that disagrees with the classifier
+    must still win -- this is the hybrid's own documented value-add
+    (measured gains on hand_written/generic_composition prompts), and the
+    new floor must not quietly disable it for every disagreement."""
+    from program_model import ProgramModelConfig, predict_program, predict_program_hybrid, train_program_model
+
+    bundle, _ = train_program_model(tiny_program_dataset, ProgramModelConfig(seed=0))
+    text = "rectangular aluminum mounting plate, 120 mm x 80 mm, with four 10 mm mounting holes"
+    classifier_program = predict_program(bundle, text)
+    disagreeing_ops = ("add_cylinder", "finalize")  # short, valid, and different from the plate's own prediction
+    assert tuple(c.op for c in classifier_program) != disagreeing_ops
+    strong_sim = bundle.config.ood_similarity_threshold + 0.1
+
+    with patch("program_model.retrieve_nearest_op_sequence", return_value=(disagreeing_ops, strong_sim)):
+        program, used_rag = predict_program_hybrid(bundle, text)
+
+    assert used_rag is True
+    assert tuple(c.op for c in program) == disagreeing_ops
 
 
 def test_wildly_novel_prompt_is_flagged_out_of_distribution_not_silently_trusted(tiny_program_dataset):

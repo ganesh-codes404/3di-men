@@ -140,18 +140,56 @@ def resolve_position(relationship: Relationship, target_mesh: trimesh.Trimesh, o
     relevant anchor point (true for box/cylinder/sphere/gear -- centered
     at their own local origin by construction -- AND true by explicit
     design for add_dome, whose own docstring states "center is the FLAT
-    BASE, not the bounding-box center," so attached_to_face already lands
-    a dome's base flush without any extra correction). A shape built with
-    NO meaningful local-origin convention at all (confirmed real gap:
-    add_extrusion's "l_shape" profile, whose own vertices just happen to
-    start at a corner for an unrelated caller's hole-math convenience, see
+    BASE, not the bounding-box center"). A shape built with NO meaningful
+    local-origin convention at all (confirmed real gap: add_extrusion's
+    "l_shape" profile, whose own vertices just happen to start at a corner
+    for an unrelated caller's hole-math convenience, see
     data/program_builders.py) cannot be distinguished from a deliberately
     base-anchored one by geometry alone -- there is no reliable way to
     "auto-correct" for the former without breaking the latter. That
     narrower gap is fixed at its own source instead where it's
     unambiguous: sandbox.py's "triangle" profile centers its own geometry
     like every other true primitive, rather than special-casing this
-    shared resolver for one profile_kind's otherwise-ambiguous footprint."""
+    shared resolver for one profile_kind's otherwise-ambiguous footprint.
+
+    Two confirmed, REPRODUCED (not hypothetical) bugs in how the normal-
+    direction offset used to be computed, both found by live-testing this
+    exact function plus resolve_rotation_deg's rotation together (the way
+    parallel_builder.py actually uses them, which the module's own prior
+    test suite never exercised in one place):
+
+    1. For any SIDE face (+-x/+-y), resolve_rotation_deg always rotates
+       `own_mesh` so its own local Z axis ends up aligned with the face's
+       outward normal (see that function's docstring). The old formula
+       computed the offset by dotting `own_mesh`'s UNROTATED x/y/z extents
+       against the face's world-space normal -- correct only for +z
+       (where no rotation happens), wrong for every other face on any
+       part whose local Z extent (its height/thickness) differs from its
+       X/Y extent (its diameter/width). Reproduced: a boss (radius 10mm,
+       height 10mm -- NOT anisotropic enough to show it) vs. a true
+       anisotropic case (e.g. llm_decompose.py's own Example 5 boss,
+       radius 5mm/height 30mm, attached to a housing's +y face) embeds the
+       boss 10mm into the housing instead of landing flush on its surface,
+       because the old formula used the boss's DIAMETER as the offset
+       instead of its HEIGHT.
+    2. Even on +z, the old formula silently assumed every shape is
+       CENTER-anchored -- wrong for add_dome's explicitly base-anchored
+       convention. Reproduced: a dome attached to any face landed with a
+       gap equal to HALF its own height instead of flush (this module's
+       own prior docstring claimed the opposite -- that case was never
+       actually verified against the real resolve_rotation_deg-rotated
+       placement before now).
+
+    Fixed with one unified measurement instead of two special cases:
+    `own_mesh.bounds[0][2]` -- `own_mesh`'s own local-Z MINIMUM, read
+    before any rotation -- is exactly how far the part extends "behind"
+    its own origin along the axis resolve_rotation_deg is about to align
+    with the face normal, for EVERY local-origin convention this project
+    uses: -own_extent/2 for a symmetric box/cylinder/gear (so the offset
+    below becomes +own_extent/2, pushing the CENTER out so the back face
+    lands flush, exactly the old formula's own +z-only behavior), and
+    exactly 0 for add_dome's base-anchored convention (so the offset
+    becomes 0 -- the origin already IS the contact point)."""
     target_bounds = target_mesh.bounds
     target_center = target_bounds.mean(axis=0)
 
@@ -199,19 +237,39 @@ def resolve_position(relationship: Relationship, target_mesh: trimesh.Trimesh, o
         if face is None:
             raise RelationshipError(f"target has no flat face pointing {face_dir!r} for attached_to_face")
 
-        face_center_u = float((face.outer[:, 0].min() + face.outer[:, 0].max()) / 2.0)
-        face_center_v = float((face.outer[:, 1].min() + face.outer[:, 1].max()) / 2.0)
+        face_u_min, face_u_max = float(face.outer[:, 0].min()), float(face.outer[:, 0].max())
+        face_v_min, face_v_max = float(face.outer[:, 1].min()), float(face.outer[:, 1].max())
+        face_center_u = (face_u_min + face_u_max) / 2.0
+        face_center_v = (face_v_min + face_v_max) / 2.0
         u, v = face_center_u + relationship.offset_u, face_center_v + relationship.offset_v
+        # Confirmed real failure mode this guards against: "a gusset at
+        # X=-45mm on a 60mm-wide plate" -- an offset_u/offset_v large
+        # enough to place the attachment point past the target's own face
+        # boundary runs the attached part off the edge of its target
+        # instead of onto it. Checked against the face's OWN actual u/v
+        # extent (not a guessed/hardcoded size), so this scales correctly
+        # with whatever the target's real built dimensions turned out to
+        # be. A typed rejection here, not a silent out-of-bounds placement
+        # that passes every per-part geometry check while still being
+        # wrong -- exactly the class of failure section 9 of this
+        # project's own repair-mission briefs keeps describing.
+        if not (face_u_min <= u <= face_u_max) or not (face_v_min <= v <= face_v_max):
+            raise RelationshipError(
+                f"attached_to_face offset_u={relationship.offset_u:g}/offset_v={relationship.offset_v:g} places "
+                f"the attachment point at u={u:.1f}, v={v:.1f}mm, outside target {relationship.target_id!r}'s own "
+                f"{face_dir!r} face (which spans u=[{face_u_min:.1f}, {face_u_max:.1f}], "
+                f"v=[{face_v_min:.1f}, {face_v_max:.1f}]mm) -- this would run the attached part off the edge of its "
+                "target instead of onto it"
+            )
         attach_point = face.origin + u * face.u + v * face.v
 
-        own_extents = own_mesh.bounds[1] - own_mesh.bounds[0]
         unit_normal = face.normal / np.linalg.norm(face.normal)
-        # this part's own half-size measured ALONG the face normal direction
-        # (a dot-product-weighted blend of its x/y/z extents, so this works
-        # for a normal along any axis, not just +-z) -- its OWN center must
-        # sit this far out from the face so its back face lands flush.
-        own_half_extent_along_normal = float(np.dot(own_extents / 2.0, np.abs(unit_normal)))
-        world_pos = attach_point + unit_normal * (own_half_extent_along_normal + relationship.standoff)
+        # See this function's own docstring for why own_mesh.bounds[0][2]
+        # (local Z minimum, read before rotation) is the single correct
+        # measurement for every local-origin convention this project uses,
+        # not a dot-product against the unrotated x/y/z extents.
+        offset_along_normal = -float(own_mesh.bounds[0][2]) + relationship.standoff
+        world_pos = attach_point + unit_normal * offset_along_normal
         return (float(world_pos[0]), float(world_pos[1]), float(world_pos[2]))
 
     raise RelationshipError(f"unsupported relationship kind {relationship.kind!r}")

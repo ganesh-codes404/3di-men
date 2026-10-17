@@ -396,6 +396,28 @@ def test_overall_status_pass_when_every_point_is_clean(tiny_bundle_path):
     assert result.overall_status == "PASS"
 
 
+def test_overall_status_incomplete_when_built_envelope_violates_the_spec(tiny_bundle_path):
+    """Mission-brief Test F: a required 60x50x60mm envelope that actually
+    built as 79.0x97.1x93.5mm must not come back PASS just because the
+    mesh itself is a structurally valid, watertight solid. This is
+    already wired end to end (spec_validation.py's dimension_match_rate
+    downgrades a mismatched point's own status to "suspect", which
+    overall_status's existing suspect-check already catches) -- this test
+    confirms that chain actually holds at the ASSEMBLY level, not just
+    that the per-point field gets populated."""
+    points = [ActionablePoint(
+        description="a box 60mm x 50mm x 60mm", position_mm=(0.0, 0.0, 0.0),
+        program_override=[
+            {"op": "add_box", "args": {"length": 79.0, "width": 97.1, "height": 93.5, "center": [0, 0, 0]}},
+            {"op": "finalize", "args": {"target": 0}},
+        ],
+    )]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
+    assert result.points[0].status == "suspect"
+    assert result.points[0].dimension_match_rate < 1.0
+    assert result.overall_status == "INCOMPLETE"
+
+
 def test_overall_status_fail_when_a_required_part_is_rejected(tiny_bundle_path):
     """Confirmed real gap this closes: a part that completely fails to
     build (no usable mesh at all) must make the WHOLE assembly FAIL, not
