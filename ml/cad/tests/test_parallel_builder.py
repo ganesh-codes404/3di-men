@@ -256,13 +256,24 @@ def test_collision_warning_flags_two_siblings_resolved_to_the_same_position(tiny
     the exact shape of the gear-mesh-spacing bug this project already
     fixed once elsewhere (see llm_decompose._correct_gear_mesh_spacing).
     Two cylinders with NO relationship connecting them, both at the
-    identical position, must be flagged."""
+    identical position, must be flagged -- AND, per "it can't just give
+    up", actually resolved: the later one ('b') is excluded from the
+    combined mesh rather than left overlapping, disclosed via both the
+    warning text and its own PointBuildResult.excluded_from_assembly."""
     points = [
         ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0), id="a"),
         ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0), id="b"),
     ]
     result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
     assert any("'a'" in w and "'b'" in w for w in result.collision_warnings)
+    by_id = {p.point.id: p for p in result.points}
+    assert by_id["a"].excluded_from_assembly is False
+    assert by_id["b"].excluded_from_assembly is True
+    assert by_id["b"].status == "suspect"
+    assert "excluded from the combined assembly" in by_id["b"].error
+    # the assembly still finishes -- a complete model missing the
+    # conflicting part, not no model at all
+    assert result.mesh is not None
 
 
 def test_collision_warning_does_not_false_positive_on_correctly_spaced_parts(tiny_bundle_path):
@@ -309,19 +320,37 @@ def test_relationship_connected_walks_transitive_chains_in_either_direction():
     assert _relationship_connected("gear", "unrelated", relationships) is False
 
 
-def test_find_collisions_uses_the_calibrated_threshold():
+def test_find_and_resolve_collisions_uses_the_calibrated_threshold():
     import trimesh
 
-    from parallel_builder import _find_collisions
+    from parallel_builder import _find_and_resolve_collisions
 
     stacked_a = trimesh.creation.box([20, 20, 20])
     stacked_b = trimesh.creation.box([20, 20, 20])
     far = trimesh.creation.box([20, 20, 20])
     far.apply_translation([200, 0, 0])
 
-    warnings = _find_collisions({"a": stacked_a, "b": stacked_b, "c": far}, relationships={"a": None, "b": None, "c": None})
+    warnings, excluded = _find_and_resolve_collisions(
+        {"a": stacked_a, "b": stacked_b, "c": far}, relationships={"a": None, "b": None, "c": None}
+    )
     assert len(warnings) == 1
     assert "'a'" in warnings[0] and "'b'" in warnings[0]
+    # resolved, not just reported: the later of the two colliding parts is excluded
+    assert excluded == {"b"}
+
+
+def test_find_and_resolve_collisions_excludes_nothing_when_nothing_collides():
+    import trimesh
+
+    from parallel_builder import _find_and_resolve_collisions
+
+    far_a = trimesh.creation.box([20, 20, 20])
+    far_b = trimesh.creation.box([20, 20, 20])
+    far_b.apply_translation([200, 0, 0])
+
+    warnings, excluded = _find_and_resolve_collisions({"a": far_a, "b": far_b}, relationships={"a": None, "b": None})
+    assert warnings == []
+    assert excluded == set()
 
 
 def test_program_override_skips_prediction_and_builds_the_exact_hand_edited_program(tiny_bundle_path):
@@ -380,11 +409,16 @@ def test_overall_status_fail_when_a_required_part_is_rejected(tiny_bundle_path):
     assert result.overall_status == "FAIL"
 
 
-def test_overall_status_incomplete_when_a_part_is_only_partial(tiny_bundle_path):
-    """Confirmed real gap this closes: a hole that fully consumes its
-    target ("a slot operation returns an empty mesh") recovers the last
-    good checkpoint (status="partial") -- this must never be silently
-    promoted to PASS just because SOME mesh exists."""
+def test_overall_status_incomplete_when_a_repair_drops_a_step(tiny_bundle_path):
+    """A hole that fully consumes its target used to recover only to
+    status="partial" (the last good checkpoint, with the drill dropped
+    implicitly by Sandbox.execute itself). Since repair.py's
+    TRUNCATE_TO_EARLIER_STEP strategy was added ("it can't just give up"),
+    execute_with_bounded_repair now actively re-finalizes at that last
+    good checkpoint too, so this point reaches status="ok" -- a real,
+    finished box. But a step (drill_hole) WAS genuinely dropped to get
+    there, which repair_dropped_a_step must disclose, and which
+    overall_status must not hide behind a clean PASS."""
     points = [ActionablePoint(
         description="a box", position_mm=(0.0, 0.0, 0.0),
         program_override=[
@@ -394,17 +428,27 @@ def test_overall_status_incomplete_when_a_part_is_only_partial(tiny_bundle_path)
         ],
     )]
     result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
-    assert result.points[0].status == "partial"
+    assert result.points[0].status == "ok"
+    assert result.points[0].repair_applied is True
+    assert result.points[0].repair_dropped_a_step is True
+    assert any("drill_hole" in a for a in result.points[0].repair_attempts)
     assert result.overall_status == "INCOMPLETE"
 
 
-def test_overall_status_fail_on_a_real_collision(tiny_bundle_path):
+def test_overall_status_incomplete_on_a_real_collision(tiny_bundle_path):
+    """A collision between two unrelated parts is no longer an automatic
+    FAIL: _find_and_resolve_collisions excludes one of the two from the
+    combined mesh instead ("it can't just give up" applied at the
+    assembly level), so the assembly still produces a usable result --
+    just not a fully clean one, hence INCOMPLETE rather than FAIL."""
     points = [
         ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0)),
         ActionablePoint(description="a cylinder 20mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0)),
     ]
     result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
-    assert result.overall_status == "FAIL"
+    assert result.overall_status == "INCOMPLETE"
+    assert result.mesh is not None
+    assert any(p.excluded_from_assembly for p in result.points)
 
 
 def test_overall_status_incomplete_for_an_empty_assembly():

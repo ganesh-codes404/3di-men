@@ -97,6 +97,24 @@ class PointBuildResult:
                                    # repair attempt actually IMPROVED the result's status
     repair_attempts: list[str] = field(default_factory=list)  # every attempt tried, improved or not --
                                                                  # never hidden, even a failed one
+    repair_dropped_a_step: bool = False  # True only when the repair that actually fixed this point
+        # was repair.TRUNCATE_TO_EARLIER_STEP (not the operand-swap strategy) -- meaning some
+        # trailing part of the originally-predicted program was genuinely DROPPED to let the rest
+        # finish, not just recomputed via an equivalent commutative path. Distinct from
+        # repair_applied: an operand swap leaves repair_applied=True too, but changes neither the
+        # requested dimensions nor the requested feature (see repair.py's own module docstring),
+        # so it does NOT set this. AssemblyBuildResult.overall_status checks this specifically --
+        # a status="ok" point that got there by dropping a step is still a real deviation from
+        # what was asked for, even though it's now a geometrically valid, finished solid.
+    excluded_from_assembly: bool = False  # True only when this point built a perfectly valid mesh
+        # on its own but was then excluded from the FINAL COMBINED mesh by
+        # _find_and_resolve_collisions -- an unrelated collision with another part, with no
+        # relationship explaining the overlap ("it can't just give up" applied at the assembly
+        # level: excluding the conflicting part is how the rest of the assembly still finishes
+        # as a real, complete model, same trade-off repair.py's truncation strategy makes within
+        # one part's own tool program). The point's own `mesh`/`status` above are NOT touched by
+        # this -- it stays a disclosed, individually-valid result; only the combined assembly
+        # mesh leaves it out. Never silent: see error and AssemblyBuildResult.collision_warnings.
     resolution_method: str = "statistical"  # "compositional" (compositional_decomposer.py's deterministic
         # clause-by-clause resolution), "statistical" (program_model.py's TF-IDF/classifier prediction), or
         # "user_edited" (ActionablePoint.program_override -- prediction skipped entirely, the user's own
@@ -124,7 +142,11 @@ class AssemblyBuildResult:
         # stacked on/inside each other (the exact shape of the gear-mesh-spacing bug this project
         # already fixed once) -- see bounding_box_overlap_fraction's own docstring for why this is
         # scoped to parts with NO relationship connecting them (a shaft through a boss's bore is
-        # SUPPOSED to have one bbox almost entirely inside the other).
+        # SUPPOSED to have one bbox almost entirely inside the other). Each entry here describes a
+        # collision that has ALREADY been resolved (by excluding one of the two parts from the
+        # combined mesh below -- see _find_and_resolve_collisions and
+        # PointBuildResult.excluded_from_assembly), not one left unfixed: this is a disclosure log,
+        # not a pending-failure list -- the build does not stop or FAIL just because this is non-empty.
 
     @property
     def overall_status(self) -> str:
@@ -140,16 +162,37 @@ class AssemblyBuildResult:
         existing behavior.
 
         - "FAIL": at least one point completely failed (status="rejected",
-          no usable mesh at all), or a real collision was detected between
-          unrelated parts. A mandatory requirement is definitively unmet.
+          no usable mesh at all) and nothing -- not repair.py's bounded
+          repair loop, not an unrelated collision's own resolution -- was
+          able to rescue it. A mandatory requirement is definitively unmet.
         - "INCOMPLETE": every point produced SOME mesh, but at least one is
           not fully trustworthy (status in {"suspect", "partial",
           "out_of_distribution"} -- built, but geometrically dubious, built
-          from an earlier failed step, or a low-confidence statistical
-          guess). Never silently promoted to PASS.
-        - "PASS": every point is status="ok" and no collisions were
-          flagged. The ONLY status that means "built and verified
-          correct," not just "something was produced."
+          from an earlier failed step, a low-confidence statistical guess,
+          OR excluded from the combined mesh to resolve a collision with
+          another part -- see PointBuildResult.excluded_from_assembly), OR
+          at least one point only reached status="ok" because
+          repair.py's TRUNCATE_TO_EARLIER_STEP strategy actually dropped a
+          step to get there (PointBuildResult.repair_dropped_a_step) -- a
+          geometrically valid, finished solid that is still NOT what was
+          originally requested, which this property must not hide behind a
+          clean "PASS" just because the mesh itself is now watertight.
+          Never silently promoted to PASS.
+        - "PASS": every point is status="ok", nothing was excluded from the
+          combined mesh, and no point needed a step dropped to get there
+          (an operand-swap repair, which changes neither the requested
+          dimensions nor the requested feature, does NOT disqualify PASS --
+          see repair.py's own module docstring). The ONLY status that
+          means "built and verified correct," not just "something was
+          produced."
+
+        A collision between two unrelated parts does NOT, by itself, mean
+        FAIL any more: _find_and_resolve_collisions already excludes one of
+        the two conflicting parts before this property is ever evaluated
+        (the assembly-level version of "it can't just give up" -- see that
+        function's own docstring), which downgrades the excluded point's
+        own status to "suspect" and is caught by the INCOMPLETE check below
+        like any other disclosed, non-"ok" result.
 
         Watertightness is already folded into each point's own status by
         Sandbox.execute() -- this property doesn't re-check topology, it
@@ -159,11 +202,11 @@ class AssemblyBuildResult:
         themselves."""
         if not self.points:
             return "INCOMPLETE"
-        if self.collision_warnings:
-            return "FAIL"
         if any(p.status == "rejected" for p in self.points):
             return "FAIL"
         if any(p.status in ("suspect", "partial", "out_of_distribution") for p in self.points):
+            return "INCOMPLETE"
+        if any(p.repair_dropped_a_step for p in self.points):
             return "INCOMPLETE"
         return "PASS"
 
@@ -224,6 +267,9 @@ def _build_one(args: tuple[str, "list[dict] | None"]) -> dict:
     # repairable and why most tempting "fixes" are deliberately excluded.
     repaired = execute_with_bounded_repair(prediction.program)
     result = repaired.result
+    repair_dropped_a_step = any(
+        a.strategy == "truncate_to_earlier_step" and a.improved for a in repaired.attempts
+    )
 
     if not prediction.in_distribution:
         status = "out_of_distribution"
@@ -246,6 +292,7 @@ def _build_one(args: tuple[str, "list[dict] | None"]) -> dict:
         "topology": topology,
         "repair_applied": repaired.was_repaired,
         "repair_attempts": [a.description for a in repaired.attempts],
+        "repair_dropped_a_step": repair_dropped_a_step,
         "resolution_method": resolution_method,
         # Already computed by Sandbox.execute() on every build -- previously
         # discarded here (confirmed by grepping the whole repo: nothing
@@ -405,6 +452,7 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                     mesh=own_mesh, topology=raw["topology"],
                     dimension_match_rate=dimension_match_rate, unmatched_dimensions_mm=unmatched_dimensions_mm,
                     repair_applied=raw.get("repair_applied", False), repair_attempts=raw.get("repair_attempts", []),
+                    repair_dropped_a_step=raw.get("repair_dropped_a_step", False),
                     resolution_method=raw.get("resolution_method", "statistical"),
                     claimed_hole_count=claimed_hole_count, detected_hole_count=detected_hole_count,
                 )
@@ -426,11 +474,31 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
                     placed = transform.apply_to_mesh(own_mesh)
                     placed_meshes_by_id[pid] = placed
 
+    # Collision resolution runs BEFORE the combined mesh is assembled, not
+    # after: the whole point is to keep the conflicting part out of
+    # `combined`, not to report a collision that's already baked into the
+    # output. See _find_and_resolve_collisions's own docstring for why
+    # this is the assembly-level counterpart to repair.py's "it can't just
+    # give up" truncation strategy.
+    collision_warnings, excluded_ids = _find_and_resolve_collisions(placed_meshes_by_id, relationships)
+    for pid in excluded_ids:
+        placed_meshes_by_id.pop(pid, None)
+        pr = point_results[pid]
+        pr.excluded_from_assembly = True
+        note = (
+            "excluded from the combined assembly: collided with another part with no "
+            "relationship explaining the overlap -- the rest of the assembly still completes "
+            "without it, rather than leaving colliding geometry in place or failing outright"
+        )
+        pr.error = f"{pr.error}; {note}" if pr.error else note
+        if pr.status == "ok":
+            pr.status = "suspect"  # reusing the existing status enum, same discipline as the
+                                    # dimension/hole-count checks above -- never a new value
+
     ordered_results = [point_results[pid] for pid in ids]
     placed_meshes = [placed_meshes_by_id[pid] for pid in ids if pid in placed_meshes_by_id]
     combined = trimesh.util.concatenate(placed_meshes) if placed_meshes else None
 
-    collision_warnings = _find_collisions(placed_meshes_by_id, relationships)
     return AssemblyBuildResult(
         mesh=combined, points=ordered_results, fell_back_to_single_point=False,
         collision_warnings=collision_warnings,
@@ -460,16 +528,37 @@ def _relationship_connected(pid_a: str, pid_b: str, relationships: dict) -> bool
     return chain_reaches(pid_a, pid_b) or chain_reaches(pid_b, pid_a)
 
 
-def _find_collisions(placed_meshes_by_id: dict, relationships: dict, threshold: float = 0.3) -> list[str]:
+def _find_and_resolve_collisions(
+    placed_meshes_by_id: dict, relationships: dict, threshold: float = 0.3
+) -> tuple[list[str], set[str]]:
     """Confirmed real gap this closes (previously: nowhere in this pipeline
-    checked for unintended overlap between independently-placed parts) --
-    see AssemblyBuildResult.collision_warnings and
+    checked for unintended overlap between independently-placed parts, and
+    even once a check was added it only ever REPORTED a collision -- the
+    colliding geometry stayed in the combined mesh and the whole assembly
+    was marked FAIL, which is exactly the "it can't just give up" gap:
+    a collision between two parts is a build-time problem exactly like a
+    rejected part is, and must get the same active-recovery treatment
+    repair.py's truncation strategy already gives a single part's own
+    failing tool program, not just a flagged-and-abandoned report).
+
+    Resolution strategy: for each colliding pair, exclude the LATER of the
+    two (by placement/id order) from the final combined mesh -- the same
+    "drop the trailing thing, keep the earlier one" bias
+    repair._repair_by_truncation already uses when a part's own program has
+    to lose a step to finish. This is never silent: every exclusion is
+    disclosed both in the returned warning strings AND, back at the call
+    site, via the excluded point's own PointBuildResult.excluded_from_assembly
+    and .error fields -- the point is never dropped from the response,
+    only from the combined mesh.
+
+    See AssemblyBuildResult.collision_warnings and
     mesh_quality.bounding_box_overlap_fraction's own docstrings for the
-    full reasoning. Deliberately scoped to pairs with NO relationship
-    connecting them: a shaft concentric_with a boss's bore is SUPPOSED to
-    sit almost entirely inside the boss's own bounding box, which this
-    coarse AABB check cannot distinguish from a genuine collision, so
-    those pairs are excluded rather than producing constant false alarms
+    full overlap-detection reasoning. Deliberately scoped to pairs with NO
+    relationship connecting them: a shaft concentric_with a boss's bore is
+    SUPPOSED to sit almost entirely inside the boss's own bounding box,
+    which this coarse AABB check cannot distinguish from a genuine
+    collision, so those pairs are excluded from consideration entirely
+    rather than producing constant false alarms -- and false exclusions --
     on exactly the placement pattern this project relies on most.
 
     threshold=0.3 chosen from real calibration, not guessed: two gears
@@ -478,6 +567,7 @@ def _find_collisions(placed_meshes_by_id: dict, relationships: dict, threshold: 
     already fixed once (two gears resolved to the identical position)
     overlaps by 100%. 0.3 sits comfortably between the two."""
     warnings: list[str] = []
+    excluded: set[str] = set()
     ids = list(placed_meshes_by_id.keys())
     for i in range(len(ids)):
         for j in range(i + 1, len(ids)):
@@ -486,11 +576,16 @@ def _find_collisions(placed_meshes_by_id: dict, relationships: dict, threshold: 
                 continue
             overlap = bounding_box_overlap_fraction(placed_meshes_by_id[id_a], placed_meshes_by_id[id_b])
             if overlap > threshold:
+                loser = id_b  # later in placement order -- consistent with repair.py's
+                              # own bias toward dropping trailing work before earlier work
                 warnings.append(
-                    f"{id_a!r} and {id_b!r} overlap by {overlap:.0%} of the smaller part's bounding "
-                    "box, with no relationship between them explaining it -- check placement"
+                    f"{id_a!r} and {id_b!r} overlapped by {overlap:.0%} of the smaller part's "
+                    f"bounding box with no relationship explaining it -- {loser!r} excluded from "
+                    "the combined assembly to resolve it, rather than leaving colliding geometry "
+                    "in place or failing the whole build"
                 )
-    return warnings
+                excluded.add(loser)
+    return warnings, excluded
 
 
 def build_assembly_from_prompt(prompt: str, bundle_path: Path, max_workers: int = 4) -> AssemblyBuildResult:

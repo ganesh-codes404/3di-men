@@ -1175,8 +1175,8 @@ function renderOverallStatusBanner(status) {
   el.className = status;
   const labels = {
     PASS: 'PASS — every part built and verified correct',
-    INCOMPLETE: 'INCOMPLETE — built, but at least one part is unverified (suspect, partial, or an unfamiliar-prompt guess)',
-    FAIL: 'FAIL — a required part failed, or a collision was detected',
+    INCOMPLETE: 'INCOMPLETE — built, but at least one part is unverified (suspect, partial, an unfamiliar-prompt guess, or excluded from the combined mesh to resolve a collision)',
+    FAIL: 'FAIL — a required part failed and could not be rescued',
   };
   el.textContent = labels[status] || status;
 }

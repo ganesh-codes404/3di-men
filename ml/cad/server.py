@@ -216,6 +216,13 @@ def api_build():
             # (improved or not) is listed in repair_attempts, never hidden.
             "repair_applied": p.repair_applied,
             "repair_attempts": p.repair_attempts,
+            # True only when the repair that fixed this point actually dropped a
+            # step (repair.py's TRUNCATE_TO_EARLIER_STEP), not just recomputed an
+            # equivalent commutative boolean -- see
+            # AssemblyBuildResult.overall_status's own docstring for why this (not
+            # repair_applied alone) is what keeps a status="ok" point from hiding
+            # a dropped feature behind a clean overall "PASS".
+            "repair_dropped_a_step": p.repair_dropped_a_step,
             # "compositional" (compositional_decomposer.py's deterministic
             # clause-by-clause resolution) or "statistical" (program_model.py's
             # TF-IDF/classifier guess) -- disclosed so a caller can tell a
@@ -228,6 +235,13 @@ def api_build():
             # description made no hole claim at all.
             "claimed_hole_count": p.claimed_hole_count,
             "detected_hole_count": p.detected_hole_count,
+            # True only when this point built a valid mesh on its own but was
+            # then left out of mesh_url's combined mesh to resolve a collision
+            # with another, unrelated part -- see
+            # parallel_builder._find_and_resolve_collisions. The point's own
+            # program/topology/mesh above are unaffected; only the combined
+            # assembly excludes it.
+            "excluded_from_assembly": p.excluded_from_assembly,
         }
         for p in result.points
     ]
@@ -258,8 +272,11 @@ def api_build():
         # Confirmed real gap this closes: no assembly-level check anywhere
         # previously caught two independently-placed parts ending up
         # stacked on/inside each other -- see parallel_builder.py's
-        # _find_collisions/mesh_quality.bounding_box_overlap_fraction.
-        # Always a list, empty when nothing was flagged.
+        # _find_and_resolve_collisions/mesh_quality.bounding_box_overlap_fraction.
+        # Each entry here describes a collision ALREADY resolved (one part
+        # excluded from mesh_url's combined mesh -- see each point's own
+        # excluded_from_assembly/status in `points` below), not a pending
+        # failure. Always a list, empty when nothing was flagged.
         "collision_warnings": getattr(result, "collision_warnings", []),
         # The single aggregate PASS/FAIL/INCOMPLETE this pipeline previously
         # never computed anywhere -- see AssemblyBuildResult.overall_status's
