@@ -257,6 +257,10 @@ def api_build():
             # tolerance. Empty when every claim matched or there was
             # nothing to check.
             "unmatched_hole_diameters_mm": p.unmatched_hole_diameters_mm,
+            # Non-negotiable principle: explicit dimensions override a
+            # semantic name (e.g. "NEMA 17") -- disclosure only, the
+            # explicit value is already what's built and validated above.
+            "semantic_size_conflicts": p.semantic_size_conflicts,
             # True only when this point built a valid mesh on its own but was
             # then left out of mesh_url's combined mesh to resolve a collision
             # with another, unrelated part -- see

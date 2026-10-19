@@ -40,6 +40,19 @@ def test_system_prompt_instructs_overlap_avoidance_and_a_final_self_check():
     assert "half-built assembly" in _SYSTEM_PROMPT
 
 
+def test_system_prompt_instructs_explicit_dimensions_override_a_semantic_name():
+    """Non-negotiable principle: "explicit numerical dimensions override
+    semantic defaults associated with names such as 'NEMA 17'." This
+    anchors that rule, and its own worked NEMA 17 example, in the prompt
+    -- if a future edit drops them, this fails. See
+    spec_validation.detect_semantic_size_conflicts for the deterministic
+    safety net on the other side of this (disclosing a conflict if the
+    LLM gets it wrong anyway), which this prompt rule exists to make
+    unnecessary in the first place."""
+    assert "EXPLICIT DIMENSIONS ALWAYS OVERRIDE A SEMANTIC NAME" in _SYSTEM_PROMPT
+    assert "NEMA 17" in _SYSTEM_PROMPT and "42.3mm" in _SYSTEM_PROMPT
+
+
 def test_extract_json_array_from_clean_output():
     raw = '[{"description": "a plate", "position_mm": {"x": 0, "y": 0, "z": 0}}]'
     items = _extract_json_array(raw)

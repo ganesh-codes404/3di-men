@@ -636,6 +636,36 @@ def test_diagnose_envelope_overrun_is_a_noop_with_no_placed_meshes():
     assert _diagnose_envelope_overrun((150.0, 100.0), {}) == []
 
 
+def test_semantic_size_conflict_is_disclosed_but_explicit_dimension_still_wins(tiny_bundle_path):
+    """Non-negotiable principle: "explicit numerical dimensions override
+    semantic defaults associated with names such as 'NEMA 17'." A
+    description naming NEMA 17 (standard 42.3mm square face) but
+    explicitly stating 50mm x 50mm must: (1) disclose the conflict via
+    semantic_size_conflicts, (2) still BUILD and VALIDATE against the
+    explicit 50mm (not the standard's 42.3mm) -- a disclosed conflict is
+    not itself a defect, so status must stay "ok" and overall_status
+    "PASS" when the built geometry correctly honors the explicit value."""
+    points = [ActionablePoint(
+        description="a NEMA 17 stepper motor mount, 50mm x 50mm x 10mm thick",
+        position_mm=(0.0, 0.0, 0.0),
+        program_override=[
+            {"op": "add_box", "args": {"length": 50, "width": 50, "height": 10, "center": [0, 0, 0]}},
+            {"op": "finalize", "args": {"target": 0}},
+        ],
+    )]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=1)
+    point = result.points[0]
+    assert len(point.semantic_size_conflicts) == 1
+    assert "NEMA 17" in point.semantic_size_conflicts[0]
+    assert "42.3" in point.semantic_size_conflicts[0]
+    assert "50" in point.semantic_size_conflicts[0]
+    assert "explicit" in point.semantic_size_conflicts[0]
+    # built correctly to the EXPLICIT 50mm -- the conflict is disclosed, not a defect
+    assert point.status == "ok"
+    assert point.dimension_match_rate == 1.0
+    assert result.overall_status == "PASS"
+
+
 def test_wrong_bore_diameter_cannot_hide_behind_a_high_match_score(tiny_bundle_path):
     """Mission-brief concern (boss bore diameter): a claimed 12mm bore
     that was actually built as 24mm (e.g. a radius/diameter mix-up) must

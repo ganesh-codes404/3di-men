@@ -13,6 +13,7 @@ from spec_validation import (
     extract_claimed_envelope_mm,
     extract_claimed_hole_count,
     extract_claimed_hole_diameters_mm,
+    detect_semantic_size_conflicts,
     validate_dimensions_against_description,
     validate_hole_count_against_description,
     validate_hole_diameters_against_description,
@@ -241,3 +242,43 @@ def test_validate_hole_diameters_is_vacuously_true_with_nothing_to_check():
     assert validate_hole_diameters_against_description("a box with four holes", {"hole_diameters_mm": [5.0]}).all_matched is True
     # no geometry_report available
     assert validate_hole_diameters_against_description("a 12mm diameter hole through it", None).all_matched is False
+
+
+# Semantic-name-vs-explicit-dimension conflict detection -- the project's
+# own non-negotiable principle: explicit dimensions override a semantic
+# default implied by a name like "NEMA 17". Scoped to NEMA stepper-motor
+# mounting faces specifically (real, standard, documented sizes), not a
+# general lookup for informal names.
+
+def test_detect_semantic_size_conflicts_flags_a_real_disagreement():
+    """The exact mission-brief scenario: a NEMA 17 (standard 42.3mm
+    square face) named alongside an explicit, disagreeing 50mm x 50mm
+    claim."""
+    conflicts = detect_semantic_size_conflicts("a NEMA 17 stepper motor mount, 50mm x 50mm x 10mm thick")
+    assert len(conflicts) == 1
+    c = conflicts[0]
+    assert c.semantic_name == "NEMA 17"
+    assert c.standard_value_mm == 42.3
+    assert c.explicit_value_mm == 50.0
+    assert c.resolved_value_mm == 50.0  # explicit always wins
+
+
+def test_detect_semantic_size_conflicts_silent_when_explicit_matches_the_standard():
+    assert detect_semantic_size_conflicts("a NEMA 17 stepper motor mount, 42.3mm x 42.3mm x 10mm thick") == []
+
+
+def test_detect_semantic_size_conflicts_ignores_unrelated_single_dimensions():
+    """Confirmed real false-positive this guards against: an unrelated
+    dimension elsewhere in the same sentence (here, a 10mm thickness)
+    must never be compared against the NEMA standard's own face size --
+    only a REPEATED value (the actual signal of a square-face claim,
+    since a NEMA mounting face is always square) is considered."""
+    assert detect_semantic_size_conflicts("a NEMA 17 stepper motor, 48mm long") == []
+
+
+def test_detect_semantic_size_conflicts_returns_empty_without_a_nema_name():
+    assert detect_semantic_size_conflicts("a box 50mm x 50mm x 10mm") == []
+
+
+def test_detect_semantic_size_conflicts_returns_empty_with_no_explicit_dimensions_at_all():
+    assert detect_semantic_size_conflicts("a NEMA 17 stepper motor mount") == []

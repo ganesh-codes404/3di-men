@@ -23,8 +23,8 @@ import trimesh
 from llm_decompose import ActionablePoint, decompose_prompt
 from mesh_quality import bounding_box_overlap_fraction
 from spec_validation import (
-    validate_dimensions_against_description, validate_hole_count_against_description,
-    validate_hole_diameters_against_description,
+    detect_semantic_size_conflicts, validate_dimensions_against_description,
+    validate_hole_count_against_description, validate_hole_diameters_against_description,
 )
 
 
@@ -135,6 +135,12 @@ class PointBuildResult:
         # every claim matched or there was nothing to check -- distinguishing "checked, all matched" from
         # "nothing to check" isn't load-bearing here the way claimed_hole_count's None is, since an empty
         # list already means "no unmatched claims" either way.
+    semantic_size_conflicts: list[str] = field(default_factory=list)  # spec_validation.py's
+        # detect_semantic_size_conflicts -- a description naming a known standard (e.g. "NEMA 17") AND
+        # ALSO explicitly stating a disagreeing dimension for it. Disclosure only, never a status
+        # downgrade: the explicit value is already what's built and validated, this just makes the
+        # conflict itself visible rather than silently resolved (this project's own non-negotiable
+        # principle: "explicit numerical dimensions override semantic defaults").
 
 
 @dataclass
@@ -529,9 +535,28 @@ def build_assembly_from_points(
                             f"matches within tolerance ({diameter_report.detector_limitation})"
                         )
 
+                # Semantic-name-vs-explicit-dimension conflict (non-
+                # negotiable principle: "explicit numerical dimensions
+                # override semantic defaults associated with names such as
+                # 'NEMA 17'"). Purely a DISCLOSURE, not a new "problem" --
+                # the explicit value is already what dimension_match_rate
+                # above validates the built mesh against, so correctly
+                # honoring it is not itself a defect; this just makes the
+                # fact that a conflict existed, and which value won,
+                # visible rather than silent. Text-only (doesn't need
+                # own_mesh), so computed unconditionally.
+                semantic_size_conflicts = [
+                    f"description names {c.semantic_name} (standard {c.standard_value_mm:g}mm face) but also "
+                    f"explicitly states {c.explicit_value_mm:g}mm -- the explicit dimension takes precedence"
+                    for c in detect_semantic_size_conflicts(point.description)
+                ]
+
                 if status == "ok" and problems:
                     status = "suspect"
                     error = "; ".join(problems)
+                if semantic_size_conflicts:
+                    note = "; ".join(semantic_size_conflicts)
+                    error = f"{error}; {note}" if error else note
 
                 if pid in adjusted_relationships:
                     # Disclosed, never silent -- same discipline as repair.py's
@@ -557,6 +582,7 @@ def build_assembly_from_points(
                     resolution_method=raw.get("resolution_method", "statistical"),
                     claimed_hole_count=claimed_hole_count, detected_hole_count=detected_hole_count,
                     unmatched_hole_diameters_mm=unmatched_hole_diameters_mm,
+                    semantic_size_conflicts=semantic_size_conflicts,
                 )
                 # "out_of_distribution" and "suspect" still carry a mesh (a
                 # guess, or a geometrically dubious result) -- included in

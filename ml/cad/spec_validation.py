@@ -320,3 +320,87 @@ def validate_hole_diameters_against_description(
             closest_detected_mm=closest, deviation_fraction=deviation,
         ))
     return report
+
+
+# Semantic-name-vs-explicit-dimension conflict detection -- a confirmed,
+# previously entirely-unaddressed gap (grepped the whole repo for "NEMA":
+# zero hits before this). This project's own non-negotiable principle:
+# "explicit numerical dimensions override semantic defaults associated
+# with names such as 'NEMA 17'" -- that override already happens
+# MECHANICALLY (extract_claimed_dimensions_mm reads whatever explicit
+# number the text states, never a name-implied default), but nothing
+# ever made the CONFLICT ITSELF visible when a description names a known
+# standard size AND ALSO states a dimension that disagrees with it. A
+# silent override is still a silent decision -- the point of this
+# function is disclosure, not a new enforcement mechanism (the existing
+# dimension check already enforces the explicit value).
+#
+# Deliberately scoped to NEMA stepper-motor mounting faces specifically
+# (the brief's own named example), not a general "semantic name" lookup
+# for arbitrary terms like "bicycle" -- a broad lookup table of informal
+# names to assumed sizes would itself be exactly the kind of fabricated-
+# default risk this project avoids elsewhere (see llm_decompose.py's
+# STEP 0: realistic sizing is only ever applied for a short, explicitly
+# enumerated list of well-known object types, never invented generally).
+# Values are the real, standard NEMA mounting-face dimensions (the square
+# faceplate a motor of that size actually has), not estimates.
+_NEMA_STANDARD_FACE_MM: dict[int, float] = {
+    8: 20.3, 11: 28.2, 14: 35.2, 17: 42.3, 23: 57.2, 34: 86.0, 42: 110.0,
+}
+_NEMA_NAME_RE = re.compile(r"\bNEMA\s*-?\s*(\d+)\b", re.IGNORECASE)
+
+
+@dataclass
+class SemanticSizeConflict:
+    semantic_name: str  # e.g. "NEMA 17"
+    standard_value_mm: float  # the real standard's own dimension
+    explicit_value_mm: float  # what the description ALSO explicitly states
+    resolved_value_mm: float  # always == explicit_value_mm -- see this module's own docstring block above
+
+
+def detect_semantic_size_conflicts(description: str, tolerance_fraction: float = 0.1) -> list[SemanticSizeConflict]:
+    """Finds a NEMA-size name in `description` and checks whether the
+    SAME description also states an explicit dimension that disagrees
+    with that standard's own real mounting-face size. Returns one
+    SemanticSizeConflict per disagreeing explicit claim -- empty if no
+    NEMA name is present, or if every explicit claim either matches the
+    standard or there are no explicit claims to compare at all (nothing
+    to disclose a conflict about).
+
+    Only considers a claim that appears AT LEAST TWICE in the
+    description (e.g. "50mm x 50mm") -- a NEMA mounting face is always
+    square, so a repeated value is the actual signal that a face-size
+    claim is being made at all. Confirmed necessary, not a hypothetical
+    tightening: an UNREPEATED claim elsewhere in the same sentence (e.g.
+    "...50mm x 50mm x 10mm thick") almost always describes a DIFFERENT
+    attribute entirely (thickness, length) that was never claiming to be
+    the mounting face size in the first place -- comparing it against
+    the NEMA standard produced a real false-positive ("10mm" flagged as
+    "conflicting" with a 42.3mm faceplate) during this function's own
+    development, confirmed by direct testing, not assumed.
+
+    `resolved_value_mm` is always the explicit value, never the
+    semantic one -- this function reports a conflict, it does not
+    create ambiguity about which value wins; see this module's own
+    docstring block above for why that resolution needs no new
+    enforcement code of its own."""
+    nema_match = _NEMA_NAME_RE.search(description)
+    if nema_match is None:
+        return []
+    size = int(nema_match.group(1))
+    standard_mm = _NEMA_STANDARD_FACE_MM.get(size)
+    if standard_mm is None:
+        return []  # a NEMA size this project doesn't have a verified standard value for -- don't guess
+
+    all_claims = [c for c in extract_claimed_dimensions_mm(description) if c > 0]
+    repeated_values = {c for c in all_claims if all_claims.count(c) >= 2}
+
+    conflicts = []
+    for claimed in sorted(repeated_values):
+        deviation = abs(claimed - standard_mm) / standard_mm
+        if deviation > tolerance_fraction:
+            conflicts.append(SemanticSizeConflict(
+                semantic_name=f"NEMA {size}", standard_value_mm=standard_mm,
+                explicit_value_mm=claimed, resolved_value_mm=claimed,
+            ))
+    return conflicts
