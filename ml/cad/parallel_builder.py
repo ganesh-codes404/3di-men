@@ -156,6 +156,15 @@ class AssemblyBuildResult:
         # combined mesh below -- see _find_and_resolve_collisions and
         # PointBuildResult.excluded_from_assembly), not one left unfixed: this is a disclosure log,
         # not a pending-failure list -- the build does not stop or FAIL just because this is non-empty.
+    envelope_warnings: list[str] = field(default_factory=list)  # confirmed real gap this closes
+        # (mission-brief regression: "final bounding box 251.2x124.0x108.6mm, versus an approximate
+        # requested footprint of 150x100mm" -- reported with NO way to tell which component was
+        # actually responsible). Populated only when the ORIGINAL PROMPT TEXT (not any one part's own
+        # description) makes an explicit overall-footprint claim -- see
+        # spec_validation.extract_claimed_envelope_mm -- and the ACTUAL combined assembly exceeds it
+        # beyond a declared tolerance. Each entry traces the overrun to whichever placed component
+        # reaches furthest from the assembly's own center along the overrunning axis -- a diagnostic,
+        # same disclosure discipline as collision_warnings, not a silent pass/fail.
 
     @property
     def overall_status(self) -> str:
@@ -185,14 +194,21 @@ class AssemblyBuildResult:
           step to get there (PointBuildResult.repair_dropped_a_step) -- a
           geometrically valid, finished solid that is still NOT what was
           originally requested, which this property must not hide behind a
-          clean "PASS" just because the mesh itself is now watertight.
-          Never silently promoted to PASS.
+          clean "PASS" just because the mesh itself is now watertight. OR
+          the whole ASSEMBLY's own combined envelope exceeds an explicit
+          footprint claim in the original prompt (self.envelope_warnings)
+          -- every individual part can be perfectly "ok" while their
+          combined placement still overruns the requested footprint
+          (confirmed real regression: "final bounding box 251.2x124.0x108.6mm
+          versus an approximate requested footprint of 150x100mm"). Never
+          silently promoted to PASS.
         - "PASS": every point is status="ok", nothing was excluded from the
-          combined mesh, and no point needed a step dropped to get there
+          combined mesh, no point needed a step dropped to get there
           (an operand-swap repair, which changes neither the requested
           dimensions nor the requested feature, does NOT disqualify PASS --
-          see repair.py's own module docstring). The ONLY status that
-          means "built and verified correct," not just "something was
+          see repair.py's own module docstring), and the combined assembly
+          doesn't overrun any explicit footprint claim. The ONLY status
+          that means "built and verified correct," not just "something was
           produced."
 
         A collision between two unrelated parts does NOT, by itself, mean
@@ -216,6 +232,8 @@ class AssemblyBuildResult:
         if any(p.status in ("suspect", "partial", "out_of_distribution") for p in self.points):
             return "INCOMPLETE"
         if any(p.repair_dropped_a_step for p in self.points):
+            return "INCOMPLETE"
+        if self.envelope_warnings:
             return "INCOMPLETE"
         return "PASS"
 
@@ -327,7 +345,10 @@ def _unique_point_ids(points: list[ActionablePoint]) -> list[str]:
     return ids
 
 
-def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path, max_workers: int = 4) -> AssemblyBuildResult:
+def build_assembly_from_points(
+    points: list[ActionablePoint], bundle_path: Path, max_workers: int = 4,
+    claimed_envelope_mm: "tuple[float, float] | None" = None,
+) -> AssemblyBuildResult:
     """The shared build core: takes a list of actionable points from
     WHATEVER source produced them -- the LLM's decomposition, or a user
     hand-editing/hand-adding points in the frontend's playground -- and
@@ -343,12 +364,25 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
     for that wave to finish. Points with no relationship (or whose target
     is already resolved) build in parallel within their own wave, exactly
     as before -- most real assemblies are 1-2 waves deep, so this rarely
-    costs more than the fully-parallel version did."""
+    costs more than the fully-parallel version did.
+
+    Applies llm_decompose._correct_gear_mesh_spacing UNCONDITIONALLY, not
+    just when points arrive via decompose_prompt (which already applies
+    it too -- calling it twice is harmless/idempotent, see that
+    function's own design: an already-correct distance produces a ~zero
+    correction). Confirmed real gap this closes: hand-constructed points
+    (the frontend's manual playground, or any other direct caller of
+    this function) previously never got the exact gear-mesh-distance
+    correction at all -- only the LLM-decomposition path did, even
+    though the correction itself has nothing LLM-specific about it (pure
+    text-regex + relationship-chain math)."""
     from assembly_plan import (
         Relationship, RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg,
         separate_coincident_face_attachments, validate_relationships,
     )
+    from llm_decompose import _correct_gear_mesh_spacing
 
+    points = _correct_gear_mesh_spacing(points)
     ids = _unique_point_ids(points)
     id_to_point = dict(zip(ids, points))
     relationships = {pid: p.relationship for pid, p in zip(ids, points)}
@@ -567,9 +601,14 @@ def build_assembly_from_points(points: list[ActionablePoint], bundle_path: Path,
     placed_meshes = [placed_meshes_by_id[pid] for pid in ids if pid in placed_meshes_by_id]
     combined = trimesh.util.concatenate(placed_meshes) if placed_meshes else None
 
+    envelope_warnings = (
+        _diagnose_envelope_overrun(claimed_envelope_mm, placed_meshes_by_id)
+        if claimed_envelope_mm is not None else []
+    )
+
     return AssemblyBuildResult(
         mesh=combined, points=ordered_results, fell_back_to_single_point=False,
-        collision_warnings=collision_warnings,
+        collision_warnings=collision_warnings, envelope_warnings=envelope_warnings,
     )
 
 
@@ -656,9 +695,69 @@ def _find_and_resolve_collisions(
     return warnings, excluded
 
 
+def _diagnose_envelope_overrun(
+    claimed_envelope_mm: tuple[float, float], placed_meshes_by_id: dict[str, trimesh.Trimesh],
+    tolerance_fraction: float = 0.2,
+) -> list[str]:
+    """Confirmed real gap this closes (mission-brief regression): "final
+    bounding box 251.2x124.0x108.6mm, versus an approximate requested
+    footprint of 150x100mm" was reported with NO way to tell WHICH
+    component was actually responsible -- every individual part can be a
+    perfectly valid "ok" solid while their combined PLACEMENT still
+    overruns the requested footprint; this checks the assembly's own
+    combined extent, not any one part's.
+
+    Scoped to X/Y only (a footprint claim is a floor-plan size, not a
+    height -- the brief's own point: "the prompt may specify only a
+    footprint, not a height"). tolerance_fraction=0.2 is a deliberately
+    loose default: "close to" / "approximately" in the claim's own
+    wording already discloses this is a target, not a hard maximum (see
+    extract_claimed_envelope_mm's own docstring) -- flagging every few-
+    percent deviation on an explicitly approximate claim would be noise,
+    not a diagnostic.
+
+    Traces the overrun to whichever placed component reaches furthest
+    from the assembly's own center along the overrunning axis -- a
+    real, inspectable diagnostic (e.g. "'gear_b' reaches furthest..."),
+    not just a bare pass/fail on the combined number."""
+    if not placed_meshes_by_id:
+        return []
+    all_bounds = np.array([mesh.bounds for mesh in placed_meshes_by_id.values()])
+    combined_min, combined_max = all_bounds[:, 0, :].min(axis=0), all_bounds[:, 1, :].max(axis=0)
+    actual_extent = combined_max - combined_min
+    combined_center = (combined_min + combined_max) / 2.0
+
+    warnings: list[str] = []
+    for axis_idx, axis_name in ((0, "X"), (1, "Y")):
+        claimed = claimed_envelope_mm[axis_idx]
+        if claimed <= 0:
+            continue
+        actual = float(actual_extent[axis_idx])
+        overrun = actual - claimed
+        if overrun <= claimed * tolerance_fraction:
+            continue
+        worst_id, worst_reach = None, 0.0
+        for pid, mesh in placed_meshes_by_id.items():
+            reach = max(
+                abs(float(mesh.bounds[0][axis_idx]) - combined_center[axis_idx]),
+                abs(float(mesh.bounds[1][axis_idx]) - combined_center[axis_idx]),
+            )
+            if reach > worst_reach:
+                worst_reach, worst_id = reach, pid
+        warnings.append(
+            f"assembly's {axis_name} extent is {actual:.1f}mm, exceeding the requested ~{claimed:.0f}mm "
+            f"footprint by {overrun:.1f}mm -- {worst_id!r} reaches furthest from the assembly's own "
+            f"center along {axis_name} ({worst_reach:.1f}mm), most likely responsible for the overrun"
+        )
+    return warnings
+
+
 def build_assembly_from_prompt(prompt: str, bundle_path: Path, max_workers: int = 4) -> AssemblyBuildResult:
+    from spec_validation import extract_claimed_envelope_mm
+
     decomposition = decompose_prompt(prompt)
-    result = build_assembly_from_points(decomposition.points, bundle_path, max_workers)
+    claimed_envelope_mm = extract_claimed_envelope_mm(prompt)
+    result = build_assembly_from_points(decomposition.points, bundle_path, max_workers, claimed_envelope_mm=claimed_envelope_mm)
     result.fell_back_to_single_point = decomposition.fell_back
     result.raw_llm_output = decomposition.raw_llm_output
     result.knowledge_context = decomposition.knowledge_context

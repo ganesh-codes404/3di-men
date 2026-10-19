@@ -40,6 +40,23 @@ class GeometryReport:
         # bore/hole diameter (e.g. "a 12mm bore") against what was actually built, only that SOME
         # hole exists at all (detected_hole_count) and looks round (hole_circularity). See
         # spec_validation.validate_hole_diameters_against_description, which this feeds.
+    hole_axes: list[str] = field(default_factory=list)  # row-aligned with hole_circularity/hole_diameters_mm --
+        # "x"/"y"/"z", whichever world axis the hole's own axis runs along. Confirmed real gap this
+        # closes: _detect_holes_and_cylinders used to only ever test the Z axis at all (see that
+        # function's own prior docstring, and data/procedural_generator.py's BracketParams, whose two
+        # arms drill horizontally -- Y-axis and X-axis respectively -- and were INVISIBLE to the old
+        # detector, reading detected_hole_count=0 for every bracket regardless of how correctly it was
+        # actually drilled). Still axis-ALIGNED only (x/y/z, never an arbitrary tilted direction) --
+        # every hole this project's own builders ever produce runs along one of the three world axes
+        # (every primitive/relationship in this codebase is built or rotated in 90-degree increments,
+        # see assembly_plan._ALIGN_LOCAL_Z_TO), so a true arbitrary-direction detector would be solving
+        # a problem that doesn't actually occur here.
+    hole_through: list[bool] = field(default_factory=list)  # row-aligned with hole_circularity -- True when
+        # the hole's own cylindrical surface spans (within a tolerance) the mesh's FULL extent along its
+        # axis, i.e. a genuine through-hole rather than a blind bore stopping partway. A geometric
+        # heuristic (coverage of the component's own extent against the mesh's extent along the same
+        # axis), not a feature-tree-derived fact (this project only ever has meshes to work from) -- see
+        # this module's own _classify_wall_component docstring for exactly how it's computed.
     mirror_symmetry_score: float = 0.0  # 1.0 = perfect mirror symmetry about best-fit plane
 
     def as_dict(self) -> dict:
@@ -56,6 +73,8 @@ class GeometryReport:
             "detected_hole_count": self.detected_hole_count,
             "hole_circularity": self.hole_circularity,
             "hole_diameters_mm": self.hole_diameters_mm,
+            "hole_axes": self.hole_axes,
+            "hole_through": self.hole_through,
             "mirror_symmetry_score": self.mirror_symmetry_score,
         }
 
@@ -77,6 +96,16 @@ def _planar_face_fraction(mesh: trimesh.Trimesh, angle_tol_deg: float = 3.0) -> 
     return float(planar_area / max(mesh.area, 1e-9))
 
 
+_AXIS_NAMES = ("x", "y", "z")
+
+
+def _perp_indices(axis: int) -> tuple[int, int]:
+    """The two coordinate indices OTHER than `axis` -- the plane a hole
+    running along `axis` is circular in, generalizing the old hardcoded
+    [:, :2] (XY) slicing to work for any of the 3 world axes."""
+    return tuple(i for i in range(3) if i != axis)  # type: ignore[return-value]
+
+
 def _fit_circle_xy(xy: np.ndarray) -> tuple[float, float, float, float]:
     """Algebraic (Kasa) circle fit to 2D points. Returns (cx, cy, radius, residual),
     where residual is the std-dev of per-point radius error, normalized by radius
@@ -95,13 +124,24 @@ def _fit_circle_xy(xy: np.ndarray) -> tuple[float, float, float, float]:
     return float(cx), float(cy), r, residual
 
 
-def _wall_components(mesh: trimesh.Trimesh, z_normal_tol: float = 0.35):
-    """Connected components of faces whose normal is roughly horizontal (i.e.
-    candidate cylindrical/fillet side-wall faces, as opposed to the top/bottom
-    planar faces of an extruded part). Returns a list of face-index arrays.
-    """
+def _wall_components(mesh: trimesh.Trimesh, axis: int = 2, normal_tol: float = 0.35, exclude: np.ndarray | None = None):
+    """Connected components of faces whose normal runs roughly PERPENDICULAR
+    to `axis` (i.e. candidate cylindrical/fillet side-wall faces for a hole
+    or boss running along `axis`, as opposed to the end-cap faces at either
+    end of it). Returns a list of face-index arrays.
+
+    `exclude` (a boolean mask over ALL mesh faces, True = already claimed by
+    an earlier axis pass) lets _detect_holes_and_cylinders check multiple
+    axes without a face being double-counted into two different components
+    -- see that function's own docstring for why this is cheap insurance
+    rather than a correctness requirement (a real hole's own wall faces
+    reliably fail every OTHER axis's circularity/full-loop test already,
+    see that function's docstring, but excluding claimed faces up front is
+    simpler to reason about than relying on that alone)."""
     normals = mesh.face_normals
-    wall_mask = np.abs(normals[:, 2]) < z_normal_tol
+    wall_mask = np.abs(normals[:, axis]) < normal_tol
+    if exclude is not None:
+        wall_mask = wall_mask & ~exclude
     if not wall_mask.any():
         return []
 
@@ -128,30 +168,57 @@ def _wall_components(mesh: trimesh.Trimesh, z_normal_tol: float = 0.35):
     return components
 
 
-def _classify_wall_component(mesh: trimesh.Trimesh, faces: np.ndarray, radius_residual_tol: float = 0.08):
-    """Fit a circle (in XY) to a candidate side-wall patch and classify it.
+def _classify_wall_component(mesh: trimesh.Trimesh, faces: np.ndarray, axis: int = 2, radius_residual_tol: float = 0.08):
+    """Fit a circle, in the plane perpendicular to `axis`, to a candidate
+    side-wall patch and classify it.
 
-    Returns a dict with is_circular, is_full_loop, is_concave, radius, circularity,
-    or None if the patch has too few faces to fit reliably.
-    """
+    Returns a dict with is_circular, is_full_loop, is_concave, radius,
+    circularity, axis, is_through, or None if the patch has too few faces
+    to fit reliably.
+
+    `is_through` is a geometric heuristic, not a feature-tree fact (this
+    project only ever has a mesh to work from): True when the component's
+    own extent along `axis` covers at least 90% of the MESH's full extent
+    along that same axis -- a genuine through-hole's cylindrical wall runs
+    the full thickness of the part it passes through, while a blind bore's
+    wall stops well short of the far side."""
     if len(faces) < 6:
         return None
+    u_idx, v_idx = _perp_indices(axis)
     tri_centroids = mesh.triangles_center[faces]
-    cx, cy, r, residual = _fit_circle_xy(tri_centroids[:, :2])
+    uv = tri_centroids[:, [u_idx, v_idx]]
+    cx, cy, r, residual = _fit_circle_xy(uv)
     if r < 1e-6 or residual > radius_residual_tol:
         return None
 
-    angles = np.arctan2(tri_centroids[:, 1] - cy, tri_centroids[:, 0] - cx)
+    angles = np.arctan2(uv[:, 1] - cy, uv[:, 0] - cx)
     sorted_angles = np.sort(angles)
     gaps = np.diff(np.concatenate([sorted_angles, [sorted_angles[0] + 2 * np.pi]]))
     max_gap_deg = np.degrees(gaps.max())
     is_full_loop = max_gap_deg < 60.0  # covers at least ~300 degrees of the circle
 
-    normals_xy = mesh.face_normals[faces][:, :2]
-    normals_xy = normals_xy / np.clip(np.linalg.norm(normals_xy, axis=1, keepdims=True), 1e-9, None)
-    outward = tri_centroids[:, :2] - [cx, cy]
+    normals_uv = mesh.face_normals[faces][:, [u_idx, v_idx]]
+    normals_uv = normals_uv / np.clip(np.linalg.norm(normals_uv, axis=1, keepdims=True), 1e-9, None)
+    outward = uv - [cx, cy]
     outward = outward / np.clip(np.linalg.norm(outward, axis=1, keepdims=True), 1e-9, None)
-    concavity = float(np.mean(np.sum(normals_xy * outward, axis=1)))  # -1 concave (hole) .. +1 convex (boss/fillet)
+    concavity = float(np.mean(np.sum(normals_uv * outward, axis=1)))  # -1 concave (hole) .. +1 convex (boss/fillet)
+
+    # VERTEX extent, not triangle-centroid extent: a cylindrical wall with
+    # no height subdivision (the normal case -- a straight bore has no
+    # reason to be cut into height bands) is represented by just 2
+    # triangles per circumferential section, each spanning the FULL
+    # height in one long thin triangle. That triangle's CENTROID then
+    # lands 1/3 of the way in from each end (not at the true endpoint),
+    # so using triangle_center here (confirmed directly: a 40mm-thick
+    # box with a full through-hole) made every through-hole's own
+    # measured span come out as 1/3 of its real length, misclassifying
+    # it as a blind hole. Vertices give the real geometric extent
+    # regardless of how coarsely the wall happens to be triangulated.
+    wall_vertex_ids = np.unique(mesh.faces[faces].ravel())
+    along_axis = mesh.vertices[wall_vertex_ids, axis]
+    component_span = float(along_axis.max() - along_axis.min())
+    mesh_extent = float(mesh.bounds[1][axis] - mesh.bounds[0][axis])
+    is_through = mesh_extent > 1e-6 and (component_span / mesh_extent) >= 0.9
 
     return {
         "center": (cx, cy),
@@ -160,35 +227,59 @@ def _classify_wall_component(mesh: trimesh.Trimesh, faces: np.ndarray, radius_re
         "is_full_loop": is_full_loop,
         "is_concave": concavity < -0.5,
         "is_convex": concavity > 0.5,
+        "axis": _AXIS_NAMES[axis],
+        "is_through": is_through,
     }
 
 
 def _detect_holes_and_cylinders(mesh: trimesh.Trimesh) -> dict:
-    """Classify vertical side-wall patches into through-holes (concave, full 360
-    degree loop, circular in cross-section) vs. general cylindrical patches
-    (circular in cross-section, convex or concave, full loop or partial arc like
-    a fillet).
+    """Classify side-wall patches into through/blind holes (concave, full
+    360 degree loop, circular in cross-section) vs. general cylindrical
+    patches (circular in cross-section, convex or concave, full loop or
+    partial arc like a fillet).
 
-    Limitation: this only understands vertical (Z-axis) cylindrical features on
-    largely axis-aligned, watertight, extruded parts -- it is the right amount of
-    machinery for the v1 procedural dataset (Section 8 of the technical report),
-    not a general-purpose feature recognizer for arbitrary CAD/mesh orientations.
-    """
+    Tries all 3 world axes (not just Z) -- confirmed real gap this closes:
+    the old Z-only version read detected_hole_count=0 for any part whose
+    holes run horizontally (e.g. data/procedural_generator.py's
+    BracketParams, whose two arms drill along Y and X respectively,
+    documented there as a known, deferred limitation until now). Still
+    axis-ALIGNED only, never an arbitrary tilted direction -- every hole
+    this project's builders can actually produce runs along one of the
+    three world axes (see assembly_plan._ALIGN_LOCAL_Z_TO), so detecting
+    anything beyond that would be solving a problem that doesn't occur
+    here, not a real gap.
+
+    Each face is attributed to at most ONE axis's wall component (`exclude`
+    threaded through _wall_components across passes) -- a genuine hole's
+    own wall reliably fails the circularity/full-loop test under every
+    OTHER axis already (its face normals are mostly NOT perpendicular to a
+    different axis), but excluding already-claimed faces up front is
+    simpler to reason about than relying on that alone, and guarantees no
+    double-counted hole across axes."""
     hole_circularity = []
     hole_diameters_mm = []
+    hole_axes = []
+    hole_through = []
     cylindrical_patches = 0
-    for faces in _wall_components(mesh):
-        result = _classify_wall_component(mesh, faces)
-        if result is None:
-            continue
-        cylindrical_patches += 1
-        if result["is_concave"] and result["is_full_loop"]:
-            hole_circularity.append(result["circularity"])
-            hole_diameters_mm.append(result["radius"] * 2.0)
+    claimed = np.zeros(len(mesh.faces), dtype=bool)
+    for axis in range(3):
+        for faces in _wall_components(mesh, axis=axis, exclude=claimed):
+            result = _classify_wall_component(mesh, faces, axis=axis)
+            if result is None:
+                continue
+            claimed[faces] = True
+            cylindrical_patches += 1
+            if result["is_concave"] and result["is_full_loop"]:
+                hole_circularity.append(result["circularity"])
+                hole_diameters_mm.append(result["radius"] * 2.0)
+                hole_axes.append(result["axis"])
+                hole_through.append(result["is_through"])
     return {
         "hole_count": len(hole_circularity),
         "hole_circularity": hole_circularity,
         "hole_diameters_mm": hole_diameters_mm,
+        "hole_axes": hole_axes,
+        "hole_through": hole_through,
         "cylindrical_patch_count": cylindrical_patches,
     }
 
@@ -227,5 +318,7 @@ def evaluate_mesh(mesh: trimesh.Trimesh) -> GeometryReport:
         detected_hole_count=features["hole_count"],
         hole_circularity=features["hole_circularity"],
         hole_diameters_mm=features["hole_diameters_mm"],
+        hole_axes=features["hole_axes"],
+        hole_through=features["hole_through"],
         mirror_symmetry_score=_mirror_symmetry_score(mesh),
     )

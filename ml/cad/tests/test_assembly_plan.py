@@ -92,6 +92,53 @@ def test_concentric_with_axis_offset_slides_along_the_shared_axis():
     assert pos == pytest.approx((0.0, 0.0, 16.5))
 
 
+def test_parallel_to_stays_level_with_an_elevated_target_and_slides_sideways():
+    """Confirmed real gap this closes (mission-brief regression): "gear_B
+    excluded after a 52% overlap with the base." A second shaft mounted
+    independently (not concentric_with the first) has no way, as plain
+    position_mm, to know where the first shaft's own relationship chain
+    actually ends up -- which can be well ABOVE a base once a boss/face
+    attachment is involved earlier in the chain. parallel_to reads that
+    real, already-resolved position directly off shaft_a's own built
+    mesh: shaft_b must land at the EXACT same z as shaft_a (elevated,
+    not at the base's own level), offset sideways by lateral_offset."""
+    sb = Sandbox()
+    # shaft_a sitting elevated at z=25, as if its own chain (boss
+    # attached to a base's +z face) already resolved it there
+    shaft_a = sb._get(sb.add_cylinder(6, 90, [0, 0, 25], "z"))
+    sb2 = Sandbox()
+    shaft_b = sb2._get(sb2.add_cylinder(6, 90, [0, 0, 0], "z"))
+
+    rel = Relationship(kind="parallel_to", target_id="shaft_a", axis="z", lateral_axis="x", lateral_offset=65.0)
+    pos = resolve_position(rel, shaft_a, shaft_b)
+    assert pos == pytest.approx((65.0, 0.0, 25.0))  # level with shaft_a's real z, not z=0
+
+    rot = resolve_rotation_deg(rel)
+    from parallel_builder import PlacementTransform
+
+    placed = PlacementTransform.translation(pos).compose(PlacementTransform.rotation(rot)).apply_to_mesh(shaft_b)
+    assert placed.extents == pytest.approx([12.0, 12.0, 90.0])  # still standing vertically, like shaft_a
+
+
+def test_parallel_to_axis_offset_slides_along_the_shared_running_axis_too():
+    """axis_offset (the SAME field concentric_with already uses) still
+    works for parallel_to -- a second shaft doesn't have to be
+    perfectly level, just able to be by default."""
+    sb = Sandbox()
+    shaft_a = sb._get(sb.add_cylinder(6, 90, [0, 0, 25], "z"))
+    sb2 = Sandbox()
+    shaft_b = sb2._get(sb2.add_cylinder(6, 90, [0, 0, 0], "z"))
+
+    rel = Relationship(kind="parallel_to", target_id="shaft_a", axis="z", axis_offset=10.0, lateral_axis="x", lateral_offset=65.0)
+    pos = resolve_position(rel, shaft_a, shaft_b)
+    assert pos == pytest.approx((65.0, 0.0, 35.0))
+
+
+def test_resolve_rotation_deg_parallel_to_reorients_like_concentric_with():
+    assert resolve_rotation_deg(Relationship(kind="parallel_to", target_id="t", axis="y", lateral_axis="x")) == \
+        resolve_rotation_deg(Relationship(kind="concentric_with", target_id="t", axis="y"))
+
+
 def test_symmetric_about_mirrors_the_targets_position():
     sb = Sandbox()
     tab_a = sb._get(sb.add_box(10, 10, 10, [25.0, 4.0, 0.0]))
@@ -343,11 +390,11 @@ def test_separate_coincident_face_attachments_spaces_an_identical_pair():
     assert pos_a != pos_b
 
 
-def test_separate_coincident_face_attachments_leaves_already_distinct_offsets_alone():
-    """Not this function's job: a pair that already has different
-    offsets (the LLM tried to differentiate them, even if imperfectly)
-    must come back untouched -- this only acts on a genuinely IDENTICAL
-    coincidence."""
+def test_separate_coincident_face_attachments_leaves_already_separated_offsets_alone():
+    """Not this function's job: a pair already far enough apart that
+    their own real extents don't overlap must come back untouched --
+    this only acts on a genuine overlap, not merely "different from each
+    other"."""
     sb = Sandbox()
     plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))
     sb2 = Sandbox()
@@ -356,6 +403,86 @@ def test_separate_coincident_face_attachments_leaves_already_distinct_offsets_al
     rel_a = Relationship(kind="attached_to_face", target_id="plate", face="+y", offset_v=-10)
     rel_b = Relationship(kind="attached_to_face", target_id="plate", face="+y", offset_v=10)
     assert separate_coincident_face_attachments([("a", rel_a, gusset), ("b", rel_b, gusset)], plate) == {}
+
+
+def test_separate_coincident_face_attachments_catches_a_near_miss_on_a_different_face():
+    """Confirmed real, independently reproduced regression (a SECOND
+    motor-mount run, after the exact-coincidence version of this
+    function already shipped): two gussets given DIFFERENT (not
+    identical) offsets on the base's +x edge face still overlapped by
+    82-100%, because +x's own u/v span is nearly the opposite of the +y
+    face this function was first verified against (a 150x100x10 box's
+    +x face spans only 10mm in u but 100mm in v -- confirmed directly).
+    Offsets close enough to still overlap, even though genuinely
+    different, must still be caught and separated -- not just
+    byte-identical ones."""
+    sb = Sandbox()
+    base = sb._get(sb.add_box(150, 100, 10, [0, 0, 0]))
+    sb2 = Sandbox()
+    gusset_a = sb2._get(sb2.add_extrusion("triangle", param_a=40, param_b=40, param_c=0, height=5))
+    sb3 = Sandbox()
+    gusset_b = sb3._get(sb3.add_extrusion("triangle", param_a=40, param_b=40, param_c=0, height=5))
+
+    rel_a = Relationship(kind="attached_to_face", target_id="base", face="+x", offset_v=-15)
+    rel_b = Relationship(kind="attached_to_face", target_id="base", face="+x", offset_v=15)
+    adjusted = separate_coincident_face_attachments(
+        [("gusset_left", rel_a, gusset_a), ("gusset_right", rel_b, gusset_b)], base,
+    )
+    assert set(adjusted.keys()) == {"gusset_left", "gusset_right"}
+    new_a, new_b = adjusted["gusset_left"], adjusted["gusset_right"]
+    assert abs(new_a.offset_v - new_b.offset_v) > abs(rel_a.offset_v - rel_b.offset_v)  # genuinely more separated
+
+    # and both must still resolve within the base's own +x face (not off the edge)
+    pos_a = resolve_position(new_a, base, gusset_a)
+    pos_b = resolve_position(new_b, base, gusset_b)
+    assert pos_a != pos_b
+
+
+def test_separate_coincident_face_attachments_accounts_for_the_facing_rotation():
+    """Confirmed real, independently reproduced regression (live-testing a
+    motor-mount-style assembly through the full build pipeline, not just
+    this function in isolation): a 30x30x4mm triangular gusset attached to
+    a 150x100x10mm base's "-y" face, offset ONLY 10mm apart along u,
+    overlapped by 67% in the actual placed geometry -- yet this function
+    used to leave them untouched, because own_u/own_v projected each
+    gusset's OWN LOCAL mesh (still in its as-BUILT, pre-rotation
+    orientation) directly onto the face's WORLD-FRAME u/v vectors. The
+    "-y" face's own u axis happens to be world Z, which also happens to be
+    the UNROTATED gusset's own local Z (its 4mm extrusion thickness) --
+    so own_u measured 4mm instead of the ~30mm the gusset actually spans
+    once resolve_rotation_deg's 90-degree-about-X rotation (which this
+    face requires) stands it upright against that face. 10mm > 4mm looked
+    like "already separated"; it was nowhere close once correctly
+    rotated. (The pre-existing "+x face" test above happens to use an
+    offset axis that a 90-degree-about-Y rotation leaves unchanged, which
+    is exactly why it could pass even with this bug present -- this test
+    uses "-y" specifically because its required rotation (about X) is the
+    one that actually swaps which local axis maps to u vs v.)"""
+    sb = Sandbox()
+    base = sb._get(sb.add_box(150, 100, 10, [0, 0, 0]))
+    sb2 = Sandbox()
+    gusset_a = sb2._get(sb2.add_extrusion("triangle", param_a=30, param_b=30, param_c=0, height=4))
+    sb3 = Sandbox()
+    gusset_b = sb3._get(sb3.add_extrusion("triangle", param_a=30, param_b=30, param_c=0, height=4))
+
+    rel_a = Relationship(kind="attached_to_face", target_id="base", face="-y", offset_u=-5)
+    rel_b = Relationship(kind="attached_to_face", target_id="base", face="-y", offset_u=5)
+    adjusted = separate_coincident_face_attachments(
+        [("gusset_left", rel_a, gusset_a), ("gusset_right", rel_b, gusset_b)], base,
+    )
+    assert set(adjusted.keys()) == {"gusset_left", "gusset_right"}
+    new_a, new_b = adjusted["gusset_left"], adjusted["gusset_right"]
+    assert abs(new_a.offset_v - new_b.offset_v) >= 30.0  # genuinely separated by at least the gusset's own real span
+
+    from mesh_quality import bounding_box_overlap_fraction
+    from parallel_builder import PlacementTransform
+
+    pos_a = resolve_position(new_a, base, gusset_a)
+    pos_b = resolve_position(new_b, base, gusset_b)
+    rot = resolve_rotation_deg(new_a)
+    placed_a = PlacementTransform.translation(pos_a).compose(PlacementTransform.rotation(rot)).apply_to_mesh(gusset_a)
+    placed_b = PlacementTransform.translation(pos_b).compose(PlacementTransform.rotation(rot)).apply_to_mesh(gusset_b)
+    assert bounding_box_overlap_fraction(placed_a, placed_b) < 0.05  # genuinely clear in the REAL placed geometry
 
 
 def test_separate_coincident_face_attachments_is_a_noop_for_three_or_more():

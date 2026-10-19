@@ -591,6 +591,84 @@ def test_correct_gear_mesh_spacing_still_fires_when_gears_use_relationships():
     assert by_id["shaft_A"].relationship.target_id == "boss_A"
 
 
+def test_correct_gear_mesh_spacing_sets_lateral_offset_directly_for_parallel_to():
+    """Confirmed real regression this closes (an independently reproduced
+    motor-mount run, AFTER the plain-position_mm correction above
+    already shipped): "gear_B excluded after a 52% overlap with the
+    base" -- the old vector-shift correction walks shaft_B's sibling
+    chain up to whatever free point anchors gear_A (which, once a boss/
+    face-attachment chain is involved, is the BASE itself, not shaft_A's
+    own real position), and shifts shaft_B along the direction from
+    THAT point -- systematically landing gear_B near the base's own
+    level instead of at shaft_A's real, elevated one. When shaft_B uses
+    "parallel_to" instead, this must set its lateral_offset DIRECTLY to
+    the real gear-mesh distance, with no vector math and no wrong-anchor
+    risk, since assembly_plan.resolve_position reads shaft_A's ACTUAL
+    built position at build time, long after this runs."""
+    points = [
+        ActionablePoint("a box 150mm x 100mm x 10mm", (0.0, 0.0, 0.0), id="base"),
+        ActionablePoint(
+            "a cylinder 30mm diameter, 20mm tall", (0.0, 0.0, 0.0), id="boss",
+            relationship=Relationship(kind="attached_to_face", target_id="base", face="+z"),
+        ),
+        ActionablePoint(
+            "a cylinder 12mm diameter, 90mm long", (0.0, 0.0, 0.0), id="shaft_A",
+            relationship=Relationship(kind="concentric_with", target_id="boss", axis="z"),
+        ),
+        ActionablePoint(
+            "a gear profile, module 2.5, 20 teeth", (0.0, 0.0, 0.0), id="gear_A",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_A", axis="z"),
+        ),
+        ActionablePoint(
+            "a cylinder 12mm diameter, 90mm long", (0.0, 0.0, 0.0), id="shaft_B",
+            # deliberately a wrong/rough lateral_offset -- confirms the corrector actually moves it
+            relationship=Relationship(kind="parallel_to", target_id="shaft_A", axis="z", lateral_axis="x", lateral_offset=40.0),
+        ),
+        ActionablePoint(
+            "a gear profile, module 2.5, 32 teeth", (0.0, 0.0, 0.0), id="gear_B",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_B", axis="z"),
+        ),
+    ]
+    corrected = _correct_gear_mesh_spacing(points)
+    expected = 2.5 * (20 + 32) / 2  # 65mm
+
+    by_id = {p.id: p for p in corrected}
+    assert by_id["shaft_B"].relationship.kind == "parallel_to"
+    assert by_id["shaft_B"].relationship.target_id == "shaft_A"
+    assert by_id["shaft_B"].relationship.lateral_offset == pytest.approx(expected)
+    assert by_id["shaft_B"].relationship.lateral_axis == "x"
+    # the rest of the chain is untouched
+    assert by_id["boss"].relationship.target_id == "base"
+    assert by_id["gear_B"].relationship.target_id == "shaft_B"
+
+
+def test_correct_gear_mesh_spacing_parallel_to_preserves_a_negative_sign():
+    """A lateral_offset given as negative (the second shaft on the OTHER
+    side) must stay negative after correction -- only the MAGNITUDE
+    comes from the real gear math, never the side the LLM already chose."""
+    points = [
+        ActionablePoint(
+            "a cylinder 10mm diameter, 70mm long", (0.0, 0.0, 0.0), id="shaft_A",
+        ),
+        ActionablePoint(
+            "a gear profile, module 2.5, 24 teeth", (0.0, 0.0, 0.0), id="gear_A",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_A", axis="z"),
+        ),
+        ActionablePoint(
+            "a cylinder 10mm diameter, 70mm long", (0.0, 0.0, 0.0), id="shaft_B",
+            relationship=Relationship(kind="parallel_to", target_id="shaft_A", axis="z", lateral_axis="x", lateral_offset=-40.0),
+        ),
+        ActionablePoint(
+            "a gear profile, module 2.5, 36 teeth", (0.0, 0.0, 0.0), id="gear_B",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_B", axis="z"),
+        ),
+    ]
+    corrected = _correct_gear_mesh_spacing(points)
+    by_id = {p.id: p for p in corrected}
+    assert by_id["shaft_B"].relationship.lateral_offset < 0
+    assert abs(by_id["shaft_B"].relationship.lateral_offset) == pytest.approx(2.5 * (24 + 36) / 2)
+
+
 def test_correct_gear_mesh_spacing_leaves_a_shared_anchor_untouched():
     """Both gears attached directly to the SAME housing (no per-gear shaft)
     have no unambiguous single point to shift -- this must be left

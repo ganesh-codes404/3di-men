@@ -194,3 +194,82 @@ def test_exported_mesh_round_trips_through_stl():
     assert np.allclose(sorted(reimported.extents), sorted(original.extents))
     assert abs(reimported.volume - original.volume) < 1e-3
     exported_path.unlink()  # this test's own artifact, not a real build's -- clean up after itself
+
+
+def test_exported_mesh_round_trips_through_3mf():
+    """Print Lab export (printability.py's own module docstring): 3MF
+    support was investigated, not assumed -- confirmed directly that
+    this project's installed trimesh can both WRITE and READ BACK a
+    valid 3MF file (export alone succeeding is not enough evidence; a
+    library can write a file it cannot itself parse back correctly)."""
+    import numpy as np
+    import trimesh
+
+    from sandbox import Sandbox, ToolCall
+
+    prog = [
+        ToolCall("add_box", {"length": 40, "width": 30, "height": 20, "center": [0, 0, 0]}),
+        ToolCall("finalize", {"target": 0}),
+    ]
+    original = Sandbox.execute(prog).mesh
+
+    exported = original.export(file_type="3mf")
+    assert isinstance(exported, (bytes, bytearray)) and len(exported) > 0
+
+    import io
+
+    scene = trimesh.load(io.BytesIO(exported), file_type="3mf")
+    reimported = scene.to_geometry()
+    assert reimported.is_watertight
+    assert np.allclose(sorted(reimported.extents), sorted(original.extents))
+    assert abs(reimported.volume - original.volume) < 1e-3
+
+
+# ---------------- _parse_manual_points -- confirmed real bug this covers,
+# found live-testing the exact motor-mount scenario against the real server:
+# a manual "points" payload with id/relationship fields had BOTH silently
+# dropped, so every point fell back to its raw (often identical, e.g. all
+# (0,0,0)) position_mm with no relationship resolved at all -- and a later
+# gear-mesh correction step then moved EVERY point that happened to share
+# that coincidental position together, not just the one it was meant for.
+# Neither the LLM nor program_model.py is involved in this function at all,
+# so (unlike /api/build's own route) this is tested directly, fast. ----------
+
+def test_parse_manual_points_preserves_id_and_relationship():
+    points = server._parse_manual_points([
+        {"id": "base", "description": "a box 150mm x 100mm x 10mm", "position_mm": {"x": 0, "y": 0, "z": 0}},
+        {
+            "id": "boss", "description": "a cylinder 30mm diameter, 20mm tall", "position_mm": {"x": 0, "y": 0, "z": 0},
+            "relationship": {"kind": "attached_to_face", "target_id": "base", "face": "+z"},
+        },
+    ])
+    assert len(points) == 2
+    assert points[0].id == "base"
+    assert points[1].id == "boss"
+    assert points[1].relationship is not None
+    assert points[1].relationship.kind == "attached_to_face"
+    assert points[1].relationship.target_id == "base"
+    assert points[1].relationship.face == "+z"
+
+
+def test_parse_manual_points_ignores_an_unparseable_relationship_without_rejecting_the_point():
+    """Mirrors _parse_relationship's own contract (llm_decompose.py): a
+    malformed/absent relationship just means this point falls back to its
+    own explicit position_mm, never a hard failure here."""
+    points = server._parse_manual_points([
+        {
+            "description": "a box 40mm x 40mm x 40mm", "position_mm": {"x": 5, "y": 0, "z": 0},
+            "relationship": {"kind": "not_a_real_kind", "target_id": "x"},
+        },
+    ])
+    assert len(points) == 1
+    assert points[0].relationship is None
+    assert points[0].position_mm == (5.0, 0.0, 0.0)
+
+
+def test_parse_manual_points_defaults_a_missing_id_to_empty_string():
+    """Matches ActionablePoint's own default (id: str = "") -- downstream
+    id auto-generation (parallel_builder._unique_point_ids) expects this,
+    not None."""
+    points = server._parse_manual_points([{"description": "a box 10mm x 10mm x 10mm", "position_mm": {"x": 0, "y": 0, "z": 0}}])
+    assert points[0].id == ""

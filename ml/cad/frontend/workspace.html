@@ -473,6 +473,7 @@
     <div class="meta-row">
       <span>generated in <strong id="genTime" style="color:var(--text);"></strong></span>
       <a class="download" id="downloadLink" download>&#8681; Download .stl</a>
+      <a class="download" id="printLabLink" href="#" target="_blank" style="display:none;">&#9654; Open in Print Lab</a>
     </div>
   </div>
   </div> <!-- /promptTab -->
@@ -508,6 +509,7 @@
     <div class="meta-row">
       <span></span>
       <a class="download" id="consoleDownloadLink" download>&#8681; Download .stl</a>
+      <a class="download" id="consolePrintLabLink" href="#" target="_blank" style="display:none;">&#9654; Open in Print Lab</a>
     </div>
 
     <div class="card" id="assemblyCard" style="display:none;">
@@ -519,6 +521,7 @@
       <div class="meta-row">
         <span></span>
         <a class="download" id="assemblyDownloadLink" download>&#8681; Download combined .stl</a>
+        <a class="download" id="assemblyPrintLabLink" href="#" target="_blank" style="display:none;">&#9654; Open in Print Lab</a>
       </div>
     </div>
   </div> <!-- /consoleTab -->
@@ -1122,10 +1125,11 @@ function renderAssemblyTopology(topo) {
   updateViewerOverlay(topo, 'Combined mesh');
 }
 
-function renderCollisionWarnings(warnings) {
+function renderCollisionWarnings(collisionWarnings, envelopeWarnings) {
   const el = document.getElementById('collisionWarnings');
-  if (!warnings || warnings.length === 0) { el.innerHTML = ''; return; }
-  el.innerHTML = warnings.map(w => `<div class="dim-mismatch">⚠ ${escapeAttr(w)}</div>`).join('');
+  const all = [...(collisionWarnings || []), ...(envelopeWarnings || []).map(w => `Envelope: ${w}`)];
+  if (all.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = all.map(w => `<div class="dim-mismatch">⚠ ${escapeAttr(w)}</div>`).join('');
 }
 
 /* ---------------- clarify stage ---------------- */
@@ -1184,7 +1188,7 @@ function renderOverallStatusBanner(status) {
 async function applyBuildResponse(data) {
   setPartsFromBuildResult(data.points);
   renderAssemblyTopology(data.assembly_topology);
-  renderCollisionWarnings(data.collision_warnings);
+  renderCollisionWarnings(data.collision_warnings, data.envelope_warnings);
   renderOverallStatusBanner(data.overall_status);
   document.getElementById('fallbackNote').style.display = data.fell_back_to_single_point ? 'block' : 'none';
 
@@ -1194,13 +1198,28 @@ async function applyBuildResponse(data) {
     : seconds.toFixed(1) + ' s';
 
   const link = document.getElementById('downloadLink');
+  const printLabLink = document.getElementById('printLabLink');
   if (data.mesh_url) {
     await loadSTL(data.mesh_url);
     link.href = data.mesh_url;
     link.download = 'assembly.stl';
     link.style.display = 'flex';
+    // Carries the just-built model's own mesh_url into Print Lab via a
+    // query param -- no re-upload needed for a model built right here
+    // (see server.py's /print-lab route docstring for the convention).
+    // Also carries the real overall_status + collision/envelope warnings
+    // forward -- confirmed real gap this closes: without this, an
+    // INCOMPLETE assembly (a required part excluded, an envelope
+    // overrun, ...) would open in Print Lab looking exactly like a clean
+    // model, with no trace of what CAD generation already found wrong.
+    const carriedWarnings = [...(data.collision_warnings || []), ...(data.envelope_warnings || [])];
+    printLabLink.href = `/print-lab?mesh=${encodeURIComponent(data.mesh_url)}`
+      + `&status=${encodeURIComponent(data.overall_status || '')}`
+      + `&warnings=${encodeURIComponent(JSON.stringify(carriedWarnings))}`;
+    printLabLink.style.display = 'flex';
   } else {
     link.style.display = 'none';
+    printLabLink.style.display = 'none';
     setStatus('No part built successfully — see statuses below.', true);
   }
 
@@ -1369,6 +1388,7 @@ const undoStepBtn = document.getElementById('undoStepBtn');
 const clearStepsBtn = document.getElementById('clearStepsBtn');
 const consoleTopoCard = document.getElementById('consoleTopoCard');
 const consoleDownloadLink = document.getElementById('consoleDownloadLink');
+const consolePrintLabLink = document.getElementById('consolePrintLabLink');
 const entityListEl = document.getElementById('entityList');
 const activeEntityLabelEl = document.getElementById('activeEntityLabel');
 
@@ -1756,8 +1776,11 @@ async function previewConsoleMesh(opts) {
       consoleDownloadLink.href = data.mesh_url;
       consoleDownloadLink.download = `${entity.name || 'console_shape'}.stl`;
       consoleDownloadLink.style.display = 'flex';
+      consolePrintLabLink.href = `/print-lab?mesh=${encodeURIComponent(data.mesh_url)}`;
+      consolePrintLabLink.style.display = 'flex';
     } else {
       consoleDownloadLink.style.display = 'none';
+      consolePrintLabLink.style.display = 'none';
       // Only wipe the viewer if nothing valid has ever been shown for THIS
       // entity -- otherwise this leaves the last successfully-built mesh
       // visible (the status text below already reports the rejection).
@@ -1800,6 +1823,7 @@ async function previewConsoleMesh(opts) {
 
 const assemblyStatusEl = document.getElementById('assemblyStatus');
 const assemblyDownloadLink = document.getElementById('assemblyDownloadLink');
+const assemblyPrintLabLink = document.getElementById('assemblyPrintLabLink');
 const assemblyTopoGridConsoleEl = document.getElementById('assemblyTopoGridConsole');
 const buildAssemblyBtn = document.getElementById('buildAssemblyBtn');
 
@@ -1844,9 +1868,12 @@ async function buildCombinedAssembly() {
       assemblyDownloadLink.href = data.assembly_mesh_url;
       assemblyDownloadLink.download = 'assembly.stl';
       assemblyDownloadLink.style.display = 'flex';
+      assemblyPrintLabLink.href = `/print-lab?mesh=${encodeURIComponent(data.assembly_mesh_url)}`;
+      assemblyPrintLabLink.style.display = 'flex';
       onConsoleMeshChanged();
     } else {
       assemblyDownloadLink.style.display = 'none';
+      assemblyPrintLabLink.style.display = 'none';
     }
 
     if (data.assembly_topology) {

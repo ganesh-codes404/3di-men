@@ -36,7 +36,7 @@ from typing import Literal
 import numpy as np
 import trimesh
 
-RelationshipKind = Literal["attached_to_face", "concentric_with", "symmetric_about"]
+RelationshipKind = Literal["attached_to_face", "concentric_with", "symmetric_about", "parallel_to"]
 FaceDirection = Literal["+x", "-x", "+y", "-y", "+z", "-z"]
 Axis = Literal["x", "y", "z"]
 
@@ -60,11 +60,27 @@ class Relationship:
     offset_u: float = 0.0
     offset_v: float = 0.0
     standoff: float = 0.0  # extra gap beyond flush-against-the-face, 0 = touching
-    # concentric_with only: the shared coaxial axis -- the OTHER two
-    # coordinates are copied from the target exactly; this axis's own
-    # coordinate is target's + axis_offset (0 = exactly level with target).
+    # concentric_with / parallel_to: the shared coaxial/running axis -- the
+    # OTHER two coordinates are copied from the target exactly; this axis's
+    # own coordinate is target's + axis_offset (0 = exactly level with
+    # target).
     axis: Axis | None = None
     axis_offset: float = 0.0
+    # parallel_to only: a SECOND shaft/part running the same direction as
+    # the target (same `axis`, same rotation) but offset sideways by a free
+    # amount along one of the OTHER two world axes -- e.g. a second gear's
+    # shaft, parallel to the first, mounted independently rather than
+    # sharing its bore. Confirmed real gap this closes: niether
+    # concentric_with (perfectly coaxial, zero lateral offset) nor plain
+    # position_mm (a guess with no access to the target's REAL resolved
+    # position, which can be anywhere once its own relationship chain
+    # resolves -- e.g. elevated well above a base once a boss/face
+    # attachment is involved) can express "same level and orientation as X,
+    # just over sideways by N mm" -- see resolve_position's own parallel_to
+    # branch and llm_decompose._correct_gear_mesh_spacing, which corrects
+    # lateral_offset directly from real gear math instead of guessing.
+    lateral_axis: Axis | None = None
+    lateral_offset: float = 0.0
 
 
 class RelationshipError(Exception):
@@ -199,6 +215,33 @@ def resolve_position(relationship: Relationship, target_mesh: trimesh.Trimesh, o
         pos[idx] = float(target_center[idx] + relationship.axis_offset)
         return (float(pos[0]), float(pos[1]), float(pos[2]))
 
+    if relationship.kind == "parallel_to":
+        # Same as concentric_with (copy the target's position on every
+        # axis, then offset along the shared running `axis` by
+        # axis_offset) PLUS a free lateral slide along a SECOND,
+        # independent axis -- e.g. a second gear's shaft, running the
+        # same direction as the first and level with it, just moved
+        # sideways by lateral_offset. Confirmed real bug this fixes: a
+        # plain position_mm guess for this exact case has no way to know
+        # where the FIRST shaft's chain actually resolves to in world
+        # space (which can be well above a base once a boss/face
+        # attachment is involved) -- it can only guess at an absolute
+        # coordinate, which is systematically wrong on whichever axis the
+        # resolved chain actually moved along (confirmed live: "gear_B
+        # excluded after a 52% overlap with the base," because the
+        # guessed shaft_B sat near the base's own level instead of at
+        # shaft_A's real, elevated one). This reads shaft_A's ACTUAL
+        # resolved position directly off its already-built, already-
+        # placed target_mesh, so the level always matches exactly, by
+        # construction, not by guessing.
+        idx = _AXIS_INDEX[relationship.axis or "z"]
+        pos = list(target_center)
+        pos[idx] = float(target_center[idx] + relationship.axis_offset)
+        if relationship.lateral_axis:
+            lidx = _AXIS_INDEX[relationship.lateral_axis]
+            pos[lidx] = float(target_center[lidx] + relationship.lateral_offset)
+        return (float(pos[0]), float(pos[1]), float(pos[2]))
+
     if relationship.kind == "symmetric_about":
         idx = _AXIS_INDEX[relationship.axis or "x"]
         # This formula mirrors the TARGET's own position across that axis's
@@ -304,9 +347,10 @@ def resolve_rotation_deg(relationship: Relationship) -> tuple[float, float, floa
     housing -- visually "floating beside" the thing it's supposed to pass
     through, confirmed live by reproducing exactly this with real meshes.
 
-    - concentric_with: align local Z with the shared axis. Sign doesn't
-      matter for any rotationally-symmetric part (a cylinder/gear look
-      identical pointing +y or -y), so "x"/"y"/"z" map to their + direction.
+    - concentric_with / parallel_to: align local Z with the shared/running
+      axis. Sign doesn't matter for any rotationally-symmetric part (a
+      cylinder/gear look identical pointing +y or -y), so "x"/"y"/"z" map
+      to their + direction.
     - attached_to_face: align local Z with the face's own OUTWARD normal
       (sign matters here -- a boss must rise AWAY from its face, not into
       the part it's attached to).
@@ -314,7 +358,7 @@ def resolve_rotation_deg(relationship: Relationship) -> tuple[float, float, floa
       resolve_position's own symmetric_about handling for the position-side
       bug this project fixes separately).
     """
-    if relationship.kind == "concentric_with":
+    if relationship.kind in ("concentric_with", "parallel_to"):
         axis = relationship.axis or "z"
         return _ALIGN_LOCAL_Z_TO[f"+{axis}"]
     if relationship.kind == "attached_to_face":
@@ -326,42 +370,48 @@ def resolve_rotation_deg(relationship: Relationship) -> tuple[float, float, floa
 def separate_coincident_face_attachments(
     members: list[tuple[str, Relationship, trimesh.Trimesh]], target_mesh: trimesh.Trimesh,
 ) -> dict[str, Relationship]:
-    """Confirmed real gap (mission-brief audit): "the request for gussets
-    on opposite sides produces identical instances in the same position."
-    Two sibling points sharing the IDENTICAL attached_to_face
-    target+face+offset_u+offset_v (the LLM emitted the same relationship
-    twice instead of actually differentiating them -- a confirmed real
-    LLM failure mode, not a resolve_position bug) resolve to the
-    identical attach point. Without this, the only thing catching it is
-    parallel_builder._find_and_resolve_collisions AFTER the fact, which
-    excludes one of the two from the final mesh -- safe, but not what was
-    actually requested (a mirrored PAIR, not one part silently dropped).
+    """Confirmed real gap (mission-brief audit), in TWO separate
+    regressions: "the request for gussets on opposite sides produces
+    identical instances in the same position" (gusset_right 100%
+    overlapping gusset_left on one run) and, after an earlier version of
+    this function only caught byte-IDENTICAL offset_u/offset_v, a SECOND
+    real run still overlapped 82% with genuinely different (but not
+    different ENOUGH) offsets on a DIFFERENT attachment face. Both trace
+    to the same root cause: offset_u vs offset_v's correspondence to a
+    "safe, wide" in-plane direction depends entirely on the specific
+    face's own normal (_plane_basis), which neither the LLM nor a fixed
+    worked example can reliably get right by picking a field name alone
+    -- confirmed directly: a 150x100x10 base's +x face spans only 10mm in
+    u but 100mm in v, the OPPOSITE of what a +y face gives. Patching one
+    worked example (as a prior round of this project did) only fixes
+    that one face.
 
-    This detects exactly that coincidence and auto-separates the pair
-    along whichever of the target face's own u/v directions has more
-    room, using each member's OWN ALREADY-BUILT mesh extent (projected
-    onto the face's own u/v basis, not a guessed or text-parsed size) --
-    the same "correct from real geometry the moment it's available,
-    never invent a number" discipline resolve_position itself follows,
-    and the geometric analogue of llm_decompose._correct_gear_mesh_spacing
-    (which does the same kind of after-the-fact correction from real
-    numbers, just for a meshing gear PAIR's center distance instead of a
-    face-attached pair's in-plane offset).
+    So this checks for an ACTUAL overlap using each member's own real
+    projected extent against their ACTUAL given offsets (not requiring
+    them to be identical), and resolves it the same way regardless of
+    which face or which offsets were originally given -- the same
+    "correct from real geometry the moment it's available, never invent
+    a number" discipline resolve_position itself follows, and the
+    geometric analogue of llm_decompose._correct_gear_mesh_spacing
+    (after-the-fact correction from real numbers, just for a face-
+    attached pair's in-plane offset instead of a meshing gear pair's
+    center distance). Without this, the only thing catching an overlap
+    is parallel_builder._find_and_resolve_collisions AFTER the fact,
+    which excludes one of the two from the final mesh -- safe, but not
+    what was actually requested (a mirrored PAIR, not one part silently
+    dropped).
 
-    Deliberately scoped to exactly 2 members with an IDENTICAL offset_u/
-    offset_v -- a group that already has distinct offsets is left alone
-    (the LLM already tried to differentiate them, even imperfectly,
-    which is this function's own "not my job" case), and a pair that
-    doesn't fit on either axis returns {} rather than guessing at a
-    squeeze -- the existing collision-exclusion safety net still catches
-    that case downstream, same as before this function existed."""
+    Deliberately scoped to exactly 2 members -- a pair that's already
+    sufficiently separated is left alone (not this function's job), and
+    a pair that doesn't fit on either axis returns {} rather than
+    guessing at a squeeze -- the existing collision-exclusion safety net
+    still catches that case downstream, same as before this function
+    existed."""
     if len(members) != 2:
         return {}
     (id_a, rel_a, mesh_a), (id_b, rel_b, mesh_b) = members
     if rel_a.target_id != rel_b.target_id or rel_a.face != rel_b.face:
         return {}
-    if abs(rel_a.offset_u - rel_b.offset_u) > 1e-6 or abs(rel_a.offset_v - rel_b.offset_v) > 1e-6:
-        return {}  # already distinct -- not this function's job
 
     from mesh_quality import find_facet_by_direction
 
@@ -370,33 +420,81 @@ def separate_coincident_face_attachments(
     face = find_facet_by_direction(target_mesh, direction)
     if face is None:
         return {}
-    face_u_span = float(face.outer[:, 0].max() - face.outer[:, 0].min())
-    face_v_span = float(face.outer[:, 1].max() - face.outer[:, 1].min())
+    face_u_min, face_u_max = float(face.outer[:, 0].min()), float(face.outer[:, 0].max())
+    face_v_min, face_v_max = float(face.outer[:, 1].min()), float(face.outer[:, 1].max())
+    face_center_u, face_center_v = (face_u_min + face_u_max) / 2.0, (face_v_min + face_v_max) / 2.0
+    face_u_span, face_v_span = face_u_max - face_u_min, face_v_max - face_v_min
 
     def _projected_extent(mesh: trimesh.Trimesh, basis: np.ndarray) -> float:
         proj = mesh.vertices @ basis
         return float(proj.max() - proj.min())
 
-    own_u = max(_projected_extent(mesh_a, face.u), _projected_extent(mesh_b, face.u))
-    own_v = max(_projected_extent(mesh_a, face.v), _projected_extent(mesh_b, face.v))
-    gap = 2.0  # small clearance beyond touching -- visibly two parts, not sharing an edge
+    # Confirmed real bug this fixes (found live-testing a motor-mount-style
+    # assembly, not hypothetical): own_u/own_v used to project each member's
+    # OWN LOCAL mesh -- still in its as-built, UNROTATED orientation at this
+    # point in the pipeline -- directly onto the face's WORLD-FRAME u/v
+    # vectors. But resolve_rotation_deg is about to rotate this exact mesh
+    # (aligning its local Z with the face's outward normal) before it's ever
+    # placed, and that rotation changes which of the mesh's own local axes
+    # ends up spanning u vs v. Reproduced directly: a 30x30x4mm triangular
+    # gusset attached to a box's "-y" face (whose own u axis happens to be
+    # world Z) measured own_u as 4mm -- the gusset's pre-rotation THICKNESS,
+    # since world Z also happens to be the unrotated mesh's own local Z --
+    # instead of the ~30mm it actually occupies once correctly rotated
+    # upright against that face. Two gussets offset only 10mm apart along u
+    # were then wrongly judged "already separated enough" (10mm > the wrong
+    # 4mm) and left untouched, yet still overlapped by 67% in the real,
+    # rotated, placed geometry -- confirmed by reproducing the full build
+    # pipeline, not just this function in isolation. Rotating a COPY of each
+    # mesh the same way resolve_rotation_deg/PlacementTransform.rotation
+    # will (X then Y then Z, composed identically) before projecting fixes
+    # this for every face, not just "-y" -- the bug is structural (measuring
+    # pre-rotation geometry against a post-rotation frame), not specific to
+    # one face's particular u/v mapping.
+    rot_rx, rot_ry, rot_rz = (np.radians(d) for d in resolve_rotation_deg(rel_a))
+    rot_matrix = (
+        trimesh.transformations.rotation_matrix(rot_rz, (0.0, 0.0, 1.0))
+        @ trimesh.transformations.rotation_matrix(rot_ry, (0.0, 1.0, 0.0))
+        @ trimesh.transformations.rotation_matrix(rot_rx, (1.0, 0.0, 0.0))
+    )
+    mesh_a_rotated, mesh_b_rotated = mesh_a.copy(), mesh_b.copy()
+    mesh_a_rotated.apply_transform(rot_matrix)
+    mesh_b_rotated.apply_transform(rot_matrix)
 
+    own_u = max(_projected_extent(mesh_a_rotated, face.u), _projected_extent(mesh_b_rotated, face.u))
+    own_v = max(_projected_extent(mesh_a_rotated, face.v), _projected_extent(mesh_b_rotated, face.v))
+
+    # Each member's ACTUAL attach-plane coordinate from its own given
+    # offset -- not assumed identical. A simple 2D AABB overlap test in
+    # the face's own u/v plane: this is what the eventual world-space
+    # collision check would also find, just computed here BEFORE
+    # placement instead of after.
+    u_a, v_a = face_center_u + rel_a.offset_u, face_center_v + rel_a.offset_v
+    u_b, v_b = face_center_u + rel_b.offset_u, face_center_v + rel_b.offset_v
+    if abs(u_a - u_b) >= own_u or abs(v_a - v_b) >= own_v:
+        return {}  # already sufficiently separated -- not this function's job
+
+    gap = 2.0  # small clearance beyond touching -- visibly two parts, not sharing an edge
     u_fits = (own_u + gap) <= face_u_span
     v_fits = (own_v + gap) <= face_v_span
+    # Re-centered on the face's own midpoint, not a delta from whichever
+    # (confirmed unreliable) offsets were originally given -- a clean,
+    # symmetric, valid pair beats trying to preserve a guess that caused
+    # the overlap in the first place.
     if u_fits and (not v_fits or (face_u_span - own_u) >= (face_v_span - own_v)):
         half = (own_u + gap) / 2.0
         return {
             id_a: Relationship(kind=rel_a.kind, target_id=rel_a.target_id, face=rel_a.face,
-                                offset_u=rel_a.offset_u - half, offset_v=rel_a.offset_v, standoff=rel_a.standoff),
+                                offset_u=-half, offset_v=rel_a.offset_v, standoff=rel_a.standoff),
             id_b: Relationship(kind=rel_b.kind, target_id=rel_b.target_id, face=rel_b.face,
-                                offset_u=rel_b.offset_u + half, offset_v=rel_b.offset_v, standoff=rel_b.standoff),
+                                offset_u=half, offset_v=rel_b.offset_v, standoff=rel_b.standoff),
         }
     if v_fits:
         half = (own_v + gap) / 2.0
         return {
             id_a: Relationship(kind=rel_a.kind, target_id=rel_a.target_id, face=rel_a.face,
-                                offset_u=rel_a.offset_u, offset_v=rel_a.offset_v - half, standoff=rel_a.standoff),
+                                offset_u=rel_a.offset_u, offset_v=-half, standoff=rel_a.standoff),
             id_b: Relationship(kind=rel_b.kind, target_id=rel_b.target_id, face=rel_b.face,
-                                offset_u=rel_b.offset_u, offset_v=rel_b.offset_v + half, standoff=rel_b.standoff),
+                                offset_u=rel_b.offset_u, offset_v=half, standoff=rel_b.standoff),
         }
     return {}  # neither axis has room -- leave as-is; the collision-exclusion safety net still catches this

@@ -96,9 +96,10 @@ STEP 2 -- reason like an engineer about how the parts locate against each other.
 - {"kind": "attached_to_face", "target_id": "<id of the part it sits on>", "face": "+z"|"-z"|"+x"|"-x"|"+y"|"-y", "offset_u": 0, "offset_v": 0} -- this part's own center ends up flush against that face of the target, centered by default (nonzero offset_u/offset_v slide it sideways within that face, e.g. toward a corner). Covers: a cap/lid/dome on TOP of a vessel or box (face "+z"), a plate or panel on the FRONT/BACK/LEFT/RIGHT face (face "+y"/"-y"/"+x"/"-x"), a boss or standoff rising from any face.
 - {"kind": "concentric_with", "target_id": "<id>", "axis": "x"|"y"|"z"} -- shares the target's position on the other two axes (coaxial); optionally "axis_offset": <mm> to slide along the shared axis instead of landing exactly level. Covers: an axial hole through a boss, a gear/pulley/collar sharing its shaft's axis, a shaft centered in a housing's bore.
 - {"kind": "symmetric_about", "target_id": "<id>", "axis": "x"|"y"|"z"} -- mirrors the TARGET's own position across that axis's plane through the origin. Only correct when the target IS the other half of a matched pair that is ALREADY itself offset from the origin (e.g. "tab_a" built at x=25, "tab_b" symmetric_about tab_a lands at x=-25) -- covers a matched pair of standoffs/tabs/features on opposite sides. NEVER use this for a part that just needs to sit a fixed distance from a CENTRAL body that is itself at/near the origin (e.g. a wheel relative to a bicycle frame, a leg relative to a table's center) -- mirroring something that's already at the origin produces the identical position, not an offset (a confirmed real failure mode: "a wheel flush against the frame instead of beside it"). For that case, use plain position_mm with the actual offset distance instead.
+- {"kind": "parallel_to", "target_id": "<id>", "axis": "x"|"y"|"z", "lateral_axis": "x"|"y"|"z", "lateral_offset": <mm>} -- runs the SAME direction as the target ("axis", same meaning as concentric_with's own axis) and stays level with it (copies the target's position on every axis except "lateral_axis"), but slides sideways along "lateral_axis" by "lateral_offset" instead of sharing the target's exact centerline. Covers EXACTLY "a second shaft/gear mounted on its own parallel shaft, meshing with the first" -- a confirmed real failure mode this closes: plain position_mm for this second shaft has no way to know where the FIRST shaft's chain actually ends up in world space (which can be well above a base once a boss/face attachment is involved earlier in the chain), so it systematically lands the second shaft/gear at the wrong height, overlapping the base instead of standing level with its meshing partner. "lateral_axis" should be a DIFFERENT axis than "axis" (the shaft's own running direction) -- e.g. a vertical shaft (axis="z") parallel-offset sideways along x or y, never along z itself (that would just be a longer or shorter version of the same shaft, not a second one beside it). A rough lateral_offset is fine (the exact gear-mesh distance is corrected automatically afterward, same as the old position_mm convention below), but the RELATIONSHIP itself (not a guessed coordinate) is what keeps the second shaft at the correct height.
 Every entry needs a short, stable "id" string (e.g. "base", "boss", "hole") so later entries can reference it as target_id -- a target_id must name an id that appears earlier in the array (never itself, never something later, never a cycle).
 For everything a relationship doesn't cover, fall back to plain position_mm (rough is fine, but get the RELATIONSHIP right):
-- Two gears that MESH sit side by side along one axis (their shaft centers are NOT at the same point), separated by roughly their combined size -- do not attempt exact center-distance arithmetic yourself, a rough gap is corrected automatically afterward from the real module and tooth counts.
+- Two gears that MESH sit side by side along one axis (their shaft centers are NOT at the same point), separated by roughly their combined size -- do not attempt exact center-distance arithmetic yourself, a rough gap is corrected automatically afterward from the real module and tooth counts. If the SECOND shaft's own position is itself derived from the first (the common case: both shafts run the same direction, just offset sideways), use "parallel_to" above instead of a guessed position_mm -- only fall back to plain position_mm here when NEITHER shaft has anything to derive its position from (e.g. Example 3 below, where neither shaft attaches to anything else).
 - Fastener/mounting features (bolt circles, corner-hole patterns) are described INSIDE the same entry as the part being fastened (see STEP 1) -- never their own entry or relationship.
 - If you do fall back to raw position_mm for a stacked/attached part, remember every primitive is centered on its own given position by default (a box/cylinder/sphere/etc of height H spans -H/2 to +H/2 around its own center) -- "on top of a part H mm tall" is an offset of H/2, never H.
 - Two parts with NO relationship connecting them must end up with REAL clearance between them, not just different-looking numbers. Only a relationship (attached_to_face, concentric_with) is allowed to put two parts' bodies into contact or overlap, and only the exact, intentional kind it describes (a shaft running inside a bore, a boss flush against a face) -- the builder trusts that overlap because IT computed the exact placement; it does not trust an overlap it finds in your own hand-picked position_mm, and will exclude one of the two parts from the finished model rather than keep them stacked on top of each other. When you hand-place two independent, unconnected parts, use each part's OWN stated size to judge the gap (half of each part's own extent along the axis you're separating them on, at minimum, same arithmetic as the stacking rule above) -- a confirmed real failure mode is two unrelated parts left at the identical position_mm, or close enough that their bounding boxes still overlap, which the builder can only read as a mistake, not a design choice, and will silently thin the model down to fix.
@@ -146,8 +147,8 @@ Example 4 -- request: "a rectangular metal mounting plate with four corner holes
 Example 5 -- request: "a gearbox mounting assembly: a housing with four M6 corner mounting holes, a shaft running through it on two bearing bosses, a 24-tooth gear on that shaft meshing with a 36-tooth gear on a second parallel shaft, and a mounting bracket on the housing's side face." Correct reasoning: this combines THREE patterns from above, and each one's own rule still applies independently -- do NOT let any one pattern cause another to be simplified away or dropped.
 - The corner holes are the housing's OWN feature (STEP 1), not a separate entry; "M6" is converted to its 6.6mm clearance diameter (STEP 3), never dropped just because it wasn't given as a plain mm number.
 - "two bearing bosses" are each a real, separate part (a boss is explicitly in this builder's vocabulary) -- dropping them because "bearing" sounds like jargon is a confirmed real failure mode; a boss attached to a face is exactly Example 4's pattern, just used on TWO opposite faces here (the two sides the shaft passes through) instead of one.
-- The meshing pair is still exactly Example 3's pattern (2 shafts, 2 gears, each gear concentric_with its OWN shaft, never the other gear's shaft) -- the first shaft mates with the first boss's bore (concentric_with that boss, exactly like Example 4's shaft-mates-boss pattern), but the SECOND, parallel shaft is a confirmed real failure mode when given a relationship here too (it has no target that captures "offset but still parallel"), so it uses plain position_mm instead, exactly like Example 3's second shaft -- never reuse the first shaft's id (or its boss's id) as a second gear's concentric_with target just because a housing is also present:
-[{"id": "housing", "description": "a box 120mm x 80mm x 60mm with a corner array of four 6.6mm diameter holes, each 15mm from a corner", "position_mm": {"x": 0, "y": 0, "z": 0}}, {"id": "boss_A", "description": "a cylinder 20mm diameter, 10mm tall with a 10mm diameter hole through it", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "housing", "face": "+y"}}, {"id": "boss_B", "description": "a cylinder 20mm diameter, 10mm tall with a 10mm diameter hole through it", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "housing", "face": "-y"}}, {"id": "shaft_A", "description": "a cylinder 10mm diameter, 70mm long", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "concentric_with", "target_id": "boss_A", "axis": "y"}}, {"id": "gear_A", "description": "a gear profile, module 2.5, 24 teeth", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "concentric_with", "target_id": "shaft_A", "axis": "y"}}, {"id": "shaft_B", "description": "a cylinder 10mm diameter, 70mm long", "position_mm": {"x": 75, "y": 0, "z": 0}}, {"id": "gear_B", "description": "a gear profile, module 2.5, 36 teeth", "position_mm": {"x": 75, "y": 0, "z": 0}, "relationship": {"kind": "concentric_with", "target_id": "shaft_B", "axis": "y"}}, {"id": "bracket", "description": "an L-shape bracket, 60mm long, with two holes in each leg", "position_mm": {"x": -80, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "housing", "face": "-x"}}]
+- The meshing pair is still exactly Example 3's pattern (2 shafts, 2 gears, each gear concentric_with its OWN shaft, never the other gear's shaft) -- the first shaft mates with the first boss's bore (concentric_with that boss, exactly like Example 4's shaft-mates-boss pattern). The SECOND, parallel shaft uses "parallel_to" targeting the FIRST shaft (never plain position_mm here, now that a relationship exists that actually captures "offset but still parallel") -- a confirmed real failure mode this avoids: a guessed position_mm for this second shaft has no way to know where the first shaft's own relationship chain (through boss_A, attached to a housing that could be any height) actually ends up, and would systematically land the second gear at the wrong height, overlapping the housing instead of meshing with the first gear. Never reuse the first shaft's id (or its boss's id) as a second gear's concentric_with target just because a housing is also present:
+[{"id": "housing", "description": "a box 120mm x 80mm x 60mm with a corner array of four 6.6mm diameter holes, each 15mm from a corner", "position_mm": {"x": 0, "y": 0, "z": 0}}, {"id": "boss_A", "description": "a cylinder 20mm diameter, 10mm tall with a 10mm diameter hole through it", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "housing", "face": "+y"}}, {"id": "boss_B", "description": "a cylinder 20mm diameter, 10mm tall with a 10mm diameter hole through it", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "housing", "face": "-y"}}, {"id": "shaft_A", "description": "a cylinder 10mm diameter, 70mm long", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "concentric_with", "target_id": "boss_A", "axis": "y"}}, {"id": "gear_A", "description": "a gear profile, module 2.5, 24 teeth", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "concentric_with", "target_id": "shaft_A", "axis": "y"}}, {"id": "shaft_B", "description": "a cylinder 10mm diameter, 70mm long", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "parallel_to", "target_id": "shaft_A", "axis": "y", "lateral_axis": "x", "lateral_offset": 75}}, {"id": "gear_B", "description": "a gear profile, module 2.5, 36 teeth", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "concentric_with", "target_id": "shaft_B", "axis": "y"}}, {"id": "bracket", "description": "an L-shape bracket, 60mm long, with two holes in each leg", "position_mm": {"x": -80, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "housing", "face": "-x"}}]
 
 Example 6 -- request: "a bracket assembly: a base plate, a side plate standing up from one edge of the base, and a triangular gusset on each side supporting the corner where the two plates meet." Correct reasoning: the side plate attaches to the base (Example 4's pattern). Each gusset is its OWN entry using the IDENTICAL part definition (same dimensions) -- never two independently-guessed, differently-shaped parts, and a confirmed real failure mode is building a gusset as a box with a triangular cutout instead of the real triangular-prism profile above. Both gussets attach to the SAME target and face the side plate itself attaches to, with ONE of offset_u/offset_v pushed to OPPOSITE signed values -- never left at 0 for both, which would stack them on top of each other instead of one on each side. Which of offset_u/offset_v is the one that actually slides sideways (rather than off the edge of the face entirely) depends on the target's own built dimensions, not a fixed rule -- the builder rejects an offset that would run off the face's own edge, so pick one field, use equal-and-opposite values sized well within the target's own known dimensions (here, well under half of the base's 60mm length), and the builder's own check confirms it landed on the face rather than off it:
 [{"id": "base", "description": "a box 60mm x 50mm x 6mm", "position_mm": {"x": 0, "y": 0, "z": 0}}, {"id": "side", "description": "a box 60mm x 60mm x 6mm", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "base", "face": "+y"}}, {"id": "gusset_left", "description": "a triangular gusset, 30mm x 30mm, 4mm thick", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "base", "face": "+y", "offset_v": -20}}, {"id": "gusset_right", "description": "a triangular gusset, 30mm x 30mm, 4mm thick", "position_mm": {"x": 0, "y": 0, "z": 0}, "relationship": {"kind": "attached_to_face", "target_id": "base", "face": "+y", "offset_v": 20}}]
@@ -260,7 +261,7 @@ def _get_llm(model_path: Path = DEFAULT_MODEL_PATH):
 # (balanced brackets, correct key names, correct types), never content
 # correctness, which stays the model's own job plus this file's downstream
 # semantic checks (_parse_relationship, _correct_gear_mesh_spacing, ...).
-_RELATIONSHIP_KINDS = {"attached_to_face", "concentric_with", "symmetric_about"}
+_RELATIONSHIP_KINDS = {"attached_to_face", "concentric_with", "symmetric_about", "parallel_to"}
 
 _POINTS_JSON_SCHEMA = json.dumps({
     "type": "array",
@@ -285,6 +286,8 @@ _POINTS_JSON_SCHEMA = json.dumps({
                     "offset_v": {"type": "number"},
                     "axis": {"type": "string", "enum": ["x", "y", "z"]},
                     "axis_offset": {"type": "number"},
+                    "lateral_axis": {"type": "string", "enum": ["x", "y", "z"]},
+                    "lateral_offset": {"type": "number"},
                 },
                 "required": ["kind", "target_id"],
             },
@@ -430,6 +433,7 @@ def _parse_relationship(raw: Any) -> Relationship | None:
             face=raw.get("face"), offset_u=float(raw.get("offset_u", 0.0) or 0.0),
             offset_v=float(raw.get("offset_v", 0.0) or 0.0), standoff=float(raw.get("standoff", 0.0) or 0.0),
             axis=raw.get("axis"), axis_offset=float(raw.get("axis_offset", 0.0) or 0.0),
+            lateral_axis=raw.get("lateral_axis"), lateral_offset=float(raw.get("lateral_offset", 0.0) or 0.0),
         )
     except (TypeError, ValueError):
         return None
@@ -502,6 +506,34 @@ def _correct_gear_mesh_spacing(points: list[ActionablePoint]) -> list[Actionable
 
     by_id = {p.id: p for p in points if p.id}
 
+    def _find_parallel_to_in_chain(point: ActionablePoint, depth: int = 0) -> ActionablePoint | None:
+        """Walks `point`'s own relationship chain (itself first) looking
+        for the first ancestor whose relationship.kind == "parallel_to"
+        -- the SECOND shaft of a meshing pair, per assembly_plan.py's own
+        parallel_to branch. Confirmed real gap this closes: the OLD
+        position_mm-vector correction below walks all the way up to
+        whichever ancestor is the ultimate FREE (relationship=None) root
+        -- which, once a boss/face-attachment chain is involved, can be
+        the base/housing itself, structurally and geometrically far from
+        where the gear pair actually sits (confirmed live: "gear_B
+        excluded after a 52% overlap with the base," because the
+        correction's own "current direction" was computed from the
+        BASE's position, not the first shaft's REAL resolved one).
+        parallel_to's own lateral_offset is corrected directly instead,
+        with no vector math and no wrong-anchor risk, since
+        assembly_plan.resolve_position reads the first shaft's ACTUAL
+        built position at BUILD time, long after this runs."""
+        if point.relationship is None:
+            return None
+        if point.relationship.kind == "parallel_to":
+            return point
+        if depth > 8:
+            return None
+        target = by_id.get(point.relationship.target_id)
+        if target is None:
+            return None
+        return _find_parallel_to_in_chain(target, depth + 1)
+
     def _anchor(point: ActionablePoint, depth: int = 0) -> ActionablePoint | None:
         """Walks the relationship chain (concentric_with/attached_to_face)
         up to the first ancestor with relationship=None -- that ancestor's
@@ -521,7 +553,38 @@ def _correct_gear_mesh_spacing(points: list[ActionablePoint]) -> list[Actionable
         return _anchor(target, depth + 1)
 
     a, b = gear_indices
-    anchor_a, anchor_b = _anchor(points[a]), _anchor(points[b])
+    module_a, teeth_a = _extract_gear_params(points[a].description)
+    module_b, teeth_b = _extract_gear_params(points[b].description)
+    if abs(module_a - module_b) > 1e-6:
+        return points  # different modules can't mesh -- something else is going on here, don't guess at it
+    expected_distance = module_a * (teeth_a + teeth_b) / 2.0
+
+    # Preferred path: either gear's chain already uses parallel_to (the
+    # LLM correctly recognized "its own parallel shaft" and said so
+    # structurally) -- just set lateral_offset to the real distance
+    # directly, no vector math, no anchor-walk, no wrong-reference risk.
+    parallel_point = _find_parallel_to_in_chain(points[a]) or _find_parallel_to_in_chain(points[b])
+    if parallel_point is not None:
+        sign = 1.0 if parallel_point.relationship.lateral_offset >= 0 else -1.0
+        corrected_rel = Relationship(
+            kind="parallel_to", target_id=parallel_point.relationship.target_id,
+            axis=parallel_point.relationship.axis, axis_offset=parallel_point.relationship.axis_offset,
+            lateral_axis=parallel_point.relationship.lateral_axis or "x",
+            lateral_offset=sign * expected_distance,
+        )
+        return [
+            ActionablePoint(description=p.description, position_mm=p.position_mm, id=p.id, relationship=corrected_rel)
+            if p is parallel_point else p
+            for p in points
+        ]
+
+    # Fallback path: neither gear uses parallel_to (the older, simpler
+    # Example 3 case -- both shafts plain position_mm, no relationship at
+    # all) -- correct via the ORIGINAL vector-shift approach, which is
+    # only reliable when the "anchor" IS the shaft's own real position
+    # (true exactly when it has no relationship chain to walk at all).
+    by_id_anchor_a, by_id_anchor_b = _anchor(points[a]), _anchor(points[b])
+    anchor_a, anchor_b = by_id_anchor_a, by_id_anchor_b
     if anchor_a is None or anchor_b is None:
         return points  # broken chain -- don't guess
     if anchor_a is anchor_b:
@@ -532,12 +595,6 @@ def _correct_gear_mesh_spacing(points: list[ActionablePoint]) -> list[Actionable
         # like the pre-existing "3+ gears" and "different modules" bail-outs
         # below.
         return points
-
-    module_a, teeth_a = _extract_gear_params(points[a].description)
-    module_b, teeth_b = _extract_gear_params(points[b].description)
-    if abs(module_a - module_b) > 1e-6:
-        return points  # different modules can't mesh -- something else is going on here, don't guess at it
-    expected_distance = module_a * (teeth_a + teeth_b) / 2.0
 
     pos_a, pos_b = anchor_a.position_mm, anchor_b.position_mm
     delta = tuple(pos_b[i] - pos_a[i] for i in range(3))

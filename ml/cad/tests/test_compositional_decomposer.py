@@ -261,6 +261,39 @@ def test_ring_without_inner_diameter_is_not_guessed():
     assert compose_program_from_description(text) is None
 
 
+def test_motor_mount_base_builds_exactly_four_real_through_holes():
+    """Mission-brief regression test (section 17, item 1): not just the
+    predicted PROGRAM args (covered by the corner-array tests above), but
+    the ACTUAL built mesh -- four real, through, round holes, at the
+    base's own four corners, each along the base's own thickness axis
+    (z). Euler characteristic alone is explicitly NOT trusted as the sole
+    proof (the mission brief's own caution) -- this checks the
+    independent geometric detector's own hole_diameters_mm/positions too,
+    not just a topology number."""
+    from evaluation.geometry_eval import evaluate_mesh
+    from sandbox import Sandbox
+
+    text = "a box 150mm x 100mm x 10mm with a corner array of four 6.6mm diameter holes, each 15mm from a corner"
+    program = compose_program_from_description(text)
+    assert program is not None
+    result = Sandbox.execute(program)
+    assert result.status == "ok"
+    mesh = result.mesh
+    assert mesh.is_watertight
+
+    report = evaluate_mesh(mesh)
+    assert report.detected_hole_count == 4
+    assert len(report.hole_diameters_mm) == 4
+    for d in report.hole_diameters_mm:
+        assert d == pytest.approx(6.6, abs=0.5)  # the declared diameter, measured independently
+    for c in report.hole_circularity:
+        assert c > 0.95  # genuinely round, not an elongated/clipped opening
+
+    # the corners themselves must still be present (not clipped away) --
+    # a sane bounding box at the base's own full declared footprint
+    assert mesh.extents == pytest.approx([150.0, 100.0, 10.0], abs=1.0)
+
+
 def test_every_composed_program_is_a_valid_sandbox_program():
     """End-to-end sanity: a composed program must actually execute
     cleanly through the real Sandbox, not just look right structurally."""

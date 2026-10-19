@@ -70,6 +70,36 @@ def extract_claimed_dimensions_mm(description: str) -> list[float]:
     return [float(m.group(1)) for m in _DIMENSION_CLAIM_RE.finditer(description)]
 
 
+# Assembly-level envelope claim -- a different kind of claim than any
+# per-part dimension above: "keep the overall footprint close to 150mm x
+# 100mm" describes the WHOLE assembly's intended X/Y footprint, not any one
+# part's own size, and is stated in the ORIGINAL PROMPT text (never a per-
+# part description). Deliberately permissive about the connecting words
+# ("close to"/"of roughly"/"around"/nothing at all) since real prompts
+# phrase this loosely by design (an approximate target, not a part spec).
+_ENVELOPE_CLAIM_RE = re.compile(
+    r"(?:overall\s+)?footprint\s*(?:close\s+to|of\s+(?:roughly|approximately)?|around|approximately)?\s*"
+    r"(\d+(?:\.\d+)?)\s*(?:mm)?\s*x\s*(\d+(?:\.\d+)?)\s*mm",
+    re.IGNORECASE,
+)
+
+
+def extract_claimed_envelope_mm(prompt: str) -> tuple[float, float] | None:
+    """The overall assembly's claimed X/Y footprint from the ORIGINAL
+    prompt text (not a per-part description) -- e.g. "keep the overall
+    footprint close to 150mm x 100mm." None when the prompt makes no such
+    claim at all (most prompts don't -- an individual part's own stated
+    dimensions are a completely separate, already-covered concern, see
+    extract_claimed_dimensions_mm). Only the FIRST match is used: a
+    footprint claim is a property of the whole assembly, not a per-
+    component list, so multiple matches would be ambiguous, not additive,
+    unlike a hole-count claim."""
+    m = _ENVELOPE_CLAIM_RE.search(prompt)
+    if not m:
+        return None
+    return (float(m.group(1)), float(m.group(2)))
+
+
 @dataclass
 class DimensionClaimResult:
     claimed_mm: float
@@ -188,13 +218,13 @@ class HoleCountValidationReport:
     matched: bool  # True whenever there was nothing to check (vacuously) OR counts agree exactly
 
     # detected_hole_count's own disclosed scope (evaluation/geometry_eval.py:
-    # "only understands vertical (Z-axis) cylindrical features on largely
-    # axis-aligned, watertight, extruded parts") -- carried through here so
-    # a caller never treats a mismatch as more certain than it actually is.
+    # tries all 3 world axes, but still axis-ALIGNED only, on largely
+    # watertight, extruded parts) -- carried through here so a caller never
+    # treats a mismatch as more certain than it actually is.
     detector_limitation: str = (
-        "hole detection only recognizes vertical (Z-axis) cylindrical through-features "
-        "on largely axis-aligned, watertight parts -- a mismatch may reflect that scope, "
-        "not necessarily a wrong build"
+        "hole detection recognizes cylindrical features running along any of the 3 world axes "
+        "(x/y/z) on largely axis-aligned, watertight parts, but not an arbitrarily tilted hole "
+        "axis -- a mismatch may reflect that scope, not necessarily a wrong build"
     )
 
 
@@ -251,9 +281,9 @@ class HoleDiameterValidationReport:
     # carried through here so a caller never treats a diameter mismatch as
     # more certain than it actually is.
     detector_limitation: str = (
-        "hole diameter is measured by fitting a circle to each detected vertical, axis-aligned "
-        "through-feature -- the same scope limitation as detected_hole_count (evaluation/geometry_eval.py); "
-        "a mismatch may reflect that scope, not necessarily a wrong build"
+        "hole diameter is measured by fitting a circle to each detected axis-aligned cylindrical "
+        "feature (any of the 3 world axes) -- the same scope limitation as detected_hole_count "
+        "(evaluation/geometry_eval.py); a mismatch may reflect that scope, not necessarily a wrong build"
     )
 
     @property

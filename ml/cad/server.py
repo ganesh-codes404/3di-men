@@ -17,11 +17,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import numpy as np
 import trimesh
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
 from build_logger import log_build
-from llm_decompose import ActionablePoint, ask_clarifying_questions, fold_answers_into_prompt
+from llm_decompose import ActionablePoint, _parse_relationship, ask_clarifying_questions, fold_answers_into_prompt
 from parallel_builder import build_assembly_from_points, build_assembly_from_programs, build_assembly_from_prompt
 from sandbox import Sandbox, ToolCall, tool_schema
 
@@ -133,7 +134,19 @@ def _parse_manual_points(raw_points) -> list[ActionablePoint]:
     same way a person edits any structured list: rows with an empty
     description (a blank row someone added but never filled in) are
     silently skipped rather than sent to the builder or rejected outright,
-    since a stray empty row is an editing artifact, not a real request."""
+    since a stray empty row is an editing artifact, not a real request.
+
+    Confirmed real gap this closes: this used to only read description/
+    position_mm/program_override, silently dropping id/relationship even
+    though ActionablePoint and build_assembly_from_points both fully
+    support them -- any direct API caller sending a relationship-based
+    manual points list (not just the frontend's own position-only
+    playground) had it discarded with no error, leaving every point at
+    its raw (often identical, e.g. all (0,0,0)) position_mm instead of a
+    real resolved placement. _parse_relationship is llm_decompose.py's
+    own parser for the exact same JSON shape the LLM's decomposition
+    output uses -- reused here, not reimplemented, so both entry points
+    accept identical relationship syntax."""
     points = []
     for item in raw_points or []:
         if not isinstance(item, dict):
@@ -141,8 +154,11 @@ def _parse_manual_points(raw_points) -> list[ActionablePoint]:
         description = str(item.get("description", "")).strip()
         if not description:
             continue
+        raw_id = item.get("id")
         points.append(ActionablePoint(
             description=description, position_mm=_parse_position(item.get("position_mm")),
+            id=str(raw_id) if isinstance(raw_id, str) and raw_id else "",
+            relationship=_parse_relationship(item.get("relationship")),
             program_override=_parse_point_program_override(item.get("program_override")),
         ))
     return points
@@ -284,6 +300,13 @@ def api_build():
         # excluded_from_assembly/status in `points` below), not a pending
         # failure. Always a list, empty when nothing was flagged.
         "collision_warnings": getattr(result, "collision_warnings", []),
+        # Confirmed real gap this closes (mission-brief regression: a
+        # 251.2x124.0x108.6mm assembly against an approximate requested
+        # 150x100mm footprint, with no way to tell which component caused
+        # it) -- see parallel_builder.py's _diagnose_envelope_overrun.
+        # Empty whenever the prompt made no explicit footprint claim at
+        # all, OR the combined assembly stayed within tolerance of one.
+        "envelope_warnings": getattr(result, "envelope_warnings", []),
         # The single aggregate PASS/FAIL/INCOMPLETE this pipeline previously
         # never computed anywhere -- see AssemblyBuildResult.overall_status's
         # own docstring. A caller that only checks mesh_url/assembly_topology
@@ -397,7 +420,13 @@ def api_execute_programs():
     })
 
 
-_MESH_EXPORT_FORMATS = {"stl": "model/stl", "glb": "model/gltf-binary", "obj": "model/obj"}
+# 3MF confirmed directly (not assumed) to actually work with this project's
+# installed trimesh -- both export AND reimport, see
+# tests/test_server.py::test_exported_mesh_round_trips_through_3mf. Print
+# Lab's own export section (printability.py's module docstring) previously
+# flagged 3MF as "unverified on this stack" -- it IS supported, so it's
+# offered here rather than silently left out.
+_MESH_EXPORT_FORMATS = {"stl": "model/stl", "glb": "model/gltf-binary", "obj": "model/obj", "3mf": "model/3mf"}
 
 
 @app.route("/api/mesh/<mesh_id>")
@@ -427,6 +456,166 @@ def api_mesh(mesh_id):
     buf.seek(0)
     download_name = f"{Path(mesh_id).stem}.{fmt}"
     return send_file(buf, mimetype=_MESH_EXPORT_FORMATS[fmt], download_name=download_name)
+
+
+@app.route("/print-lab")
+def print_lab():
+    """The 3D-printing analysis workspace (see printability.py) -- a
+    separate page from /workspace, same convention as /workspace itself
+    being separate from the landing page at /. Reachable from
+    /workspace's own topbar; carries a model over via ?mesh=<mesh_id>
+    (see /workspace's own "Open in Print Lab" link) rather than
+    requiring a re-upload of something already built in this session."""
+    return send_from_directory(Path(__file__).resolve().parent / "frontend", "print_lab.html")
+
+
+# Deliberately small, named profiles rather than free-form build-volume
+# input alone -- a user picks a REAL printer's own configured volume
+# (printability.DEFAULT_PRINTER_PROFILES), never a silently-wrong default
+# presented as if it were theirs. "custom" accepts an arbitrary volume for
+# a printer not in the list.
+@app.route("/api/print/printers")
+def api_print_printers():
+    from printability import DEFAULT_PRINTER_PROFILES
+
+    return jsonify({
+        "printers": [
+            {"id": pid, "name": p.name, "build_volume_mm": list(p.build_volume_mm), "nozzle_diameter_mm": p.nozzle_diameter_mm}
+            for pid, p in DEFAULT_PRINTER_PROFILES.items()
+        ],
+    })
+
+
+_UPLOAD_MAX_BYTES = 50 * 1024 * 1024  # 50MB -- generous for a single-part STL/OBJ, not unbounded
+_UPLOAD_ALLOWED_SUFFIXES = {".stl", ".obj"}
+_UPLOAD_MAX_FACES = 2_000_000  # a geometry-complexity ceiling independent of raw file size (a
+    # pathologically dense small file could still be slow/memory-heavy to analyze)
+
+
+@app.route("/api/print/upload", methods=["POST"])
+def api_print_upload():
+    """Imports a mesh file (STL/OBJ) for Print Lab analysis -- the
+    "imported meshes" half of Part B's own scope, alongside models
+    already built in 3di-men (which reach Print Lab via their existing
+    mesh_id, no upload needed at all). Validates size/type/complexity
+    BEFORE attempting to parse -- a malformed or oversized file must
+    fail cleanly, never hang or crash the server."""
+    if "file" not in request.files:
+        return jsonify({"error": "no file provided (expected multipart form field 'file')"}), 400
+    f = request.files["file"]
+    suffix = Path(f.filename or "").suffix.lower()
+    if suffix not in _UPLOAD_ALLOWED_SUFFIXES:
+        return jsonify({"error": f"unsupported file type {suffix!r}, expected one of {sorted(_UPLOAD_ALLOWED_SUFFIXES)}"}), 400
+
+    data = f.read(_UPLOAD_MAX_BYTES + 1)
+    if len(data) > _UPLOAD_MAX_BYTES:
+        return jsonify({"error": f"file exceeds the {_UPLOAD_MAX_BYTES // (1024 * 1024)}MB upload limit"}), 400
+    if len(data) == 0:
+        return jsonify({"error": "uploaded file is empty"}), 400
+
+    try:
+        mesh = trimesh.load_mesh(io.BytesIO(data), file_type=suffix.lstrip("."))
+    except Exception as exc:
+        return jsonify({"error": f"could not parse this file as a mesh: {exc}"}), 400
+    if not hasattr(mesh, "vertices") or len(mesh.vertices) == 0:
+        return jsonify({"error": "parsed file contains no usable geometry"}), 400
+    if len(mesh.faces) > _UPLOAD_MAX_FACES:
+        return jsonify({"error": f"mesh has {len(mesh.faces):,} faces, exceeding the {_UPLOAD_MAX_FACES:,} analysis limit"}), 400
+
+    mesh_url = _export_mesh(mesh)
+    return jsonify({"mesh_url": mesh_url, "vertex_count": len(mesh.vertices), "face_count": len(mesh.faces)})
+
+
+def _load_mesh_for_print_analysis(mesh_id: str):
+    path = OUTPUT_DIR / mesh_id
+    if not path.is_file() or path.suffix != ".stl":
+        return None
+    return trimesh.load_mesh(path)
+
+
+@app.route("/api/print/analyze", methods=["POST"])
+def api_print_analyze():
+    """The one entry point the Print Lab UI calls -- see
+    printability.analyze_printability for exactly what's measured vs.
+    disclosed as unavailable. `rotation_deg` (optional, [x,y,z] degrees,
+    same X-then-Y-then-Z convention as parallel_builder.PlacementTransform.rotation)
+    lets the UI preview a candidate orientation's own numbers without a
+    second upload."""
+    from printability import DEFAULT_PRINTER_PROFILES, PrinterProfile, analyze_printability
+
+    body = request.get_json(silent=True) or {}
+    mesh_id = body.get("mesh_id")
+    if not mesh_id:
+        return jsonify({"error": "mesh_id is required"}), 400
+    mesh = _load_mesh_for_print_analysis(mesh_id)
+    if mesh is None:
+        return jsonify({"error": f"no such mesh {mesh_id!r}"}), 404
+
+    printer_id = body.get("printer_id", "generic_small")
+    if printer_id == "custom":
+        try:
+            volume = tuple(float(v) for v in body["build_volume_mm"])
+            assert len(volume) == 3
+        except Exception:
+            return jsonify({"error": "custom printer requires build_volume_mm: [x, y, z]"}), 400
+        printer = PrinterProfile(name="Custom", build_volume_mm=volume)
+    elif printer_id in DEFAULT_PRINTER_PROFILES:
+        printer = DEFAULT_PRINTER_PROFILES[printer_id]
+    else:
+        return jsonify({"error": f"unknown printer_id {printer_id!r}, expected one of {sorted(DEFAULT_PRINTER_PROFILES)} or 'custom'"}), 400
+
+    rotation_deg = body.get("rotation_deg")
+    if rotation_deg:
+        rx, ry, rz = (float(v) for v in rotation_deg)
+        rot = (
+            trimesh.transformations.rotation_matrix(np.radians(rz), (0, 0, 1))
+            @ trimesh.transformations.rotation_matrix(np.radians(ry), (0, 1, 0))
+            @ trimesh.transformations.rotation_matrix(np.radians(rx), (1, 0, 0))
+        )
+        mesh = mesh.copy()
+        mesh.apply_transform(rot)
+
+    report = analyze_printability(
+        mesh, printer,
+        overhang_angle_deg=float(body.get("overhang_angle_deg", 45.0)),
+        density_g_per_cm3=body.get("density_g_per_cm3"),
+    )
+    return jsonify(report.as_dict())
+
+
+@app.route("/api/print/orientations", methods=["POST"])
+def api_print_orientations():
+    from printability import DEFAULT_PRINTER_PROFILES, PrinterProfile, suggest_orientations
+
+    body = request.get_json(silent=True) or {}
+    mesh_id = body.get("mesh_id")
+    if not mesh_id:
+        return jsonify({"error": "mesh_id is required"}), 400
+    mesh = _load_mesh_for_print_analysis(mesh_id)
+    if mesh is None:
+        return jsonify({"error": f"no such mesh {mesh_id!r}"}), 404
+
+    printer_id = body.get("printer_id", "generic_small")
+    printer = DEFAULT_PRINTER_PROFILES.get(printer_id)
+    if printer is None:
+        return jsonify({"error": f"unknown printer_id {printer_id!r}"}), 400
+
+    candidates = suggest_orientations(mesh, printer, overhang_angle_deg=float(body.get("overhang_angle_deg", 45.0)))
+    return jsonify({"orientations": [
+        {
+            "label": c.label, "rotation_deg": list(c.rotation_deg), "fits_build_volume": c.fits_build_volume,
+            "overhang_area_mm2": c.overhang_area_mm2, "contact_area_mm2": c.contact_area_mm2,
+            "height_mm": c.height_mm, "notes": c.notes,
+        }
+        for c in candidates
+    ]})
+
+
+@app.route("/api/print/slicers")
+def api_print_slicers():
+    from printability import slicer_availability
+
+    return jsonify(slicer_availability())
 
 
 def main():

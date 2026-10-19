@@ -172,6 +172,98 @@ def test_relationship_based_points_build_in_dependency_order(tiny_bundle_path):
     assert result.mesh.is_watertight
 
 
+def test_hand_constructed_points_get_the_exact_gear_mesh_correction_too(tiny_bundle_path):
+    """Confirmed real gap this closes: llm_decompose._correct_gear_mesh_spacing
+    previously only ran inside decompose_prompt() -- hand-constructed points
+    (the frontend's manual playground, or any other direct caller of
+    build_assembly_from_points) never got the exact center-distance
+    correction at all, even though the correction itself has nothing
+    LLM-specific about it. Two gears deliberately placed at the WRONG
+    distance (40mm, no relationship -- Example 3's simplest pattern) via
+    plain ActionablePoints must still land at the real, computed 75mm
+    (module 2.5 * (24+36) teeth / 2) once build_assembly_from_points runs,
+    with no LLM involved anywhere in this test."""
+    from assembly_plan import Relationship
+
+    points = [
+        ActionablePoint(description="a cylinder 10mm diameter, 70mm long", position_mm=(0.0, 0.0, 0.0), id="shaft_a"),
+        ActionablePoint(
+            description="a gear profile, module 2.5, 24 teeth", position_mm=(0.0, 0.0, 0.0), id="gear_a",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_a", axis="z"),
+        ),
+        ActionablePoint(description="a cylinder 10mm diameter, 70mm long", position_mm=(40.0, 0.0, 0.0), id="shaft_b"),
+        ActionablePoint(
+            description="a gear profile, module 2.5, 36 teeth", position_mm=(40.0, 0.0, 0.0), id="gear_b",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_b", axis="z"),
+        ),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    by_id = {p.point.id: p for p in result.points}
+    assert by_id["shaft_b"].point.position_mm[0] == pytest.approx(75.0)  # 2.5 * (24+36) / 2, not the original 40mm guess
+
+
+def test_second_gear_on_a_parallel_shaft_stays_level_and_clear_of_the_base(tiny_bundle_path):
+    """Confirmed, independently-reproduced regression (a real motor-mount
+    run, twice): "gear_B was excluded after a 52% overlap with the
+    base." Reproduces the full chain (base -> boss -> shaft_A -> gear_A,
+    plus shaft_B parallel_to shaft_A -> gear_B) through the REAL build
+    pipeline -- gear_B must land level with gear_A (both well above the
+    base, not near its own level), survive without being excluded for a
+    collision with the base, and sit the correct gear-mesh distance from
+    gear_A.
+
+    Uses the already-correct lateral_offset=65.0 directly (what a real
+    decompose_prompt() call would hand off AFTER
+    _correct_gear_mesh_spacing runs -- that correction step has its own
+    separate, dedicated tests in test_llm_decompose.py) -- this test's
+    own job is the placement/collision behavior once the offset is
+    right, not re-testing the correction arithmetic itself.
+    build_assembly_from_points (unlike decompose_prompt) never applies
+    that correction on its own, by design: it's also the entry point for
+    hand-constructed/manual points, which have no "declared module/teeth
+    text" for a correction to even read."""
+    from assembly_plan import Relationship
+
+    points = [
+        ActionablePoint(description="a box 150mm x 100mm x 10mm", position_mm=(0.0, 0.0, 0.0), id="base"),
+        ActionablePoint(
+            description="a cylinder 30mm diameter, 20mm tall", position_mm=(0.0, 0.0, 0.0), id="boss",
+            relationship=Relationship(kind="attached_to_face", target_id="base", face="+z"),
+        ),
+        ActionablePoint(
+            description="a cylinder 12mm diameter, 90mm long", position_mm=(0.0, 0.0, 0.0), id="shaft_a",
+            relationship=Relationship(kind="concentric_with", target_id="boss", axis="z"),
+        ),
+        ActionablePoint(
+            description="a gear profile, module 2.5, 20 teeth", position_mm=(0.0, 0.0, 0.0), id="gear_a",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_a", axis="z"),
+        ),
+        ActionablePoint(
+            description="a cylinder 12mm diameter, 90mm long", position_mm=(0.0, 0.0, 0.0), id="shaft_b",
+            relationship=Relationship(kind="parallel_to", target_id="shaft_a", axis="z", lateral_axis="x", lateral_offset=65.0),
+        ),
+        ActionablePoint(
+            description="a gear profile, module 2.5, 32 teeth", position_mm=(0.0, 0.0, 0.0), id="gear_b",
+            relationship=Relationship(kind="concentric_with", target_id="shaft_b", axis="z"),
+        ),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=3)
+    by_id = {p.point.id: p for p in result.points}
+    for pid in ("base", "boss", "shaft_a", "gear_a", "shaft_b", "gear_b"):
+        assert by_id[pid].status == "ok", f"{pid}: {by_id[pid].error}"
+        assert by_id[pid].excluded_from_assembly is False, f"{pid} was excluded: {by_id[pid].error}"
+    assert result.collision_warnings == []
+
+    gear_a_z, gear_b_z = by_id["gear_a"].point.position_mm[2], by_id["gear_b"].point.position_mm[2]
+    assert gear_a_z == pytest.approx(gear_b_z, abs=0.5)  # level with each other, not one near the base
+    base_top_z = 5.0  # 10mm-thick base centered at the origin
+    assert gear_a_z > base_top_z and gear_b_z > base_top_z  # both clear of the base entirely
+
+    gear_a_x, gear_b_x = by_id["gear_a"].point.position_mm[0], by_id["gear_b"].point.position_mm[0]
+    expected_distance = 2.5 * (20 + 32) / 2.0  # 65mm
+    assert abs(gear_b_x - gear_a_x) == pytest.approx(expected_distance, abs=0.5)
+
+
 def test_coincident_face_attachments_are_auto_separated_not_silently_stacked(tiny_bundle_path):
     """Mission-brief concern: "the request for gussets on opposite sides
     produces identical instances in the same position." Two sibling
@@ -484,6 +576,64 @@ def test_overall_status_incomplete_when_built_envelope_violates_the_spec(tiny_bu
     assert result.points[0].status == "suspect"
     assert result.points[0].dimension_match_rate < 1.0
     assert result.overall_status == "INCOMPLETE"
+
+
+# ---------------- _diagnose_envelope_overrun (direct, not just via the full
+# build pipeline above) -- confirmed real gap this closes: this function had
+# NO test at all despite being the exact mechanism the mission brief's own
+# "251.2x124.0x108.6mm vs ~150x100mm" regression traces through. ----------
+
+def test_diagnose_envelope_overrun_identifies_the_component_that_actually_overruns():
+    """Two components define the combined bbox's two opposite extremes on
+    X -- by construction, "distance from the assembly's own center" is
+    then EXACTLY equal for both of them (each sits exactly half the total
+    span from the midpoint, which is what makes it the midpoint), so this
+    deliberately isolates the case where only ONE component -- gear_b --
+    is the far outlier on BOTH sides, with 'base' nested entirely within
+    its reach, so the attribution is unambiguous rather than a tie."""
+    import trimesh
+
+    from parallel_builder import _diagnose_envelope_overrun
+
+    base = trimesh.creation.box([150.0, 100.0, 10.0])  # exactly matches the claimed footprint
+    gear_b = trimesh.creation.box([200.0, 20.0, 20.0])
+    gear_b.apply_translation([10.0, 0.0, 0.0])  # spans x=[-90, 110] -- reaches further than base on BOTH sides
+
+    warnings = _diagnose_envelope_overrun((150.0, 100.0), {"base": base, "gear_b": gear_b})
+    assert len(warnings) == 1
+    assert "X" in warnings[0]
+    assert "'gear_b'" in warnings[0]  # the specifically-blamed id (repr-quoted in the message)
+    assert "'base'" not in warnings[0]
+
+
+def test_diagnose_envelope_overrun_is_quiet_within_the_declared_tolerance():
+    """A claim is explicitly "approximate" (see extract_claimed_envelope_mm's
+    own docstring) -- a small, few-percent overrun must not be flagged as
+    if the claim were a hard maximum."""
+    import trimesh
+
+    from parallel_builder import _diagnose_envelope_overrun
+
+    base = trimesh.creation.box([155.0, 100.0, 10.0])  # 3% over the claimed 150mm -- well inside the 20% default tolerance
+    warnings = _diagnose_envelope_overrun((150.0, 100.0), {"base": base})
+    assert warnings == []
+
+
+def test_diagnose_envelope_overrun_checks_x_and_y_independently():
+    import trimesh
+
+    from parallel_builder import _diagnose_envelope_overrun
+
+    base = trimesh.creation.box([150.0, 300.0, 10.0])  # X fine, Y wildly over
+    warnings = _diagnose_envelope_overrun((150.0, 100.0), {"base": base})
+    assert len(warnings) == 1
+    assert "Y" in warnings[0] and "X" not in warnings[0]
+
+
+def test_diagnose_envelope_overrun_is_a_noop_with_no_placed_meshes():
+    from parallel_builder import _diagnose_envelope_overrun
+
+    assert _diagnose_envelope_overrun((150.0, 100.0), {}) == []
 
 
 def test_wrong_bore_diameter_cannot_hide_behind_a_high_match_score(tiny_bundle_path):

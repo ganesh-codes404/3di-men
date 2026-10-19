@@ -218,19 +218,15 @@ class BracketParams:
     """L-shaped angle bracket: two perpendicular rectangular arms meeting at a
     shared edge, each arm with its own row of mounting holes.
 
-    Known evaluation gap, confirmed empirically (not just reasoned about):
-    evaluate_mesh()'s hole detector only recognizes Z-axis (vertical) holes
-    -- it selects near-horizontal-normal wall faces, then circle-fits them in
-    the XY plane, which only matches a hole whose axis is Z. This bracket's
-    "length" runs along Z, so holes drilled through each arm's own thickness
-    are necessarily horizontal-axis (arm 1: Y-axis, arm 2: X-axis) -- NEITHER
-    arm's holes are Z-axis. Both are real, correctly drilled (confirmed via
-    volume-removal and position tests), and both are simply invisible to
-    that Z-axis-only detector: detected_hole_count reads 0 for any bracket,
-    not merely undercounted by one arm's worth as an earlier draft of this
-    comment claimed. Not fixed here (extending geometry_eval to arbitrary
-    hole axes is real work, deferred); documented precisely so a 0 doesn't
-    get mistaken for a real drilling bug.
+    Formerly a known evaluation gap (now fixed, see evaluation/geometry_eval.py's
+    _detect_holes_and_cylinders): this bracket's "length" runs along Z, so
+    holes drilled through each arm's own thickness are horizontal-axis
+    (arm 1: Y-axis, arm 2: X-axis) -- neither arm's holes are Z-axis. The
+    detector used to only test the Z axis, so detected_hole_count read 0 for
+    any bracket regardless of how correctly it was drilled (confirmed via
+    volume-removal and position tests). It now tries all 3 world axes, so
+    both arms' holes are detected correctly, each tagged with its own real
+    axis in GeometryReport.hole_axes.
     """
 
     leg1_length_mm: float

@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>3di-men — Print Lab</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --bg: #08090D;
+    --bg-panel: #101119;
+    --bg-raised: #171824;
+    --bg-input: #13141c;
+    --border: #29283A;
+    --border-soft: #1e1d2a;
+    --text: #F4F3FA;
+    --text-dim: #A1A0B2;
+    --text-faint: #65637a;
+    --accent-1: #8B5CF6;
+    --accent-2: #3B82F6;
+    --accent: #9D7BF8;
+    --accent-grad: linear-gradient(135deg, #8B5CF6, #3B82F6);
+    --ok: #3ddc84;
+    --ok-bg: #122a1e;
+    --warn: #f2b84b;
+    --warn-bg: #2a2113;
+    --bad: #f2566e;
+    --bad-bg: #2b151c;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: var(--font-body);
+    background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    font-size: 13.5px;
+  }
+  #topbar {
+    flex-shrink: 0; height: 48px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--bg-panel);
+  }
+  #topbar .wordmark {
+    display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--text);
+    font-family: var(--font-display); font-weight: 600; font-size: 14px; letter-spacing: 0.01em;
+  }
+  #topbar .wordmark .mark {
+    width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; background: var(--accent-grad);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #08090D;
+    font-family: var(--font-mono);
+  }
+  #topbar .wordmark .sep { color: var(--text-faint); font-weight: 400; }
+  #topbar .back { font-size: 12px; color: var(--text-dim); text-decoration: none; padding: 6px 10px; border-radius: 7px; }
+  #topbar .back:hover { color: var(--text); background: var(--bg-input); }
+  #body-row { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+
+  #panel {
+    width: 400px; flex-shrink: 0; padding: 20px; display: flex; flex-direction: column;
+    gap: 14px; overflow-y: auto; border-right: 1px solid var(--border); background: var(--bg-panel);
+  }
+  #panel::-webkit-scrollbar { width: 8px; }
+  #panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    background: var(--accent-grad); font-family: var(--font-mono);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; color: #08090D;
+  }
+  .brand h1 { font-family: var(--font-display); font-size: 15px; margin: 0; letter-spacing: 0.01em; font-weight: 650; }
+  .brand .sub { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+  p.hint { font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.5; }
+  /* A model opened from the workspace via ?status=/&warnings= carries its real CAD-generation
+     completeness forward -- same banner convention as workspace.html's #overallStatusBanner, so an
+     INCOMPLETE assembly never shows up here looking indistinguishable from a clean one. */
+  #carriedStatusBanner { border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.5; }
+  #carriedStatusBanner .title { font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; font-size: 12px; display: block; margin-bottom: 4px; }
+  #carriedStatusBanner.PASS { background: var(--ok-bg); color: var(--ok); }
+  #carriedStatusBanner.INCOMPLETE { background: var(--warn-bg); color: var(--warn); }
+  #carriedStatusBanner.FAIL { background: var(--bad-bg); color: var(--bad); }
+  #carriedStatusBanner ul { margin: 4px 0 0; padding-left: 16px; }
+
+  .card { background: var(--bg-raised); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .card-title { font-size: 11px; font-weight: 650; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--text-dim); }
+  select, input[type="number"], input[type="text"] {
+    background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 7px;
+    padding: 7px 9px; font-size: 13px; font-family: var(--font-body);
+  }
+  select:focus, input:focus { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+
+  button.primary {
+    background: var(--accent-grad); color: #08090D; border: none; border-radius: 8px; padding: 10px 14px;
+    font-weight: 650; font-size: 13px; cursor: pointer; font-family: var(--font-body);
+  }
+  button.primary:hover { filter: brightness(1.1); }
+  button.primary:disabled { background: #2a2b36; color: var(--text-faint); cursor: default; filter: none; }
+  button.secondary {
+    background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; font-size: 12.5px; cursor: pointer; font-family: var(--font-body);
+  }
+  button.secondary:hover { border-color: var(--accent-1); color: var(--text); }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row button { flex: 1; }
+
+  .upload-drop {
+    border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 18px; text-align: center;
+    color: var(--text-faint); font-size: 12px; cursor: pointer;
+  }
+  .upload-drop:hover { border-color: var(--accent-1); color: var(--text-dim); }
+
+  .badge { border-radius: 999px; padding: 2px 9px; font-size: 10px; font-weight: 650; font-family: var(--font-mono); flex-shrink: 0; }
+  .badge.error { background: var(--bad-bg); color: var(--bad); }
+  .badge.warning { background: var(--warn-bg); color: var(--warn); }
+  .badge.info { background: var(--bg-input); color: var(--text-dim); }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+  .stat { display: flex; flex-direction: column; gap: 1px; }
+  .stat .v { font-size: 14px; font-weight: 650; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat .v.good { color: var(--ok); }
+  .stat .v.bad { color: var(--bad); }
+  .stat .v.na { color: var(--text-faint); font-weight: 500; }
+
+  .warning-row { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.4; padding: 6px 0; border-bottom: 1px solid var(--border-soft); }
+  .warning-row:last-child { border-bottom: none; }
+
+  .orientation-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px;
+    border: 1px solid var(--border-soft); border-radius: 8px; font-size: 12px; cursor: pointer; background: var(--bg-input);
+  }
+  .orientation-row:hover { border-color: var(--accent-1); }
+  .orientation-row.selected { border-color: var(--accent-2); background: #15213a; }
+  .orientation-row .label { font-weight: 600; }
+  .orientation-row .meta { color: var(--text-faint); font-size: 10.5px; }
+
+  .limitations { font-size: 11px; color: var(--text-faint); line-height: 1.5; }
+  .limitations li { margin-bottom: 4px; }
+
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #viewer { flex: 1; position: relative; }
+  #viewer canvas { display: block; width: 100%; height: 100%; }
+  #placeholder {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--text-faint); font-size: 13px; text-align: center; padding: 20px; flex-direction: column; gap: 10px;
+  }
+  #viewerToolbar {
+    position: absolute; top: 12px; left: 12px; display: flex; gap: 6px; z-index: 5;
+  }
+  #viewerToolbar button {
+    background: rgba(16,17,25,0.85); border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 7px; padding: 6px 10px; font-size: 11px; cursor: pointer;
+  }
+  #viewerToolbar button.active { color: var(--text); border-color: var(--accent-1); }
+  #statusLine { position: absolute; bottom: 12px; left: 12px; font-size: 11px; color: var(--text-faint); font-family: var(--font-mono); z-index: 5; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a class="wordmark" href="/"><span class="mark">3d</span>3di-men <span class="sep">/</span> Print Lab</a>
+  <a class="back" href="/workspace">&larr; Back to workspace</a>
+</div>
+
+<div id="body-row">
+<div id="panel">
+  <div class="brand">
+    <div class="mark">3d</div>
+    <div>
+      <h1>Print Lab</h1>
+      <div class="sub">printability analysis</div>
+    </div>
+  </div>
+  <p class="hint">Analyzes a model's real geometry for 3D printing: mesh integrity, build-volume fit, and overhangs are measured directly from the mesh. Print time and support material are NOT estimated here — they depend on a real slicer's own toolpath planning (see Limitations below).</p>
+
+  <div id="carriedStatusBanner" style="display:none;"></div>
+
+  <div class="card">
+    <div class="card-title">Model</div>
+    <div class="upload-drop" id="uploadDrop">Drop an STL/OBJ file here, or click to choose one<br><span style="font-size:10px">up to 50MB</span></div>
+    <input type="file" id="fileInput" accept=".stl,.obj" style="display:none">
+    <div id="modelInfo" style="font-size:11.5px;color:var(--text-dim);display:none;"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Printer &amp; settings</div>
+    <label class="field">Printer profile
+      <select id="printerSelect"></select>
+    </label>
+    <div class="row3" id="customVolumeRow" style="display:none;">
+      <label class="field">X (mm)<input type="number" id="customX" value="200"></label>
+      <label class="field">Y (mm)<input type="number" id="customY" value="200"></label>
+      <label class="field">Z (mm)<input type="number" id="customZ" value="200"></label>
+    </div>
+    <label class="field">Overhang angle (°)
+      <input type="number" id="overhangAngle" value="45" min="1" max="89">
+    </label>
+    <label class="field">Material density (g/cm³) — optional, for mass estimate
+      <input type="number" id="density" value="1.24" step="0.01" min="0">
+    </label>
+    <button class="primary" id="analyzeBtn" disabled>Run Analysis</button>
+  </div>
+
+  <div id="resultsCard" class="card" style="display:none;">
+    <div class="card-title">Mesh integrity</div>
+    <div class="stat-grid" id="integrityStats"></div>
+  </div>
+
+  <div id="volumeCard" class="card" style="display:none;">
+    <div class="card-title">Build volume fit</div>
+    <div class="stat-grid" id="volumeStats"></div>
+  </div>
+
+  <div id="overhangCard" class="card" style="display:none;">
+    <div class="card-title">Overhangs</div>
+    <div class="stat-grid" id="overhangStats"></div>
+  </div>
+
+  <div id="materialCard" class="card" style="display:none;">
+    <div class="card-title">Material</div>
+    <div class="stat-grid" id="materialStats"></div>
+  </div>
+
+  <div id="warningsCard" class="card" style="display:none;">
+    <div class="card-title">Warnings</div>
+    <div id="warningsList"></div>
+  </div>
+
+  <div id="orientationsCard" class="card" style="display:none;">
+    <div class="card-title">Suggested orientations</div>
+    <div id="orientationsList" style="display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Export</div>
+    <div class="btn-row">
+      <button class="secondary" id="exportStlBtn" disabled>Download STL</button>
+      <button class="secondary" id="exportObjBtn" disabled>Download OBJ</button>
+      <button class="secondary" id="export3mfBtn" disabled>Download 3MF</button>
+    </div>
+    <div id="slicerStatus" style="font-size:11px;color:var(--text-faint);"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Limitations (disclosed, not hidden)</div>
+    <ul class="limitations" id="limitationsList"></ul>
+  </div>
+</div>
+
+<div id="main">
+  <div id="viewer">
+    <div id="placeholder">No model loaded yet.<br>Open a model from the workspace, or upload an STL/OBJ file.</div>
+    <div id="viewerToolbar">
+      <button id="toggleGridBtn" class="active">Grid</button>
+      <button id="toggleBedBtn" class="active">Build plate</button>
+      <button id="toggleBboxBtn">Bounding box</button>
+      <button id="toggleOverhangsBtn" class="active" disabled title="Highlights the faces check_overhangs flagged -- enabled once an analysis has run">Overhangs</button>
+      <button id="resetViewBtn">Reset view</button>
+    </div>
+    <div id="statusLine"></div>
+  </div>
+</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/STLLoader.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+const viewerEl = document.getElementById('viewer');
+const placeholder = document.getElementById('placeholder');
+const statusLine = document.getElementById('statusLine');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x08090d);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+viewerEl.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dir1 = new THREE.DirectionalLight(0xffffff, 0.95);
+dir1.position.set(1, 1.5, 1);
+scene.add(dir1);
+
+const grid = new THREE.GridHelper(300, 20, 0x29283a, 0x14141d);
+scene.add(grid);
+
+let bedMesh = null;
+let bboxHelper = null;
+let currentMesh = null;
+let lastOverhangFaceIndices = [];
+const BASE_COLOR = new THREE.Color(0x9d7bf8);
+const OVERHANG_COLOR = new THREE.Color(0xf2566e); // same --bad red used for warning badges elsewhere in this UI
+
+function resize() {
+  const w = viewerEl.clientWidth, h = viewerEl.clientHeight;
+  if (w === 0 || h === 0) return;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(viewerEl);
+resize();
+camera.position.set(180, 160, 220);
+controls.target.set(0, 0, 0);
+
+function animate() {
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+function frameCamera(mesh) {
+  const box = new THREE.Box3().setFromObject(mesh);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  controls.target.copy(center);
+  camera.position.set(center.x + maxDim * 1.4, center.y + maxDim * 1.2, center.z + maxDim * 1.4);
+  camera.near = maxDim / 100; camera.far = maxDim * 50;
+  camera.updateProjectionMatrix();
+}
+
+function updateBuildPlate(volumeMm) {
+  if (bedMesh) { scene.remove(bedMesh); bedMesh.geometry.dispose(); bedMesh.material.dispose(); }
+  const [x, y, z] = volumeMm;
+  const geo = new THREE.BoxGeometry(x, y, z);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, wireframe: true, transparent: true, opacity: 0.35 });
+  bedMesh = new THREE.Mesh(geo, mat);
+  bedMesh.position.set(0, 0, z / 2); // printer origin = plate center at z=0, build volume extends upward
+  bedMesh.visible = document.getElementById('toggleBedBtn').classList.contains('active');
+  scene.add(bedMesh);
+}
+
+function loadSTLBuffer(buf) {
+  const geometry = new STLLoader().parse(buf);
+  geometry.computeVertexNormals();
+  // STLLoader's own output is non-indexed (3 consecutive vertices per
+  // triangle, no shared/reused vertices) -- confirmed, not assumed, since
+  // the overhang overlay below depends on face index i mapping directly
+  // to vertex range [3i, 3i+2]. A per-vertex color attribute, initialized
+  // to the base material color, lets individual faces be recolored later
+  // without rebuilding the geometry.
+  const vertexCount = geometry.attributes.position.count;
+  const colors = new Float32Array(vertexCount * 3);
+  for (let i = 0; i < vertexCount; i++) BASE_COLOR.toArray(colors, i * 3);
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  if (currentMesh) { scene.remove(currentMesh); currentMesh.geometry.dispose(); currentMesh.material.dispose(); }
+  const material = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.15, roughness: 0.55, side: THREE.DoubleSide });
+  currentMesh = new THREE.Mesh(geometry, material);
+  // Rest the model ON the plate (z=0) along its own lowest Z, matching the build-plate convention above.
+  geometry.computeBoundingBox();
+  currentMesh.position.z = -geometry.boundingBox.min.z;
+  scene.add(currentMesh);
+  placeholder.style.display = 'none';
+  frameCamera(currentMesh);
+  updateBboxHelper();
+  lastOverhangFaceIndices = [];
+  document.getElementById('toggleOverhangsBtn').disabled = true;
+}
+
+/* Confirmed real gap this closes: the overhang stats panel could only
+   show an aggregate area/percentage, with no way to see WHERE on the
+   model those faces actually are -- printability.check_overhangs now
+   also returns the real face indices (same order the loaded STL uses,
+   since both come from the same exported file), so they can be painted
+   directly onto the mesh instead of only reported as a number. */
+function applyOverhangOverlay(faceIndices) {
+  lastOverhangFaceIndices = faceIndices || [];
+  const btn = document.getElementById('toggleOverhangsBtn');
+  btn.disabled = lastOverhangFaceIndices.length === 0;
+  renderOverhangOverlay();
+}
+
+function renderOverhangOverlay() {
+  if (!currentMesh) return;
+  const colorAttr = currentMesh.geometry.attributes.color;
+  const vertexCount = colorAttr.count;
+  const showOverhangs = document.getElementById('toggleOverhangsBtn').classList.contains('active');
+  const overhangSet = showOverhangs ? new Set(lastOverhangFaceIndices) : null;
+  for (let f = 0; f < vertexCount / 3; f++) {
+    const c = overhangSet && overhangSet.has(f) ? OVERHANG_COLOR : BASE_COLOR;
+    c.toArray(colorAttr.array, f * 9);
+    c.toArray(colorAttr.array, f * 9 + 3);
+    c.toArray(colorAttr.array, f * 9 + 6);
+  }
+  colorAttr.needsUpdate = true;
+}
+
+document.getElementById('toggleOverhangsBtn').addEventListener('click', (e) => {
+  if (e.target.disabled) return;
+  e.target.classList.toggle('active');
+  renderOverhangOverlay();
+});
+
+/* Visually rotates the displayed model to match a candidate orientation
+   (see loadOrientations below) and re-settles it on the plate -- without
+   this, picking a candidate would re-run analysis on a rotated mesh
+   server-side while the viewer kept showing the UNROTATED one, making
+   the overhang overlay (and every other stat) describe an orientation
+   the user can't actually see. */
+function applyOrientationRotation(rotationDeg) {
+  if (!currentMesh) return;
+  const [rx, ry, rz] = rotationDeg;
+  const qx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(rx));
+  const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(ry));
+  const qz = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), THREE.MathUtils.degToRad(rz));
+  // Same composition order as server.py's rotation_deg handling (rot = Rz @ Ry @ Rx, applied to a
+  // column vector as Rz*(Ry*(Rx*v))) -- quaternion.multiply(q) sets this = this*q, and applying a
+  // product q1*q2 to a vector rotates by q2 FIRST then q1, so qz.multiply(qy).multiply(qx) rotates
+  // by X first, then Y, then Z, matching the backend exactly rather than three.js's own Euler-order
+  // convention (which this deliberately bypasses to avoid relying on that convention matching).
+  const q = qz.multiply(qy).multiply(qx);
+  currentMesh.position.set(0, 0, 0);
+  currentMesh.quaternion.copy(q);
+  currentMesh.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(currentMesh);
+  currentMesh.position.z = -box.min.z;
+  updateBboxHelper();
+}
+
+function updateBboxHelper() {
+  if (bboxHelper) { scene.remove(bboxHelper); }
+  if (!currentMesh) return;
+  bboxHelper = new THREE.BoxHelper(currentMesh, 0xf2b84b);
+  bboxHelper.visible = document.getElementById('toggleBboxBtn').classList.contains('active');
+  scene.add(bboxHelper);
+}
+
+document.getElementById('toggleGridBtn').addEventListener('click', (e) => {
+  e.target.classList.toggle('active');
+  grid.visible = e.target.classList.contains('active');
+});
+document.getElementById('toggleBedBtn').addEventListener('click', (e) => {
+  e.target.classList.toggle('active');
+  if (bedMesh) bedMesh.visible = e.target.classList.contains('active');
+});
+document.getElementById('toggleBboxBtn').addEventListener('click', (e) => {
+  e.target.classList.toggle('active');
+  if (bboxHelper) bboxHelper.visible = e.target.classList.contains('active');
+});
+document.getElementById('resetViewBtn').addEventListener('click', () => { if (currentMesh) frameCamera(currentMesh); });
+
+/* ---------------- state + API wiring ---------------- */
+
+let currentMeshUrl = null;
+
+function setStatus(msg, isError) {
+  statusLine.textContent = msg || '';
+  statusLine.style.color = isError ? 'var(--bad)' : 'var(--text-faint)';
+}
+
+async function loadPrinters() {
+  const res = await fetch('/api/print/printers');
+  const data = await res.json();
+  const select = document.getElementById('printerSelect');
+  select.innerHTML = '';
+  data.printers.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.name}`;
+    select.appendChild(opt);
+  });
+  const customOpt = document.createElement('option');
+  customOpt.value = 'custom';
+  customOpt.textContent = 'Custom build volume…';
+  select.appendChild(customOpt);
+  select.addEventListener('change', () => {
+    document.getElementById('customVolumeRow').style.display = select.value === 'custom' ? 'grid' : 'none';
+    updatePlateFromSelection();
+  });
+  updatePlateFromSelection();
+
+  async function updatePlateFromSelection() {
+    if (select.value === 'custom') {
+      updateBuildPlate([Number(document.getElementById('customX').value), Number(document.getElementById('customY').value), Number(document.getElementById('customZ').value)]);
+    } else {
+      const printer = data.printers.find(p => p.id === select.value);
+      if (printer) updateBuildPlate(printer.build_volume_mm);
+    }
+  }
+  ['customX', 'customY', 'customZ'].forEach(id => document.getElementById(id).addEventListener('input', updatePlateFromSelection));
+}
+
+async function loadSlicerStatus() {
+  const res = await fetch('/api/print/slicers');
+  const data = await res.json();
+  const names = { cura: 'Cura', prusaslicer: 'PrusaSlicer' };
+  const lines = Object.entries(data).map(([k, v]) =>
+    `${names[k] || k}: ${v.available ? `available (${v.executable_path})` : 'not found on this machine'}`
+  );
+  document.getElementById('slicerStatus').textContent = lines.join(' · ');
+}
+
+function onModelReady(meshUrl, vertexCount, faceCount) {
+  currentMeshUrl = meshUrl;
+  document.getElementById('analyzeBtn').disabled = false;
+  document.getElementById('exportStlBtn').disabled = false;
+  document.getElementById('exportObjBtn').disabled = false;
+  document.getElementById('export3mfBtn').disabled = false;
+  const info = document.getElementById('modelInfo');
+  info.style.display = 'block';
+  info.textContent = `${vertexCount} vertices, ${faceCount} faces`;
+  fetch(meshUrl).then(r => r.arrayBuffer()).then(loadSTLBuffer);
+}
+
+// Open a model already built in 3di-men via ?mesh=<mesh_id or full /api/mesh/... url>
+const params = new URLSearchParams(window.location.search);
+const meshParam = params.get('mesh');
+if (meshParam) {
+  const meshUrl = meshParam.startsWith('/api/mesh/') ? meshParam : `/api/mesh/${meshParam}`;
+  fetch(meshUrl, { method: 'HEAD' }).then(r => {
+    if (r.ok) onModelReady(meshUrl, '?', '?');
+    else setStatus(`could not open ${meshUrl}`, true);
+  });
+}
+
+// Confirmed real gap this closes (Print Lab / CAD-generation handoff): a
+// model carried over from the workspace after an INCOMPLETE or FAILED
+// build used to open here looking exactly like a clean one, with no
+// trace of what CAD generation already found wrong (an excluded
+// required part, a footprint overrun, a collision). ?status=/&warnings=
+// (see workspace.html's own printLabLink wiring) are rendered as a
+// banner so that failure status survives the handoff instead of being
+// silently dropped.
+const carriedStatus = params.get('status');
+if (carriedStatus) {
+  let carriedWarnings = [];
+  try { carriedWarnings = JSON.parse(params.get('warnings') || '[]'); } catch { carriedWarnings = []; }
+  const banner = document.getElementById('carriedStatusBanner');
+  banner.className = carriedStatus;
+  banner.style.display = 'block';
+  const labels = {
+    PASS: 'This model’s CAD generation reported PASS — every part built and verified correct.',
+    INCOMPLETE: 'This model’s CAD generation reported INCOMPLETE — at least one part is unverified, excluded, or the assembly overran its requested envelope. Printability analysis below is still real, but it analyzes geometry that may not match what was actually requested.',
+    FAIL: 'This model’s CAD generation reported FAIL — a required part failed and could not be rescued. Treat this as inspection-only, not print-ready.',
+  };
+  banner.innerHTML = `<span class="title">${escapeAttr(carriedStatus)}</span>${labels[carriedStatus] || escapeAttr(carriedStatus)}`
+    + (carriedWarnings.length ? `<ul>${carriedWarnings.map(w => `<li>${escapeAttr(w)}</li>`).join('')}</ul>` : '');
+}
+
+document.getElementById('uploadDrop').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  setStatus('uploading…');
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await fetch('/api/print/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `upload failed (${res.status})`);
+    onModelReady(data.mesh_url, data.vertex_count, data.face_count);
+    setStatus('model loaded');
+  } catch (err) {
+    setStatus('Error: ' + err.message, true);
+  }
+});
+['dragover', 'drop'].forEach(evt => document.getElementById('uploadDrop').addEventListener(evt, (e) => e.preventDefault()));
+document.getElementById('uploadDrop').addEventListener('drop', async (e) => {
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  document.getElementById('fileInput').files = e.dataTransfer.files;
+  document.getElementById('fileInput').dispatchEvent(new Event('change'));
+});
+
+function escapeAttr(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function statClass(ok) { return ok ? 'good' : 'bad'; }
+
+function renderStat(container, label, value, cls) {
+  const div = document.createElement('div');
+  div.className = 'stat';
+  div.innerHTML = `<div class="v ${cls || ''}">${value}</div><div class="k">${label}</div>`;
+  container.appendChild(div);
+}
+
+function renderResults(data) {
+  document.getElementById('resultsCard').style.display = 'flex';
+  const integrity = document.getElementById('integrityStats');
+  integrity.innerHTML = '';
+  renderStat(integrity, 'Watertight', data.integrity.watertight ? 'Yes' : 'No', statClass(data.integrity.watertight));
+  renderStat(integrity, 'Manifold', data.integrity.manifold ? 'Yes' : 'No', statClass(data.integrity.manifold));
+  renderStat(integrity, 'Shells', data.integrity.body_count, data.integrity.body_count === 1 ? 'good' : '');
+  renderStat(integrity, 'Non-manifold edges', data.integrity.non_manifold_edge_count, statClass(data.integrity.non_manifold_edge_count === 0));
+  renderStat(integrity, 'Degenerate faces', data.integrity.degenerate_face_count, statClass(data.integrity.degenerate_face_count === 0));
+  renderStat(integrity, 'Vertices / faces', `${data.integrity.vertex_count} / ${data.integrity.face_count}`);
+  renderStat(integrity, 'Bounding box (mm)', data.integrity.bounding_box_mm.map(v => v.toFixed(1)).join(' × '));
+  renderStat(integrity, 'Volume (mm³)', data.integrity.volume_mm3 != null ? data.integrity.volume_mm3.toFixed(0) : 'n/a', data.integrity.volume_mm3 == null ? 'na' : '');
+  renderStat(integrity, 'Surface area (mm²)', data.integrity.surface_area_mm2.toFixed(0));
+  renderStat(integrity, 'Printable as-is', data.integrity.printable_as_is ? 'Yes' : 'No — see warnings', statClass(data.integrity.printable_as_is));
+
+  document.getElementById('volumeCard').style.display = 'flex';
+  const vol = document.getElementById('volumeStats');
+  vol.innerHTML = '';
+  renderStat(vol, 'Fits printer', data.build_volume_fit.fits ? 'Yes' : 'No', statClass(data.build_volume_fit.fits));
+  renderStat(vol, 'Model extents (mm)', data.build_volume_fit.model_extents_mm.map(v => v.toFixed(1)).join(' × '));
+  renderStat(vol, 'Printer volume (mm)', data.build_volume_fit.printer_volume_mm.map(v => v.toFixed(0)).join(' × '));
+  const overrunAxes = ['X', 'Y', 'Z'].filter((a, i) => data.build_volume_fit.overrun_mm[i] > 0);
+  renderStat(vol, 'Overrun', overrunAxes.length ? overrunAxes.map((a, i) => `${a}: +${data.build_volume_fit.overrun_mm[['X','Y','Z'].indexOf(a)].toFixed(1)}mm`).join(', ') : 'none', overrunAxes.length ? 'bad' : 'good');
+
+  document.getElementById('overhangCard').style.display = 'flex';
+  const oh = document.getElementById('overhangStats');
+  oh.innerHTML = '';
+  renderStat(oh, 'Overhang angle', `${data.overhangs.overhang_angle_deg}°`);
+  renderStat(oh, 'Overhang area', `${data.overhangs.overhang_area_mm2.toFixed(0)} mm²`);
+  renderStat(oh, 'Fraction of surface', `${(data.overhangs.overhang_area_fraction * 100).toFixed(1)}%`);
+  renderStat(oh, 'Likely needs support', data.overhangs.likely_needs_support ? 'Yes' : 'No', data.overhangs.likely_needs_support ? 'bad' : 'good');
+
+  document.getElementById('materialCard').style.display = 'flex';
+  const mat = document.getElementById('materialStats');
+  mat.innerHTML = '';
+  renderStat(mat, 'Solid volume', `${(data.material.solid_volume_mm3 / 1000).toFixed(2)} cm³`);
+  renderStat(mat, 'Estimated mass', data.material.estimated_mass_g != null ? `${data.material.estimated_mass_g.toFixed(1)} g` : 'n/a (no density given)', data.material.estimated_mass_g == null ? 'na' : '');
+  renderStat(mat, 'Print time', data.print_time_estimate, 'na');
+  renderStat(mat, 'Support material', data.support_material_estimate, 'na');
+
+  const warningsCard = document.getElementById('warningsCard');
+  const warningsList = document.getElementById('warningsList');
+  warningsList.innerHTML = '';
+  if (data.warnings.length === 0) {
+    warningsCard.style.display = 'flex';
+    warningsList.innerHTML = '<div class="warning-row"><span class="badge ok">OK</span>no warnings</div>';
+  } else {
+    warningsCard.style.display = 'flex';
+    data.warnings.forEach(w => {
+      const row = document.createElement('div');
+      row.className = 'warning-row';
+      row.innerHTML = `<span class="badge ${escapeAttr(w.severity)}">${escapeAttr(w.severity)}</span><span>${escapeAttr(w.message)}</span>`;
+      warningsList.appendChild(row);
+    });
+  }
+
+  document.getElementById('limitationsList').innerHTML = data.limitations.map(l => `<li>${l}</li>`).join('');
+}
+
+function selectedPrinter() {
+  const select = document.getElementById('printerSelect');
+  if (select.value === 'custom') {
+    return { printer_id: 'custom', build_volume_mm: [Number(document.getElementById('customX').value), Number(document.getElementById('customY').value), Number(document.getElementById('customZ').value)] };
+  }
+  return { printer_id: select.value };
+}
+
+async function runAnalysis(rotationDeg) {
+  if (!currentMeshUrl) return;
+  setStatus('analyzing…');
+  const meshId = currentMeshUrl.split('/').pop();
+  const body = {
+    mesh_id: meshId, ...selectedPrinter(),
+    overhang_angle_deg: Number(document.getElementById('overhangAngle').value),
+    density_g_per_cm3: document.getElementById('density').value ? Number(document.getElementById('density').value) : null,
+  };
+  if (rotationDeg) body.rotation_deg = rotationDeg;
+  try {
+    if (rotationDeg) applyOrientationRotation(rotationDeg);  // keep the viewer in sync with what's being analyzed
+    const res = await fetch('/api/print/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `analysis failed (${res.status})`);
+    renderResults(data);
+    applyOverhangOverlay(data.overhangs.overhang_face_indices);
+    setStatus('analysis complete');
+    await loadOrientations(meshId);
+  } catch (err) {
+    setStatus('Error: ' + err.message, true);
+  }
+}
+
+async function loadOrientations(meshId) {
+  const body = { mesh_id: meshId, ...selectedPrinter(), overhang_angle_deg: Number(document.getElementById('overhangAngle').value) };
+  const res = await fetch('/api/print/orientations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json();
+  if (!res.ok) return;
+  const card = document.getElementById('orientationsCard');
+  const list = document.getElementById('orientationsList');
+  card.style.display = 'flex';
+  list.innerHTML = '';
+  data.orientations.forEach((o, i) => {
+    const row = document.createElement('div');
+    row.className = 'orientation-row' + (i === 0 ? ' selected' : '');
+    row.innerHTML = `<div><div class="label">${escapeAttr(o.label)}</div><div class="meta">${escapeAttr(o.notes)}</div></div><div class="meta">${o.fits_build_volume ? '' : '⚠ '}h=${o.height_mm.toFixed(0)}mm</div>`;
+    row.addEventListener('click', () => {
+      document.querySelectorAll('.orientation-row').forEach(r => r.classList.remove('selected'));
+      row.classList.add('selected');
+      runAnalysis(o.rotation_deg);
+    });
+    list.appendChild(row);
+  });
+}
+
+document.getElementById('analyzeBtn').addEventListener('click', () => runAnalysis(null));
+document.getElementById('exportStlBtn').addEventListener('click', () => { if (currentMeshUrl) window.open(currentMeshUrl, '_blank'); });
+document.getElementById('exportObjBtn').addEventListener('click', () => { if (currentMeshUrl) window.open(currentMeshUrl + '?format=obj', '_blank'); });
+document.getElementById('export3mfBtn').addEventListener('click', () => { if (currentMeshUrl) window.open(currentMeshUrl + '?format=3mf', '_blank'); });
+
+loadPrinters();
+loadSlicerStatus();
+</script>
+</body>
+</html>

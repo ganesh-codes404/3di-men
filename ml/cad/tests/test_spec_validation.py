@@ -10,12 +10,53 @@ from spec_validation import (
     HoleCountValidationReport,
     HoleDiameterValidationReport,
     extract_claimed_dimensions_mm,
+    extract_claimed_envelope_mm,
     extract_claimed_hole_count,
     extract_claimed_hole_diameters_mm,
     validate_dimensions_against_description,
     validate_hole_count_against_description,
     validate_hole_diameters_against_description,
 )
+
+
+# ---------------- extract_claimed_envelope_mm -- confirmed real gap this closes
+# (mission-brief regression: "final bounding box 251.2x124.0x108.6mm, versus an
+# approximate requested footprint of 150x100mm" -- there was previously no way
+# to even recover that 150x100mm claim from the original prompt text at all). ----
+
+def test_extract_claimed_envelope_mm_recognizes_close_to_phrasing():
+    claim = extract_claimed_envelope_mm("a motor mount with the overall footprint close to 150mm x 100mm")
+    assert claim == (150.0, 100.0)
+
+
+def test_extract_claimed_envelope_mm_recognizes_of_roughly_phrasing():
+    claim = extract_claimed_envelope_mm("keep a footprint of roughly 200 x 80mm")
+    assert claim == (200.0, 80.0)
+
+
+def test_extract_claimed_envelope_mm_recognizes_bare_footprint_phrasing():
+    claim = extract_claimed_envelope_mm("a bracket assembly, footprint 60mm x 50mm")
+    assert claim == (60.0, 50.0)
+
+
+def test_extract_claimed_envelope_mm_returns_none_when_prompt_makes_no_claim():
+    """A per-part dimension claim (extract_claimed_dimensions_mm's own
+    concern) is NOT an assembly-level footprint claim -- this must not
+    fire just because the prompt happens to contain "WxH mm"-shaped
+    numbers for an individual part."""
+    assert extract_claimed_envelope_mm("a box 60mm x 50mm x 10mm with a gear next to it") is None
+    assert extract_claimed_envelope_mm("a water bottle") is None
+
+
+def test_extract_claimed_envelope_mm_only_uses_the_first_match():
+    """A footprint claim is a property of the whole assembly, not a
+    per-component list (see the function's own docstring) -- a second
+    "WxH" mention later in the prompt must not be treated as a second,
+    additive claim."""
+    claim = extract_claimed_envelope_mm(
+        "keep the overall footprint close to 150mm x 100mm, with a bracket footprint of 40mm x 30mm on top"
+    )
+    assert claim == (150.0, 100.0)
 
 
 def test_extract_claimed_dimensions_mm_finds_every_number():
