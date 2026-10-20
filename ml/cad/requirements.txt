@@ -19,10 +19,33 @@ flask>=3.0  # only needed for server.py (the web UI); inference.py/evaluate.py/b
 scikit-learn>=1.3
 joblib>=1.3
 
-# CPU-only. The ONLY LLM runtime this project uses -- llm_decompose.py is the
-# ONLY file that imports it, loading a local Qwen3 .gguf model (path/name/
-# quantization set via MODEL_PATH/MODEL_NAME/QUANTIZATION env vars, see that
-# file's module docstring). No network call, no hosted API.
+# The ONLY LLM runtime this project uses. Two files import it independently --
+# llm_decompose.py (3di-men's CAD part decomposition) and
+# mitsugen/freeform.py (Mitsugen's free-form primitive decomposition) -- each
+# loading a local Qwen3 .gguf model (path/name/quantization set via env vars,
+# see each file's own module docstring; both default to the SAME model file
+# on disk, loaded as two separate in-process instances). No network call, no
+# hosted API, on any machine.
+#
+# The line below installs the CPU-only build (verified on a MacBook with no
+# CUDA GPU) -- this is what `pip install -r requirements.txt` gives you
+# everywhere, including on a machine with an NVIDIA GPU, since pip has no way
+# to know a GPU is even present. On a machine with an NVIDIA GPU (e.g. an
+# RTX 4060 laptop), REPLACE this line's install with a CUDA-enabled build
+# instead, so llama.cpp can actually offload layers to it:
+#   CUDA Toolkit (nvcc) already installed -> build from source:
+#     CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python>=0.3.35 --no-cache-dir --force-reinstall
+#   no local CUDA toolkit / want a prebuilt wheel instead (Linux x86_64 only):
+#     pip install llama-cpp-python>=0.3.35 --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+#     (pick the cuXXX matching your installed CUDA version; Windows needs the
+#     from-source route above, with Visual Studio 2022 + the CUDA Toolkit)
+# Then verify it actually took: `python3 -c "from llama_cpp import llama_supports_gpu_offload as s; print(s())"`
+# should print True (if it prints False, a cached CPU-only wheel was reused --
+# rerun the install with --no-cache-dir --force-reinstall). Finally, set
+# N_GPU_LAYERS=-1 (offload every layer) in the environment before running
+# server.py -- both llm_decompose.py and mitsugen/freeform.py read that same
+# env var and will both pick up the GPU automatically; see either file's own
+# N_GPU_LAYERS comment for why this stays an explicit opt-in, not a default.
 llama-cpp-python>=0.3.35
 
 # CPU-only, for the knowledge/ engineering-reference RAG subsystem

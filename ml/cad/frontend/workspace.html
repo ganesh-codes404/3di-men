@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>3di-men — workspace</title>
-<link rel="icon" href="data:,">
+<title>Mitsuhub | 3di-men — CAD workspace</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%23C1402C%27/%3E%3Cstop offset=%271%27 stop-color=%27%234C6B8A%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-family=%27Georgia,serif%27 font-size=%2719%27 font-weight=%27700%27 fill=%27%230B0A09%27 text-anchor=%27middle%27%3EM%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,22 +14,22 @@
     --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
     --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-    --bg: #08090D;
-    --bg-panel: #101119;
-    --bg-raised: #171824;
-    --bg-input: #13141c;
-    --border: #29283A;
-    --border-soft: #1e1d2a;
-    --text: #F4F3FA;
-    --text-dim: #A1A0B2;
-    --text-faint: #65637a;
-    --accent-1: #8B5CF6;
-    --accent-2: #3B82F6;
-    --accent: #9D7BF8;
-    --accent-dim: #4a3f72;
-    --accent-grad: linear-gradient(135deg, #8B5CF6, #3B82F6);
-    --accent-grad-hover: linear-gradient(135deg, #5b9bff, #34d399);
-    --accent-glow: rgba(139, 92, 246, 0.22);
+    --bg: #0B0A09;
+    --bg-panel: #15120F;
+    --bg-raised: #1E1A16;
+    --bg-input: #1A1613;
+    --border: #332D27;
+    --border-soft: #241F1A;
+    --text: #F2ECE2;
+    --text-dim: #A89D8C;
+    --text-faint: #6E6356;
+    --accent-1: #C1402C;
+    --accent-2: #4C6B8A;
+    --accent: #D85940;
+    --accent-dim: #4A2E24;
+    --accent-grad: linear-gradient(135deg, #C1402C, #4C6B8A);
+    --accent-grad-hover: linear-gradient(135deg, #D85940, #5E7FA0);
+    --accent-glow: rgba(193, 64, 44, 0.14);
     --ok: #3ddc84;
     --ok-bg: #122a1e;
     --warn: #f2b84b;
@@ -61,7 +61,7 @@
   #topbar .wordmark:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; border-radius: 6px; }
   #topbar .wordmark .mark {
     width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; background: var(--accent-grad);
-    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #08090D;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #0B0A09;
     font-family: var(--font-mono);
   }
   #topbar .wordmark .sep { color: var(--text-faint); font-weight: 400; }
@@ -84,7 +84,7 @@
     width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
     background: var(--accent-grad); font-family: var(--font-mono);
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 13px; color: #08090D;
+    font-weight: 700; font-size: 13px; color: #0B0A09;
   }
   .brand h1 { font-family: var(--font-display); font-size: 15px; margin: 0; letter-spacing: 0.01em; font-weight: 650; }
   .brand .sub { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -416,9 +416,9 @@
 <body>
 
 <div id="topbar">
-  <a class="wordmark" href="/"><span class="mark">3d</span>3di-men <span class="sep">/</span> workspace</a>
+  <a class="wordmark" href="/"><span class="mark">M</span>Mitsuhub <span class="sep">/</span> 3di-men — CAD <span class="sep">/</span> workspace</a>
   <div class="right">
-    <a class="print-lab-link" id="topbarPrintLabLink" href="/print-lab" target="_blank" title="Analyze printability, or upload a model directly">Print Lab &#9654;</a>
+    <a class="print-lab-link" id="topbarPrintLabLink" href="/print-lab" target="_blank" title="Analyze printability, or upload a model directly">Mitsugen — 3D Printing &#9654;</a>
     <a class="back" href="/">&larr; Back to overview</a>
   </div>
 </div>
@@ -477,7 +477,7 @@
     <div class="meta-row">
       <span>generated in <strong id="genTime" style="color:var(--text);"></strong></span>
       <a class="download" id="downloadLink" download>&#8681; Download .stl</a>
-      <a class="download" id="printLabLink" href="#" target="_blank" style="display:none;">&#9654; Open in Print Lab</a>
+      <a class="download" id="printLabLink" href="#" target="_blank" style="display:none;">&#9654; Open in Mitsugen</a>
     </div>
   </div>
   </div> <!-- /promptTab -->
@@ -513,7 +513,7 @@
     <div class="meta-row">
       <span></span>
       <a class="download" id="consoleDownloadLink" download>&#8681; Download .stl</a>
-      <a class="download" id="consolePrintLabLink" href="#" target="_blank" style="display:none;">&#9654; Open in Print Lab</a>
+      <a class="download" id="consolePrintLabLink" href="#" target="_blank" style="display:none;">&#9654; Open in Mitsugen</a>
     </div>
 
     <div class="card" id="assemblyCard" style="display:none;">
@@ -525,7 +525,7 @@
       <div class="meta-row">
         <span></span>
         <a class="download" id="assemblyDownloadLink" download>&#8681; Download combined .stl</a>
-        <a class="download" id="assemblyPrintLabLink" href="#" target="_blank" style="display:none;">&#9654; Open in Print Lab</a>
+        <a class="download" id="assemblyPrintLabLink" href="#" target="_blank" style="display:none;">&#9654; Open in Mitsugen</a>
       </div>
     </div>
   </div> <!-- /consoleTab -->
@@ -599,11 +599,11 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 const dir1 = new THREE.DirectionalLight(0xffffff, 0.95);
 dir1.position.set(1, 1.5, 1);
 scene.add(dir1);
-const dir2 = new THREE.DirectionalLight(0x8b5cf6, 0.35);
+const dir2 = new THREE.DirectionalLight(0xc1402c, 0.35);
 dir2.position.set(-1, -0.5, -1);
 scene.add(dir2);
 
-const grid = new THREE.GridHelper(300, 20, 0x29283a, 0x14141d);
+const grid = new THREE.GridHelper(300, 20, 0x332d27, 0x18140f);
 scene.add(grid);
 
 // SolidWorks-style reference planes: Front (XY, normal Z), Top (XZ, normal
@@ -619,7 +619,7 @@ function makeReferencePlane(colorHex) {
   });
   return new THREE.Mesh(geo, mat);
 }
-const refPlaneFront = makeReferencePlane(0x3b82f6);   // XY plane (PlaneGeometry's own default orientation, normal +Z) -- blue, matches +Z
+const refPlaneFront = makeReferencePlane(0x4c6b8a);   // XY plane (PlaneGeometry's own default orientation, normal +Z) -- blue, matches +Z
 const refPlaneTop = makeReferencePlane(0x3ddc84);     // rotate into the XZ plane, normal +Y -- green, matches +Y
 refPlaneTop.rotation.x = Math.PI / 2;
 refPlaneTop.position.y = 0.01;
@@ -655,7 +655,7 @@ function vcMat(colorHex) { return new THREE.MeshStandardMaterial({ color: colorH
 const viewCubeMaterials = [
   vcMat(0xf2566e), vcMat(0x7a3540), // +x, -x
   vcMat(0x3ddc84), vcMat(0x2a6b4a), // +y, -y
-  vcMat(0x3b82f6), vcMat(0x27446e), // +z, -z
+  vcMat(0x4c6b8a), vcMat(0x2f4556), // +z, -z
 ];
 const viewCube = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), viewCubeMaterials);
 viewCubeScene.add(viewCube);
@@ -753,12 +753,17 @@ async function loadSTL(url, opts) {
   if (currentMesh) scene.remove(currentMesh);
   if (wireframeMesh) scene.remove(wireframeMesh);
 
-  const material = new THREE.MeshStandardMaterial({ color: 0xc9d6e3, metalness: 0.15, roughness: 0.55 });
+  // side: DoubleSide -- a multi-part boolean result can come out of
+  // trimesh's boolean engine with inconsistent face winding on some
+  // sub-regions; with the default FrontSide material those faces render
+  // (and raycast) as invisible from whichever side the camera is on. Same
+  // fix as index.html's hero viewer and print_lab.html's own material.
+  const material = new THREE.MeshStandardMaterial({ color: 0xc9d6e3, metalness: 0.15, roughness: 0.55, side: THREE.DoubleSide });
   currentMesh = new THREE.Mesh(geometry, material);
   scene.add(currentMesh);
 
   const wireGeo = new THREE.WireframeGeometry(geometry);
-  wireframeMesh = new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.25 }));
+  wireframeMesh = new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0xc1402c, transparent: true, opacity: 0.25 }));
   wireframeMesh.visible = showWireframe;
   scene.add(wireframeMesh);
 
@@ -2373,7 +2378,7 @@ function startFaceDrag(hit) {
   planeSize[axisIdx] = Math.max(planeSize[(axisIdx + 1) % 3], planeSize[(axisIdx + 2) % 3]) * 0.01;  // thin along the normal
 
   const geo = new THREE.BoxGeometry(Math.max(planeSize[0], 1), Math.max(planeSize[1], 1), Math.max(planeSize[2], 1));
-  const mat = new THREE.MeshBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.35, depthWrite: false });
+  const mat = new THREE.MeshBasicMaterial({ color: 0xc1402c, transparent: true, opacity: 0.35, depthWrite: false });
   ghostMesh = new THREE.Mesh(geo, mat);
   ghostMesh.position.copy(hit.point);
   scene.add(ghostMesh);

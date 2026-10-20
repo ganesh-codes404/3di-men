@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mitsugen — 3D Printing</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
+    --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --bg: #08090D; --bg-panel: #101119; --bg-raised: #171824; --bg-input: #13141c;
+    --border: #29283A; --border-soft: #1e1d2a;
+    --text: #F4F3FA; --text-dim: #A1A0B2; --text-faint: #65637a;
+    --accent-1: #8B5CF6; --accent-2: #3B82F6;
+    --accent-grad: linear-gradient(135deg, #8B5CF6, #3B82F6);
+    --ok: #3ddc84; --ok-bg: #122a1e;
+    --warn: #f2b84b; --warn-bg: #2a2113;
+    --bad: #f2566e; --bad-bg: #2b151c;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: var(--font-body);
+    background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    font-size: 13.5px;
+  }
+  #topbar {
+    flex-shrink: 0; height: 48px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--bg-panel);
+  }
+  #topbar .wordmark {
+    display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--text);
+    font-family: var(--font-display); font-weight: 600; font-size: 14px; letter-spacing: 0.01em;
+  }
+  #topbar .wordmark .mark {
+    width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; background: var(--accent-grad);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #08090D;
+    font-family: var(--font-mono);
+  }
+  #topbar .wordmark .sep { color: var(--text-faint); font-weight: 400; }
+  #topbar .back { font-size: 12px; color: var(--text-dim); text-decoration: none; padding: 6px 10px; border-radius: 7px; }
+  #topbar .back:hover { color: var(--text); background: var(--bg-input); }
+  #body-row { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+
+  #panel { width: 400px; flex-shrink: 0; padding: 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; border-right: 1px solid var(--border); background: var(--bg-panel); }
+  #panel::-webkit-scrollbar { width: 8px; }
+  #panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .mark { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; background: var(--accent-grad); font-family: var(--font-mono); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #08090D; }
+  .brand h1 { font-family: var(--font-display); font-size: 15px; margin: 0; letter-spacing: 0.01em; font-weight: 650; }
+  .brand .sub { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+  p.hint { font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.5; }
+
+  .card { background: var(--bg-raised); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .card-title { font-size: 11px; font-weight: 650; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--text-dim); }
+  textarea, select, input[type="number"], input[type="text"] {
+    background: var(--bg-input); border: 1px solid var(--border); color: var(--text); border-radius: 7px;
+    padding: 7px 9px; font-size: 13px; font-family: var(--font-body); resize: vertical;
+  }
+  textarea:focus, select:focus, input:focus { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
+
+  button.primary { background: var(--accent-grad); color: #08090D; border: none; border-radius: 8px; padding: 10px 14px; font-weight: 650; font-size: 13px; cursor: pointer; font-family: var(--font-body); width: 100%; }
+  button.primary:hover { filter: brightness(1.1); }
+  button.primary:disabled { background: #2a2b36; color: var(--text-faint); cursor: default; filter: none; }
+  button.secondary { background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; cursor: pointer; font-family: var(--font-body); }
+  button.secondary:hover { border-color: var(--accent-1); color: var(--text); }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row button { flex: 1; }
+
+  .badge { border-radius: 999px; padding: 3px 11px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); display: inline-block; }
+  .badge.PASS { background: var(--ok-bg); color: var(--ok); }
+  .badge.INCOMPLETE { background: var(--warn-bg); color: var(--warn); }
+  .badge.FAIL { background: var(--bad-bg); color: var(--bad); }
+
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+  .stat { display: flex; flex-direction: column; gap: 1px; }
+  .stat .v { font-size: 13.5px; font-weight: 650; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .stat .k { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat .v.explicit { color: var(--ok); }
+  .stat .v.inferred { color: var(--warn); }
+
+  .finding-row { display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; line-height: 1.4; padding: 6px 0; border-bottom: 1px solid var(--border-soft); }
+  .finding-row:last-child { border-bottom: none; }
+  .finding-row .tick { flex-shrink: 0; font-family: var(--font-mono); }
+  .finding-row .tick.pass { color: var(--ok); }
+  .finding-row .tick.fail { color: var(--bad); }
+
+  .slice-strip { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
+  .slice-chip {
+    flex-shrink: 0; width: 46px; height: 46px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg-input); display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 9px; color: var(--text-faint);
+  }
+  .slice-chip.selected { border-color: var(--accent-1); background: #1d1a33; color: var(--text); }
+  .slice-chip .r { font-family: var(--font-mono); font-weight: 650; color: var(--text); font-size: 10px; }
+  #sliceDetail { font-size: 11.5px; color: var(--text-dim); }
+
+  #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #viewer { flex: 1; position: relative; }
+  #viewer canvas { display: block; width: 100%; height: 100%; }
+  #placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-faint); font-size: 13px; text-align: center; padding: 20px; }
+  #statusLine { position: absolute; bottom: 12px; left: 12px; font-size: 11px; color: var(--text-faint); font-family: var(--font-mono); z-index: 5; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a class="wordmark" href="/"><span class="mark">3d</span>Mitsuhub <span class="sep">/</span> Mitsugen — 3D Printing</a>
+  <a class="back" href="/workspace">3di-men — CAD &rarr;</a>
+</div>
+
+<div id="body-row">
+<div id="panel">
+  <div class="brand">
+    <div class="mark">3d</div>
+    <div><h1>Mitsugen</h1><div class="sub">3D Printing — slice-based generation</div></div>
+  </div>
+  <p class="hint">A distinct generation pipeline from 3di-men's CAD engine. Plain bodies of revolution (a vase, a bottle, a bowl, a handle-less cup) go through a structured shape spec and a bounded sequence of construction slices, lofted into a real solid. Anything else — a mug with a handle, a toy car, a bracket, any object with real features or a non-round cross-section — is approximated through primitive composition (box/cylinder/sphere/cone + boolean ops) by a local LLM. Both paths are disclosed explicitly in the result; neither is claimed to be a perfect reproduction of a free-form object.</p>
+
+  <div class="card">
+    <div class="card-title">Prompt</div>
+    <textarea id="prompt" rows="3" placeholder="e.g. a vase, 200mm tall, 110mm wide at the base, narrowing to 40mm at the top">a vase, 200mm tall, 110mm wide at the base, narrowing to 40mm at the top</textarea>
+    <label class="field">Maximum construction slices
+      <input type="number" id="maxSlices" value="12" min="1">
+    </label>
+    <p class="hint" style="font-size:10.5px;">This limits Mitsugen's own construction complexity, not the printer's physical layer height — the exported model is still sliced into real print layers by your slicer, independently.</p>
+    <div class="row2">
+      <label class="field">Tolerance
+        <input type="number" id="tolerance" value="5" min="1" max="50" step="1">
+      </label>
+      <label class="field">&nbsp;<span style="font-size:10.5px;color:var(--text-faint);">% approximation error allowed</span></label>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="hollowCheckbox">
+      <label for="hollowCheckbox">Hollow (open-top vessel)</label>
+      <input type="number" id="wallThickness" value="3" min="0.5" step="0.5" style="width:70px;margin-left:auto;" disabled>
+      <span style="font-size:11px;color:var(--text-faint);">mm wall</span>
+    </div>
+    <button class="primary" id="generateBtn">Generate</button>
+  </div>
+
+  <div id="statusCard" class="card" style="display:none;">
+    <div class="card-title">Status</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="badge" id="statusBadge"></span>
+      <span class="badge" id="modeBadge" style="background:var(--bg-input);color:var(--text-dim);"></span>
+    </div>
+    <div id="statusError" style="font-size:12px;color:var(--bad);"></div>
+  </div>
+
+  <div id="specCard" class="card" style="display:none;">
+    <div class="card-title">Structured shape spec</div>
+    <div class="stat-grid" id="specStats"></div>
+    <p class="hint" style="font-size:10.5px;">Green = explicitly stated in your prompt. Amber = a defensible inferred default (never silently overriding an explicit value).</p>
+  </div>
+
+  <div id="sliceCard" class="card" style="display:none;">
+    <div class="card-title">Construction slices</div>
+    <div class="stat-grid" id="sliceStats"></div>
+    <div class="slice-strip" id="sliceStrip"></div>
+    <div id="sliceDetail"></div>
+  </div>
+
+  <div id="freeformCard" class="card" style="display:none;">
+    <div class="card-title">Primitive composition</div>
+    <p class="hint" style="font-size:11px;color:var(--warn);" id="freeformApproxNote"></p>
+    <div class="stat-grid" id="freeformStats"></div>
+    <div id="freeformPrimitivesList" style="font-size:11.5px;color:var(--text-dim);display:flex;flex-direction:column;gap:3px;"></div>
+  </div>
+
+  <div id="findingsCard" class="card" style="display:none;">
+    <div class="card-title">Validation (against the original spec)</div>
+    <div id="findingsList"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Export</div>
+    <div class="btn-row">
+      <button class="secondary" id="exportStlBtn" disabled>Download STL</button>
+      <button class="secondary" id="exportObjBtn" disabled>Download OBJ</button>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="viewer">
+    <div id="placeholder">Describe an object and click Generate.<br>Plain vessels (vase/bottle/bowl/cup) are lofted exactly from a shape spec. Anything with real features (a handle, wheels, a non-round body) is approximated via primitive composition instead — disclosed either way.</div>
+    <div id="statusLine"></div>
+  </div>
+</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/STLLoader.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+const viewerEl = document.getElementById('viewer');
+const placeholder = document.getElementById('placeholder');
+const statusLine = document.getElementById('statusLine');
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x08090d);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+viewerEl.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dir1 = new THREE.DirectionalLight(0xffffff, 0.95);
+dir1.position.set(1, 1.5, 1);
+scene.add(dir1);
+scene.add(new THREE.GridHelper(300, 20, 0x29283a, 0x14141d));
+
+let currentMesh = null;
+let sliceMarkers = [];
+
+function resize() {
+  const w = viewerEl.clientWidth, h = viewerEl.clientHeight;
+  if (w === 0 || h === 0) return;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(viewerEl);
+resize();
+camera.position.set(180, 160, 220);
+function animate() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(animate); }
+animate();
+
+function frameCamera(obj) {
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z, 1);
+  controls.target.copy(center);
+  camera.position.set(center.x + maxDim * 1.4, center.y + maxDim * 0.9, center.z + maxDim * 1.4);
+  camera.near = maxDim / 100; camera.far = maxDim * 50;
+  camera.updateProjectionMatrix();
+}
+
+function loadSTLBuffer(buf) {
+  const geometry = new STLLoader().parse(buf);
+  geometry.computeVertexNormals();
+  if (currentMesh) { scene.remove(currentMesh); currentMesh.geometry.dispose(); currentMesh.material.dispose(); }
+  const material = new THREE.MeshStandardMaterial({ color: 0x9d7bf8, metalness: 0.15, roughness: 0.55, side: THREE.DoubleSide });
+  currentMesh = new THREE.Mesh(geometry, material);
+  scene.add(currentMesh);
+  placeholder.style.display = 'none';
+  frameCamera(currentMesh);
+}
+
+function clearSliceMarkers() {
+  sliceMarkers.forEach(m => scene.remove(m));
+  sliceMarkers = [];
+}
+
+function renderSliceMarkers(slices, heightMm) {
+  clearSliceMarkers();
+  slices.forEach((s, i) => {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(Math.max(s.radius_mm, 1), 0.8, 8, 32),
+      new THREE.MeshBasicMaterial({ color: 0xf2b84b, transparent: true, opacity: 0.6 }),
+    );
+    ring.position.z = s.position_mm;
+    ring.userData.sliceIndex = i;
+    scene.add(ring);
+    sliceMarkers.push(ring);
+  });
+}
+
+/* ---------------- state + API wiring ---------------- */
+
+let currentMeshUrl = null;
+let currentSlices = [];
+
+function setStatus(msg, isError) {
+  statusLine.textContent = msg || '';
+  statusLine.style.color = isError ? 'var(--bad)' : 'var(--text-faint)';
+}
+
+document.getElementById('hollowCheckbox').addEventListener('change', (e) => {
+  document.getElementById('wallThickness').disabled = !e.target.checked;
+});
+
+function renderStat(container, label, value, cls) {
+  const div = document.createElement('div');
+  div.className = 'stat';
+  div.innerHTML = `<div class="v ${cls || ''}">${value}</div><div class="k">${label}</div>`;
+  container.appendChild(div);
+}
+
+function renderSliceStrip(slices) {
+  const strip = document.getElementById('sliceStrip');
+  strip.innerHTML = '';
+  slices.forEach((s, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'slice-chip' + (i === 0 ? ' selected' : '');
+    chip.innerHTML = `<div class="r">${s.radius_mm.toFixed(0)}</div><div>#${s.order}</div>`;
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.slice-chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      document.getElementById('sliceDetail').textContent =
+        `Slice ${s.slice_id}: height ${(s.height_fraction * 100).toFixed(0)}% (${s.position_mm.toFixed(1)}mm), radius ${s.radius_mm.toFixed(1)}mm`;
+    });
+    strip.appendChild(chip);
+  });
+  if (slices.length) document.getElementById('sliceDetail').textContent =
+    `Slice ${slices[0].slice_id}: height 0% (${slices[0].position_mm.toFixed(1)}mm), radius ${slices[0].radius_mm.toFixed(1)}mm`;
+}
+
+async function generate() {
+  const prompt = document.getElementById('prompt').value.trim();
+  if (!prompt) { setStatus('type a prompt first', true); return; }
+
+  document.getElementById('generateBtn').disabled = true;
+  setStatus('generating…');
+  const body = {
+    prompt, max_slices: Number(document.getElementById('maxSlices').value),
+    tolerance_fraction: Number(document.getElementById('tolerance').value) / 100,
+    hollow: document.getElementById('hollowCheckbox').checked,
+    wall_thickness_mm: Number(document.getElementById('wallThickness').value),
+  };
+  try {
+    const res = await fetch('/api/mitsugen/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    renderResult(data);
+    setStatus(data.mesh_url ? 'generation complete' : 'generation failed — see status');
+  } catch (err) {
+    setStatus('Error: ' + err.message, true);
+  } finally {
+    document.getElementById('generateBtn').disabled = false;
+  }
+}
+
+function renderResult(data) {
+  document.getElementById('statusCard').style.display = 'flex';
+  const badge = document.getElementById('statusBadge');
+  badge.className = 'badge ' + data.overall_status;
+  badge.textContent = data.overall_status;
+  const modeBadge = document.getElementById('modeBadge');
+  modeBadge.textContent = data.construction_mode === 'primitive_composition' ? 'primitive composition' : 'radial sweep (exact)';
+  document.getElementById('statusError').textContent = data.error || '';
+
+  document.getElementById('specCard').style.display = data.spec ? 'flex' : 'none';
+  if (data.spec) {
+    const specStats = document.getElementById('specStats');
+    specStats.innerHTML = '';
+    for (const [k, v] of Object.entries(data.spec.explicit_mm || {})) renderStat(specStats, k, `${v}mm`, 'explicit');
+    for (const [k, v] of Object.entries(data.spec.inferred_defaults_mm || {})) renderStat(specStats, k + ' (inferred)', `${v}mm`, 'inferred');
+  }
+
+  if (data.plan) {
+    document.getElementById('sliceCard').style.display = 'flex';
+    const sliceStats = document.getElementById('sliceStats');
+    sliceStats.innerHTML = '';
+    renderStat(sliceStats, 'Slices used', `${data.plan.actual_slice_count} / ${data.plan.requested_max_slices}`);
+    renderStat(sliceStats, 'Approximation error', `${(data.plan.approximation_error_fraction * 100).toFixed(1)}%`, data.plan.within_tolerance ? 'explicit' : 'inferred');
+    renderSliceStrip(data.plan.slices);
+    currentSlices = data.plan.slices;
+    if (data.plan.limitation) setStatus(data.plan.limitation, true);
+  } else {
+    document.getElementById('sliceCard').style.display = 'none';
+  }
+
+  document.getElementById('freeformCard').style.display = data.freeform ? 'flex' : 'none';
+  if (data.freeform) {
+    document.getElementById('freeformApproxNote').textContent =
+      'Constructive approximation — box/cylinder/sphere/cone + boolean ops, not an exact reproduction.' +
+      (data.freeform.fell_back ? ' The LLM\'s own decomposition was unusable; a single default box was substituted.' : '');
+    const stats = document.getElementById('freeformStats');
+    stats.innerHTML = '';
+    renderStat(stats, 'Primitives', data.freeform.primitives.length);
+    renderStat(stats, 'Boolean ops', data.freeform.operations.length);
+    if (data.freeform.dropped_primitives.length) renderStat(stats, 'Dropped (malformed)', data.freeform.dropped_primitives.join(', '), 'inferred');
+    if (data.freeform.auto_unioned_ids.length) renderStat(stats, 'Auto-unioned', data.freeform.auto_unioned_ids.join(', '), 'inferred');
+    const list = document.getElementById('freeformPrimitivesList');
+    list.innerHTML = '';
+    data.freeform.primitives.forEach(p => {
+      const dims = p.kind === 'box' ? `${p.size_mm.map(v => v.toFixed(0)).join('×')}mm`
+        : p.kind === 'sphere' ? `r${p.radius_mm.toFixed(0)}mm`
+        : `r${p.radius_mm.toFixed(0)}×h${p.height_mm.toFixed(0)}mm`;
+      const row = document.createElement('div');
+      row.textContent = `${p.id} — ${p.kind}, ${dims}, at (${p.position_mm.map(v => v.toFixed(0)).join(', ')})`;
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById('findingsCard').style.display = 'flex';
+  const findingsList = document.getElementById('findingsList');
+  findingsList.innerHTML = '';
+  (data.findings || []).forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'finding-row';
+    row.innerHTML = `<span class="tick ${f.passed ? 'pass' : 'fail'}">${f.passed ? '✓' : '✗'}</span>` +
+      `<span>${f.requirement} — expected ${f.expected}, measured ${f.measured}</span>`;
+    findingsList.appendChild(row);
+  });
+
+  currentMeshUrl = data.mesh_url;
+  document.getElementById('exportStlBtn').disabled = !data.mesh_url;
+  document.getElementById('exportObjBtn').disabled = !data.mesh_url;
+  if (data.mesh_url) {
+    fetch(data.mesh_url).then(r => r.arrayBuffer()).then(buf => {
+      loadSTLBuffer(buf);
+      if (data.plan) renderSliceMarkers(data.plan.slices, data.spec.height_mm);
+      else clearSliceMarkers();
+    });
+  } else {
+    clearSliceMarkers();
+  }
+}
+
+document.getElementById('generateBtn').addEventListener('click', generate);
+document.getElementById('exportStlBtn').addEventListener('click', () => { if (currentMeshUrl) window.open(currentMeshUrl, '_blank'); });
+document.getElementById('exportObjBtn').addEventListener('click', () => { if (currentMeshUrl) window.open(currentMeshUrl + '?format=obj', '_blank'); });
+</script>
+</body>
+</html>

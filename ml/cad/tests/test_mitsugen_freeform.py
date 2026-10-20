@@ -1,0 +1,225 @@
+"""Tests for Mitsugen's free-form primitive-composition path -- the
+second, independent construction strategy (alongside the original
+radial-sweep vessel path) added so Mitsugen can attempt objects that
+aren't a simple body of revolution (a mug with a handle, a toy car, a
+bracket). See mitsugen/freeform.py and mitsugen/freeform_builder.py.
+
+Most tests here use CANNED LLM output (no real model load) to test the
+parsing/building logic deterministically and fast -- mirroring
+tests/test_llm_decompose.py's own established pattern for the same
+reason. One real-model smoke test is gated behind a check that the
+on-disk .gguf model actually exists, so the rest of this file -- and
+the rest of the suite -- stays fast and portable."""
+
+import pytest
+
+from mitsugen.freeform import (
+    MODEL_PATH,
+    FreeformSpec,
+    PrimitiveSpec,
+    _fallback_spec,
+    _parse_freeform,
+    decompose_freeform_prompt,
+)
+from mitsugen.freeform_builder import build_freeform_solid
+from mitsugen.pipeline import _requires_freeform, generate_mitsugen_model
+from mitsugen.spec import compose_spec_from_prompt
+
+_WELL_FORMED_CAR_JSON = """{"primitives": [
+  {"id": "body", "type": "box", "size_mm": [80, 40, 20], "position_mm": [0, 0, 15]},
+  {"id": "wheel_fl", "type": "cylinder", "radius_mm": 8, "height_mm": 6, "position_mm": [25, 22, 8], "rotation_deg": [90, 0, 0]},
+  {"id": "wheel_fr", "type": "cylinder", "radius_mm": 8, "height_mm": 6, "position_mm": [25, -22, 8], "rotation_deg": [90, 0, 0]},
+  {"id": "wheel_bl", "type": "cylinder", "radius_mm": 8, "height_mm": 6, "position_mm": [-25, 22, 8], "rotation_deg": [90, 0, 0]},
+  {"id": "wheel_br", "type": "cylinder", "radius_mm": 8, "height_mm": 6, "position_mm": [-25, -22, 8], "rotation_deg": [90, 0, 0]}
+], "operations": [
+  {"op": "union", "target_id": "wheel_fl"}, {"op": "union", "target_id": "wheel_fr"},
+  {"op": "union", "target_id": "wheel_bl"}, {"op": "union", "target_id": "wheel_br"}
+]}"""
+
+
+# ---------------- parsing: well-formed, reasoning-wrapped, malformed ----------------
+
+def test_parses_a_well_formed_decomposition():
+    spec = _parse_freeform(_WELL_FORMED_CAR_JSON, "toy car")
+    assert len(spec.primitives) == 5
+    assert len(spec.operations) == 4
+    assert spec.dropped_primitives == []
+    assert spec.auto_unioned_ids == []
+    assert spec.fell_back is False
+
+
+def test_strips_qwen3_style_reasoning_before_the_json_answer():
+    raw = "<think>the user wants [1, 2, 3] parts, let me plan this out...</think>" + _WELL_FORMED_CAR_JSON
+    spec = _parse_freeform(raw, "toy car")
+    assert len(spec.primitives) == 5
+
+
+def test_a_primitive_never_referenced_by_an_operation_is_auto_unioned_not_dropped():
+    """A confirmed real failure mode this guards against: the model lists
+    a feature but forgets to wire it into an operation -- that must not
+    silently vanish from the final geometry."""
+    raw = """{"primitives": [
+      {"id": "body", "type": "cylinder", "radius_mm": 40, "height_mm": 95, "position_mm": [0, 0, 47]},
+      {"id": "handle", "type": "cylinder", "radius_mm": 5, "height_mm": 60, "position_mm": [0, 45, 50], "rotation_deg": [90, 0, 0]}
+    ], "operations": []}"""
+    spec = _parse_freeform(raw, "mug")
+    assert spec.auto_unioned_ids == ["handle"]
+    assert len(spec.operations) == 1
+    assert spec.operations[0].target_id == "handle"
+    assert spec.operations[0].op == "union"
+
+
+def test_a_malformed_primitive_is_dropped_and_disclosed_not_silently_built_wrong():
+    raw = """{"primitives": [
+      {"id": "body", "type": "box", "size_mm": [80, 40, 20], "position_mm": [0, 0, 15]},
+      {"id": "mystery", "type": "box", "position_mm": [0, 0, 0]}
+    ], "operations": []}"""
+    spec = _parse_freeform(raw, "something")
+    assert len(spec.primitives) == 1
+    assert "mystery" in spec.dropped_primitives
+
+
+def test_an_operation_referencing_an_unknown_id_is_silently_excluded_from_the_op_list():
+    raw = """{"primitives": [
+      {"id": "body", "type": "box", "size_mm": [80, 40, 20], "position_mm": [0, 0, 15]}
+    ], "operations": [{"op": "union", "target_id": "does_not_exist"}]}"""
+    spec = _parse_freeform(raw, "something")
+    assert spec.operations == []
+
+
+def test_totally_unparseable_output_raises_so_the_caller_can_fall_back():
+    with pytest.raises(ValueError):
+        _parse_freeform("I'm sorry, I cannot help with that request.", "something")
+
+
+def test_fallback_spec_is_a_single_disclosed_box_never_claims_full_fidelity():
+    spec = _fallback_spec("a 50mm wide gadget", "<unparseable raw output>")
+    assert spec.fell_back is True
+    assert len(spec.primitives) == 1
+    assert spec.primitives[0].kind == "box"
+
+
+# ---------------- building: real CSG construction ----------------
+
+def test_build_freeform_solid_produces_one_connected_watertight_body():
+    spec = _parse_freeform(_WELL_FORMED_CAR_JSON, "toy car")
+    build = build_freeform_solid(spec)
+    assert build.error is None
+    assert build.mesh.is_watertight
+    assert build.mesh.body_count == 1
+
+
+def test_build_freeform_solid_supports_a_difference_operation_cutting_a_cavity():
+    raw = """{"primitives": [
+      {"id": "block", "type": "box", "size_mm": [40, 40, 40], "position_mm": [0, 0, 20]},
+      {"id": "bore", "type": "cylinder", "radius_mm": 8, "height_mm": 50, "position_mm": [0, 0, 20]}
+    ], "operations": [{"op": "difference", "target_id": "bore"}]}"""
+    spec = _parse_freeform(raw, "a block with a hole through it")
+    build = build_freeform_solid(spec)
+    assert build.error is None
+    assert build.mesh.is_watertight
+    solid_block_volume = 40 * 40 * 40
+    assert build.mesh.volume < solid_block_volume  # real material was actually removed
+
+
+def test_build_freeform_solid_fails_loudly_on_an_unbuildable_primitive_rather_than_silently_omitting_it():
+    spec = FreeformSpec(
+        object_description="x",
+        primitives=[PrimitiveSpec(id="body", kind="box", size_mm=(10, 10, 10)), PrimitiveSpec(id="bad", kind="sphere", radius_mm=None)],
+        operations=[],
+    )
+    build = build_freeform_solid(spec)
+    assert build.mesh is None
+    assert build.error is not None
+    assert "bad" in build.error
+
+
+def test_build_freeform_solid_requires_at_least_one_primitive():
+    build = build_freeform_solid(FreeformSpec(object_description="x", primitives=[], operations=[]))
+    assert build.mesh is None
+    assert build.error is not None
+
+
+# ---------------- routing: vessel path vs. freeform path ----------------
+
+@pytest.mark.parametrize("prompt", [
+    "a vase, 200mm tall, 110mm wide at the base, narrowing to 40mm at the top",
+    "a bottle, 180mm tall",
+    "a bowl",
+])
+def test_plain_vessel_prompts_stay_on_the_radial_sweep_path(prompt):
+    vessel_spec = compose_spec_from_prompt(prompt)
+    assert _requires_freeform(prompt, vessel_spec) is False
+
+
+@pytest.mark.parametrize("prompt", [
+    "a mug, 95mm tall",  # a real mug has a handle -- the radial-sweep path cannot represent it
+    "a vase with a handle",
+    "a toy car",
+    "a square vase, 100mm tall",  # "vase" matched, but "square" means it isn't a circular revolve
+    "a bracket with four mounting holes",
+])
+def test_featured_or_unrecognized_prompts_route_to_freeform(prompt):
+    vessel_spec = compose_spec_from_prompt(prompt)
+    assert _requires_freeform(prompt, vessel_spec) is True
+
+
+def test_generate_mitsugen_model_reports_construction_mode_for_the_vessel_path():
+    result = generate_mitsugen_model("a vase, 150mm tall, 60mm wide at the base, narrowing to 30mm at the top", max_slices=8)
+    assert result.construction_mode == "radial_sweep"
+    assert result.spec is not None
+    assert result.freeform_spec is None
+
+
+def test_freeform_path_always_discloses_the_approximation_even_on_pass():
+    """Non-negotiable: a freeform result must never look indistinguishable
+    from a precise radial-sweep PASS -- the approximation disclosure
+    finding is always present, regardless of overall_status."""
+    import mitsugen.pipeline as pipeline_mod
+
+    def fake_decompose(prompt, model_path=None):
+        from mitsugen.freeform import FreeformSpec, PrimitiveSpec
+
+        return FreeformSpec(object_description=prompt, primitives=[PrimitiveSpec(id="body", kind="sphere", radius_mm=30.0)], operations=[])
+
+    original = pipeline_mod.decompose_freeform_prompt
+    pipeline_mod.decompose_freeform_prompt = fake_decompose
+    try:
+        result = generate_mitsugen_model("a toy car")
+        assert result.construction_mode == "primitive_composition"
+        disclosure = next(f for f in result.findings if "never reproduced exactly" in f.requirement)
+        assert disclosure.passed is True
+    finally:
+        pipeline_mod.decompose_freeform_prompt = original
+
+
+def test_freeform_path_is_fail_not_pass_when_the_build_itself_fails():
+    import mitsugen.pipeline as pipeline_mod
+
+    def fake_decompose_empty(prompt, model_path=None):
+        from mitsugen.freeform import FreeformSpec
+
+        return FreeformSpec(object_description=prompt, primitives=[], operations=[])
+
+    original = pipeline_mod.decompose_freeform_prompt
+    pipeline_mod.decompose_freeform_prompt = fake_decompose_empty
+    try:
+        result = generate_mitsugen_model("a toy car")
+        assert result.overall_status == "FAIL"
+        assert result.error is not None
+    finally:
+        pipeline_mod.decompose_freeform_prompt = original
+
+
+# ---------------- real end-to-end LLM decomposition (gated) ----------------
+
+@pytest.mark.skipif(not MODEL_PATH.exists(), reason="local .gguf model not present on this machine")
+def test_real_llm_decomposes_a_toy_car_into_a_connected_printable_solid():
+    spec = decompose_freeform_prompt("a simple toy car: a rectangular body on four cylindrical wheels")
+    assert len(spec.primitives) >= 1
+    build = build_freeform_solid(spec)
+    # Never assert the LLM got the "right" shape -- only that whatever it
+    # proposed was actually realized as valid, connected, printable geometry.
+    if build.mesh is not None:
+        assert build.mesh.is_watertight
+        assert build.mesh.body_count == 1

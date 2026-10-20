@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>3di-men — text to 3D geometry</title>
-<meta name="description" content="Describe an object in plain language. 3di-men turns it into structured, inspectable 3D geometry — built locally, no cloud model required." />
-<link rel="icon" href="data:,">
+<title>Mitsuhub | 3di-men — text to 3D geometry</title>
+<meta name="description" content="Mitsuhub: 3di-men (CAD) turns plain language into structured, inspectable 3D geometry; Mitsugen (3D Printing) prepares it for fabrication. Built locally, no cloud model required." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%23C1402C%27/%3E%3Cstop offset=%271%27 stop-color=%27%234C6B8A%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-family=%27Georgia,serif%27 font-size=%2719%27 font-weight=%27700%27 fill=%27%230B0A09%27 text-anchor=%27middle%27%3EM%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -16,21 +16,21 @@
     --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-    --bg: #08090D;
-    --bg-2: #101116;
-    --bg-3: #181923;
-    --border: #29283A;
-    --border-soft: #1c1b28;
-    --text: #F5F3FF;
-    --text-dim: #9292A5;
-    --text-faint: #65637a;
-    --lavender: #D8CCFF;
+    --bg: #0B0A09;
+    --bg-2: #15120F;
+    --bg-3: #1E1A16;
+    --border: #332D27;
+    --border-soft: #241F1A;
+    --text: #F2ECE2;
+    --text-dim: #A89D8C;
+    --text-faint: #6E6356;
+    --lavender: #E3A98A;
 
-    --accent-1: #8B5CF6;
-    --accent-2: #3B82F6;
-    --accent-grad: linear-gradient(135deg, #8B5CF6, #3B82F6);
-    --accent-grad-hover: linear-gradient(135deg, #a378ff, #5b9bff);
-    --accent-glow: rgba(139, 92, 246, 0.22);
+    --accent-1: #C1402C;
+    --accent-2: #4C6B8A;
+    --accent-grad: linear-gradient(135deg, #C1402C, #4C6B8A);
+    --accent-grad-hover: linear-gradient(135deg, #D85940, #5E7FA0);
+    --accent-glow: rgba(193, 64, 44, 0.14);
 
     --max: 1180px;
   }
@@ -64,13 +64,13 @@
 
   /* ---------- nav ---------- */
   .nav {
-    position: sticky; top: 0; z-index: 40; background: rgba(8,9,13,0.7); border-bottom: 1px solid transparent;
+    position: sticky; top: 0; z-index: 40; background: rgba(11,10,9,0.7); border-bottom: 1px solid transparent;
     transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
   }
-  .nav.scrolled { background: rgba(8,9,13,0.92); border-bottom-color: var(--border); box-shadow: 0 12px 28px -20px rgba(0,0,0,0.7); }
+  .nav.scrolled { background: rgba(11,10,9,0.92); border-bottom-color: var(--border); box-shadow: 0 12px 28px -20px rgba(0,0,0,0.7); }
   .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
   .wordmark { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--font-display); font-weight: 600; font-size: 17px; }
-  .wordmark .mark { width: 28px; height: 28px; border-radius: 7px; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: #08090D; flex-shrink: 0; }
+  .wordmark .mark { width: 28px; height: 28px; border-radius: 7px; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: #0B0A09; flex-shrink: 0; }
   .nav-links { display: flex; gap: 28px; font-size: 14.5px; }
   .nav-links a {
     text-decoration: none; color: var(--text-dim); transition: color 0.15s; padding: 4px 0; position: relative;
@@ -200,7 +200,7 @@
     transition: opacity 0.2s ease; z-index: 2;
   }
   .hero-3d.ready:not(.loading) .hero-3d-status { display: none; }
-  .hero-3d.ready.loading .hero-3d-status { background: rgba(8, 9, 13, 0.6); color: var(--text); }
+  .hero-3d.ready.loading .hero-3d-status { background: rgba(11, 10, 9, 0.6); color: var(--text); }
   .hero-3d .spinner {
     width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border);
     border-top-color: var(--accent-1); display: inline-block; animation: heroSpin 0.7s linear infinite;
@@ -417,13 +417,14 @@
 
 <header class="nav" id="top">
   <div class="wrap nav-inner">
-    <a class="wordmark" href="#top"><span class="mark">3d</span>3di-men</a>
+    <a class="wordmark" href="#top"><span class="mark">M</span>Mitsuhub</a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#who-its-for">Who it's for</a>
       <a href="#product">Product</a>
       <a href="#how-it-works">How it works</a>
       <a href="#capabilities">Capabilities</a>
-      <a href="/print-lab">Print Lab</a>
+      <a href="/workspace">3di-men — CAD</a>
+      <a href="/print-lab">Mitsugen — 3D Printing</a>
     </nav>
     <div class="nav-right">
       <a class="btn-primary nav-cta" href="/workspace">Open Workspace</a>
@@ -437,8 +438,8 @@
     <a href="#product">Product</a>
     <a href="#how-it-works">How it works</a>
     <a href="#capabilities">Capabilities</a>
-    <a href="/print-lab">Print Lab</a>
-    <a href="/workspace">Open Workspace</a>
+    <a href="/workspace">3di-men — CAD</a>
+    <a href="/print-lab">Mitsugen — 3D Printing</a>
   </div>
 </header>
 
@@ -466,76 +467,76 @@
         <svg id="heroFallback" viewBox="0 0 560 420" role="img" aria-label="Two-view technical drawing of a shaft and spur gear assembly: a front elevation with dimensions, and a gear-profile end view with 16 teeth">
           <defs>
             <linearGradient id="edgeGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#8B5CF6" />
-              <stop offset="1" stop-color="#3B82F6" />
+              <stop offset="0" stop-color="#C1402C" />
+              <stop offset="1" stop-color="#4C6B8A" />
             </linearGradient>
           </defs>
 
           <!-- centerline through the shaft/gear axis -->
-          <line x1="50" y1="187.5" x2="400" y2="187.5" stroke="#65637a" stroke-width="1" stroke-dasharray="16 4 3 4" />
+          <line x1="50" y1="187.5" x2="400" y2="187.5" stroke="#6E6356" stroke-width="1" stroke-dasharray="16 4 3 4" />
 
           <!-- shaft: front elevation -->
-          <line x1="70" y1="170" x2="280" y2="170" stroke="#A1A0B2" stroke-width="1.3" />
-          <line x1="70" y1="205" x2="280" y2="205" stroke="#A1A0B2" stroke-width="1.3" />
-          <line x1="70" y1="170" x2="70" y2="205" stroke="#A1A0B2" stroke-width="1.3" />
-          <line x1="280" y1="170" x2="280" y2="120" stroke="#A1A0B2" stroke-width="1" stroke-dasharray="2 3" />
-          <line x1="280" y1="205" x2="280" y2="255" stroke="#A1A0B2" stroke-width="1" stroke-dasharray="2 3" />
+          <line x1="70" y1="170" x2="280" y2="170" stroke="#A89D8C" stroke-width="1.3" />
+          <line x1="70" y1="205" x2="280" y2="205" stroke="#A89D8C" stroke-width="1.3" />
+          <line x1="70" y1="170" x2="70" y2="205" stroke="#A89D8C" stroke-width="1.3" />
+          <line x1="280" y1="170" x2="280" y2="120" stroke="#A89D8C" stroke-width="1" stroke-dasharray="2 3" />
+          <line x1="280" y1="205" x2="280" y2="255" stroke="#A89D8C" stroke-width="1" stroke-dasharray="2 3" />
 
           <!-- gear: front elevation (silhouette + tooth ticks) -->
           <path d="M 280 120 L 360 120 L 360 255 L 280 255" fill="none" stroke="url(#edgeGrad)" stroke-width="2" />
-          <line x1="285" y1="120" x2="285" y2="113" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="295" y1="120" x2="295" y2="113" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="305" y1="120" x2="305" y2="113" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="315" y1="120" x2="315" y2="113" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="325" y1="120" x2="325" y2="113" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="335" y1="120" x2="335" y2="113" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="345" y1="120" x2="345" y2="113" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="355" y1="120" x2="355" y2="113" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="285" y1="255" x2="285" y2="262" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="295" y1="255" x2="295" y2="262" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="305" y1="255" x2="305" y2="262" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="315" y1="255" x2="315" y2="262" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="325" y1="255" x2="325" y2="262" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="335" y1="255" x2="335" y2="262" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="345" y1="255" x2="345" y2="262" stroke="#A1A0B2" stroke-width="1" />
-          <line x1="355" y1="255" x2="355" y2="262" stroke="#A1A0B2" stroke-width="1" />
+          <line x1="285" y1="120" x2="285" y2="113" stroke="#A89D8C" stroke-width="1" />
+          <line x1="295" y1="120" x2="295" y2="113" stroke="#A89D8C" stroke-width="1" />
+          <line x1="305" y1="120" x2="305" y2="113" stroke="#A89D8C" stroke-width="1" />
+          <line x1="315" y1="120" x2="315" y2="113" stroke="#A89D8C" stroke-width="1" />
+          <line x1="325" y1="120" x2="325" y2="113" stroke="#A89D8C" stroke-width="1" />
+          <line x1="335" y1="120" x2="335" y2="113" stroke="#A89D8C" stroke-width="1" />
+          <line x1="345" y1="120" x2="345" y2="113" stroke="#A89D8C" stroke-width="1" />
+          <line x1="355" y1="120" x2="355" y2="113" stroke="#A89D8C" stroke-width="1" />
+          <line x1="285" y1="255" x2="285" y2="262" stroke="#A89D8C" stroke-width="1" />
+          <line x1="295" y1="255" x2="295" y2="262" stroke="#A89D8C" stroke-width="1" />
+          <line x1="305" y1="255" x2="305" y2="262" stroke="#A89D8C" stroke-width="1" />
+          <line x1="315" y1="255" x2="315" y2="262" stroke="#A89D8C" stroke-width="1" />
+          <line x1="325" y1="255" x2="325" y2="262" stroke="#A89D8C" stroke-width="1" />
+          <line x1="335" y1="255" x2="335" y2="262" stroke="#A89D8C" stroke-width="1" />
+          <line x1="345" y1="255" x2="345" y2="262" stroke="#A89D8C" stroke-width="1" />
+          <line x1="355" y1="255" x2="355" y2="262" stroke="#A89D8C" stroke-width="1" />
 
           <!-- shaft length + diameter dimensions -->
-          <g font-family="JetBrains Mono, monospace" font-size="11" fill="#A1A0B2">
-            <line x1="70" y1="205" x2="70" y2="300" stroke="#29283A" stroke-width="1" />
-            <line x1="280" y1="255" x2="280" y2="300" stroke="#29283A" stroke-width="1" />
-            <line x1="70" y1="292" x2="280" y2="292" stroke="#29283A" stroke-width="1" />
-            <line x1="70" y1="286" x2="70" y2="298" stroke="#29283A" stroke-width="1" />
-            <line x1="280" y1="286" x2="280" y2="298" stroke="#29283A" stroke-width="1" />
-            <text x="140" y="310" fill="#A1A0B2">100 mm</text>
+          <g font-family="JetBrains Mono, monospace" font-size="11" fill="#A89D8C">
+            <line x1="70" y1="205" x2="70" y2="300" stroke="#332D27" stroke-width="1" />
+            <line x1="280" y1="255" x2="280" y2="300" stroke="#332D27" stroke-width="1" />
+            <line x1="70" y1="292" x2="280" y2="292" stroke="#332D27" stroke-width="1" />
+            <line x1="70" y1="286" x2="70" y2="298" stroke="#332D27" stroke-width="1" />
+            <line x1="280" y1="286" x2="280" y2="298" stroke="#332D27" stroke-width="1" />
+            <text x="140" y="310" fill="#A89D8C">100 mm</text>
 
-            <line x1="46" y1="170" x2="46" y2="205" stroke="#29283A" stroke-width="1" />
-            <line x1="40" y1="170" x2="52" y2="170" stroke="#29283A" stroke-width="1" />
-            <line x1="40" y1="205" x2="52" y2="205" stroke="#29283A" stroke-width="1" />
-            <text x="2" y="191" fill="#A1A0B2">⌀20</text>
+            <line x1="46" y1="170" x2="46" y2="205" stroke="#332D27" stroke-width="1" />
+            <line x1="40" y1="170" x2="52" y2="170" stroke="#332D27" stroke-width="1" />
+            <line x1="40" y1="205" x2="52" y2="205" stroke="#332D27" stroke-width="1" />
+            <text x="2" y="191" fill="#A89D8C">⌀20</text>
           </g>
 
           <!-- gear end view: true tooth profile + bore -->
           <path d="M 506.0 188.2 L 515.7 193.2 L 513.7 203.5 L 502.8 204.5 L 502.2 205.8 L 509.3 214.1 L 503.4 222.9 L 493.0 219.5 L 492.0 220.5 L 495.4 230.9 L 486.6 236.8 L 478.3 229.7 L 477.0 230.3 L 476.0 241.2 L 465.7 243.2 L 460.7 233.5 L 459.3 233.5 L 454.3 243.2 L 444.0 241.2 L 443.0 230.3 L 441.7 229.7 L 433.4 236.8 L 424.6 230.9 L 428.0 220.5 L 427.0 219.5 L 416.6 222.9 L 410.7 214.1 L 417.8 205.8 L 417.2 204.5 L 406.3 203.5 L 404.3 193.2 L 414.0 188.2 L 414.0 186.8 L 404.3 181.8 L 406.3 171.5 L 417.2 170.5 L 417.8 169.2 L 410.7 160.9 L 416.6 152.1 L 427.0 155.5 L 428.0 154.5 L 424.6 144.1 L 433.4 138.2 L 441.7 145.3 L 443.0 144.7 L 444.0 133.8 L 454.3 131.8 L 459.3 141.5 L 460.7 141.5 L 465.7 131.8 L 476.0 133.8 L 477.0 144.7 L 478.3 145.3 L 486.6 138.2 L 495.4 144.1 L 492.0 154.5 L 493.0 155.5 L 503.4 152.1 L 509.3 160.9 L 502.2 169.2 L 502.8 170.5 L 513.7 171.5 L 515.7 181.8 L 506.0 186.8 Z"
-                fill="#13141c" stroke="#A1A0B2" stroke-width="1.2" />
+                fill="#1E1A16" stroke="#A89D8C" stroke-width="1.2" />
           <circle cx="460" cy="187.5" r="18" fill="none" stroke="url(#edgeGrad)" stroke-width="2" />
-          <line x1="404" y1="187.5" x2="516" y2="187.5" stroke="#65637a" stroke-width="1" stroke-dasharray="10 3 2 3" />
-          <line x1="460" y1="131.5" x2="460" y2="243.5" stroke="#65637a" stroke-width="1" stroke-dasharray="10 3 2 3" />
+          <line x1="404" y1="187.5" x2="516" y2="187.5" stroke="#6E6356" stroke-width="1" stroke-dasharray="10 3 2 3" />
+          <line x1="460" y1="131.5" x2="460" y2="243.5" stroke="#6E6356" stroke-width="1" stroke-dasharray="10 3 2 3" />
 
           <!-- labels -->
-          <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#65637a">
-            <text x="70" y="104" fill="#A1A0B2">FRONT ELEVATION</text>
-            <text x="416" y="268" fill="#A1A0B2" text-anchor="middle">GEAR PROFILE — m2 · 16T</text>
+          <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#6E6356">
+            <text x="70" y="104" fill="#A89D8C">FRONT ELEVATION</text>
+            <text x="416" y="268" fill="#A89D8C" text-anchor="middle">GEAR PROFILE — m2 · 16T</text>
           </g>
 
           <!-- axis gizmo -->
           <g transform="translate(60,368)" font-family="JetBrains Mono, monospace" font-size="11">
-            <line x1="0" y1="0" x2="34" y2="0" stroke="#3B82F6" stroke-width="1.5" />
-            <text x="40" y="4" fill="#3B82F6">X</text>
-            <line x1="0" y1="0" x2="-20" y2="-20" stroke="#8B5CF6" stroke-width="1.5" />
-            <text x="-32" y="-24" fill="#8B5CF6">Y</text>
-            <line x1="0" y1="0" x2="0" y2="-34" stroke="#A1A0B2" stroke-width="1.5" />
-            <text x="4" y="-38" fill="#A1A0B2">Z</text>
+            <line x1="0" y1="0" x2="34" y2="0" stroke="#4C6B8A" stroke-width="1.5" />
+            <text x="40" y="4" fill="#4C6B8A">X</text>
+            <line x1="0" y1="0" x2="-20" y2="-20" stroke="#C1402C" stroke-width="1.5" />
+            <text x="-32" y="-24" fill="#C1402C">Y</text>
+            <line x1="0" y1="0" x2="0" y2="-34" stroke="#A89D8C" stroke-width="1.5" />
+            <text x="4" y="-38" fill="#A89D8C">Z</text>
           </g>
         </svg>
         <span class="tag" id="heroTag">rendering a live mesh from the real backend…</span>
@@ -598,15 +599,15 @@
           <svg viewBox="0 0 300 220" role="img" aria-label="Schematic of a sun gear with three planet gears, each placed at the correct meshing center distance of 32 millimeters">
             <defs>
               <linearGradient id="flagGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#8B5CF6" />
-                <stop offset="1" stop-color="#3B82F6" />
+                <stop offset="0" stop-color="#C1402C" />
+                <stop offset="1" stop-color="#4C6B8A" />
               </linearGradient>
             </defs>
-            <circle cx="150" cy="110" r="70" fill="none" stroke="#29283A" stroke-width="1" stroke-dasharray="4 4" />
+            <circle cx="150" cy="110" r="70" fill="none" stroke="#332D27" stroke-width="1" stroke-dasharray="4 4" />
             <line x1="150" y1="110" x2="220" y2="110" stroke="url(#flagGrad)" stroke-width="1.6" />
-            <text x="172" y="103" font-family="JetBrains Mono, monospace" font-size="11" fill="#A1A0B2">32 mm</text>
+            <text x="172" y="103" font-family="JetBrains Mono, monospace" font-size="11" fill="#A89D8C">32 mm</text>
 
-            <g fill="none" stroke="#A1A0B2" stroke-width="1.3">
+            <g fill="none" stroke="#A89D8C" stroke-width="1.3">
               <circle cx="150" cy="110" r="24" stroke-dasharray="2.6 3.2" />
               <circle cx="150" cy="110" r="20" />
               <circle cx="150" cy="110" r="6" />
@@ -624,8 +625,8 @@
               <circle cx="115" cy="49.4" r="6" />
             </g>
 
-            <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#65637a">
-              <text x="150" y="20" text-anchor="middle" fill="#A1A0B2">m2 · 16T — SUN + 3 PLANETS</text>
+            <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#6E6356">
+              <text x="150" y="20" text-anchor="middle" fill="#A89D8C">m2 · 16T — SUN + 3 PLANETS</text>
             </g>
           </svg>
         </div>
@@ -787,16 +788,16 @@
               <svg viewBox="0 0 200 160" role="presentation">
                 <defs>
                   <linearGradient id="edgeGrad2" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#8B5CF6" />
-                    <stop offset="1" stop-color="#3B82F6" />
+                    <stop offset="0" stop-color="#C1402C" />
+                    <stop offset="1" stop-color="#4C6B8A" />
                   </linearGradient>
                 </defs>
-                <path d="M 100 30 L 160 60 L 100 90 L 40 60 Z" fill="#171824" stroke="#A1A0B2" stroke-width="1" />
-                <path d="M 40 60 L 100 90 L 100 140 L 40 110 Z" fill="#101119" stroke="#A1A0B2" stroke-width="1" />
-                <path d="M 100 90 L 160 60 L 160 110 L 100 140 Z" fill="#13141c" stroke="url(#edgeGrad2)" stroke-width="1.6" />
+                <path d="M 100 30 L 160 60 L 100 90 L 40 60 Z" fill="#171824" stroke="#A89D8C" stroke-width="1" />
+                <path d="M 40 60 L 100 90 L 100 140 L 40 110 Z" fill="#101119" stroke="#A89D8C" stroke-width="1" />
+                <path d="M 100 90 L 160 60 L 160 110 L 100 140 Z" fill="#1E1A16" stroke="url(#edgeGrad2)" stroke-width="1.6" />
 
                 <!-- four corner bosses, one per corner, per the prompt text beside this preview -->
-                <g stroke="#A1A0B2" stroke-width="0.9" fill="#171824">
+                <g stroke="#A89D8C" stroke-width="0.9" fill="#171824">
                   <line x1="94" y1="39.6" x2="94" y2="33.6" />
                   <line x1="106" y1="39.6" x2="106" y2="33.6" />
                   <ellipse cx="100" cy="33.6" rx="6" ry="3" />
@@ -939,8 +940,8 @@
   <div class="wrap">
     <div class="footer-grid">
       <div class="footer-brand">
-        <a class="wordmark" href="#top"><span class="mark">3d</span>3di-men</a>
-        <p>Describe a part, get real 3D geometry — built locally, nothing faked.</p>
+        <a class="wordmark" href="#top"><span class="mark">M</span>Mitsuhub</a>
+        <p>3di-men and Mitsugen — real 3D geometry and printability, built locally, nothing faked.</p>
       </div>
       <div class="footer-links">
         <div>
@@ -950,8 +951,8 @@
           <a href="#capabilities">Capabilities</a>
         </div>
         <div>
-          <a href="/workspace">Workspace</a>
-          <a href="/print-lab">Print Lab</a>
+          <a href="/workspace">3di-men — CAD</a>
+          <a href="/print-lab">Mitsugen — 3D Printing</a>
         </div>
       </div>
     </div>
@@ -1283,7 +1284,7 @@
           { op: 'finalize', args: { target: 2 } },
         ] },
         { name: 'Nose', position_mm: { x: 0, y: -80, z: 1125 }, program: [
-          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 700, bottom_param_b: 380, bottom_param_c: 70, top_profile: 'ellipse', top_param_a: 90, top_param_b: 130, top_param_c: 0, height: 1300, sections: 28 } },
+          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 700, bottom_param_b: 380, bottom_param_c: 70, top_profile: 'ellipse', top_param_a: 36, top_param_b: 54, top_param_c: 0, height: 1300, sections: 28 } },
           { op: 'finalize', args: { target: 0 } },
         ] },
         { name: 'Tail', position_mm: { x: 0, y: -80, z: -1075 }, program: [
@@ -1295,7 +1296,7 @@
           { op: 'rotate', args: { target: 0, axis: 'x', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'FrontWing', position_mm: { x: 0, y: -210, z: 1925 }, program: [
+        { name: 'FrontWing', position_mm: { x: 0, y: -210, z: 1865 }, program: [
           { op: 'add_box', args: { length: 1700, width: 25, height: 260, center: [0, 0, 0] } },
           { op: 'add_box', args: { length: 20, width: 180, height: 300, center: [-850, 77.5, 0] } },
           { op: 'boolean_union', args: { a: 0, b: 1 } },
@@ -1304,19 +1305,19 @@
           { op: 'finalize', args: { target: 4 } },
         ] },
         { name: 'RearWing', position_mm: { x: 0, y: 110, z: -1805 }, program: [
-          { op: 'add_box', args: { length: 950, width: 25, height: 240, center: [0, 0, 0] } },
-          { op: 'add_box', args: { length: 20, width: 260, height: 280, center: [-475, 117.5, 0] } },
+          { op: 'add_box', args: { length: 1700, width: 25, height: 260, center: [0, 0, 0] } },
+          { op: 'add_box', args: { length: 20, width: 180, height: 300, center: [-850, 77.5, 0] } },
           { op: 'boolean_union', args: { a: 0, b: 1 } },
-          { op: 'add_box', args: { length: 20, width: 260, height: 280, center: [475, 117.5, 0] } },
+          { op: 'add_box', args: { length: 20, width: 180, height: 300, center: [850, 77.5, 0] } },
           { op: 'boolean_union', args: { a: 2, b: 3 } },
           { op: 'finalize', args: { target: 4 } },
         ] },
-        { name: 'SidepodL', position_mm: { x: -360, y: -70, z: -100 }, program: [
-          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 160, bottom_param_b: 320, bottom_param_c: 40, top_profile: 'rounded_rect', top_param_a: 280, top_param_b: 160, top_param_c: 30, height: 850, sections: 20 } },
+        { name: 'SidepodL', position_mm: { x: -460, y: -70, z: -100 }, program: [
+          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 240, bottom_param_b: 320, bottom_param_c: 40, top_profile: 'rounded_rect', top_param_a: 360, top_param_b: 160, top_param_c: 30, height: 850, sections: 20 } },
           { op: 'finalize', args: { target: 0 } },
         ] },
-        { name: 'SidepodR', position_mm: { x: 360, y: -70, z: -100 }, program: [
-          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 160, bottom_param_b: 320, bottom_param_c: 40, top_profile: 'rounded_rect', top_param_a: 280, top_param_b: 160, top_param_c: 30, height: 850, sections: 20 } },
+        { name: 'SidepodR', position_mm: { x: 460, y: -70, z: -100 }, program: [
+          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 240, bottom_param_b: 320, bottom_param_c: 40, top_profile: 'rounded_rect', top_param_a: 360, top_param_b: 160, top_param_c: 30, height: 850, sections: 20 } },
           { op: 'finalize', args: { target: 0 } },
         ] },
         { name: 'WheelFL', position_mm: { x: -870, y: 0, z: 850 }, program: [
@@ -1343,23 +1344,25 @@
           { op: 'boolean_difference', args: { a: 0, b: 1 } },
           { op: 'finalize', args: { target: 2 } },
         ] },
-        { name: 'LinkFL', position_mm: { x: 0, y: -120, z: 850 }, program: [
-          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'arc', path_param_a: 600, path_param_b: 20, path_param_c: 0, sections: 12, path_segments: 16 } },
-          { op: 'mirror', args: { target: 0, axis: 'x' } },
+        { name: 'LinkFL', position_mm: { x: -560, y: -120, z: 850 }, program: [
+          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'straight', path_param_a: 620, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 8 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'LinkFR', position_mm: { x: 0, y: -120, z: 850 }, program: [
-          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'arc', path_param_a: 600, path_param_b: 20, path_param_c: 0, sections: 12, path_segments: 16 } },
-          { op: 'finalize', args: { target: 0 } },
-        ] },
-        { name: 'LinkRL', position_mm: { x: 0, y: -120, z: -850 }, program: [
-          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'arc', path_param_a: 600, path_param_b: 20, path_param_c: 0, sections: 12, path_segments: 16 } },
-          { op: 'mirror', args: { target: 0, axis: 'x' } },
+        { name: 'LinkFR', position_mm: { x: 560, y: -120, z: 850 }, program: [
+          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'straight', path_param_a: 620, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 8 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'LinkRR', position_mm: { x: 0, y: -120, z: -850 }, program: [
-          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'arc', path_param_a: 600, path_param_b: 20, path_param_c: 0, sections: 12, path_segments: 16 } },
-          { op: 'finalize', args: { target: 0 } },
+        { name: 'LinkRL', position_mm: { x: -560, y: -120, z: -850 }, program: [
+          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'straight', path_param_a: 620, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 8 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
+          { op: 'finalize', args: { target: 1 } },
+        ] },
+        { name: 'LinkRR', position_mm: { x: 560, y: -120, z: -850 }, program: [
+          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'straight', path_param_a: 620, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 8 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
+          { op: 'finalize', args: { target: 1 } },
         ] },
         { name: 'Diffuser', position_mm: { x: 0, y: -205, z: -1425 }, program: [
           { op: 'add_loft', args: { bottom_profile: 'rect', bottom_param_a: 700, bottom_param_b: 15, bottom_param_c: 0, top_profile: 'rect', top_param_a: 600, top_param_b: 130, top_param_c: 0, height: 500, sections: 4 } },
@@ -1402,17 +1405,17 @@
     keyLight.shadow.mapSize.set(1024, 1024);
     keyLight.shadow.bias = -0.0015;
     scene.add(keyLight);
-    const rim = new THREE.DirectionalLight(0x8b5cf6, 0.6);
+    const rim = new THREE.DirectionalLight(0xc1402c, 0.6);
     rim.position.set(-1.2, -0.3, -0.8);
     scene.add(rim);
-    const fill = new THREE.DirectionalLight(0x3b82f6, 0.32);
+    const fill = new THREE.DirectionalLight(0x4c6b8a, 0.32);
     fill.position.set(0, -1, 1);
     scene.add(fill);
 
     // a faint technical grid (the same visual language as the page's own
     // 2D grid backdrops) doubling as the ground the shadow falls onto --
     // both repositioned/rescaled per-object in showMesh below.
-    groundGrid = new THREE.GridHelper(1, 1, 0x8b5cf6, 0x29283a);
+    groundGrid = new THREE.GridHelper(1, 1, 0xc1402c, 0x332d27);
     groundGrid.rotation.x = Math.PI / 2; // GridHelper defaults to the Y-normal (XZ) plane -- rotate onto the Z-normal (XY) plane to match this scene's Z-up models
     groundGrid.material.transparent = true;
     groundGrid.material.opacity = 0.35;
@@ -1467,14 +1470,23 @@
     if (currentMesh) { scene.remove(currentMesh); currentMesh.geometry.dispose(); }
     if (currentWire) { scene.remove(currentWire); currentWire.geometry.dispose(); }
 
-    const material = new THREE.MeshStandardMaterial({ color: 0xb9c2dc, metalness: 0.5, roughness: 0.3 });
+    // side: DoubleSide -- confirmed real bug this fixes: multi-part boolean
+    // unions (e.g. the F1 car's wings+endplates, sidepods) can come out of
+    // trimesh's boolean engine with inconsistent face winding on some
+    // sub-regions. With the default FrontSide material, any face whose
+    // winding ends up backwards renders as invisible from whichever side
+    // the camera happens to be on -- exactly "the model only shows from
+    // some angles," not a stale or wrong model. DoubleSide renders both
+    // faces regardless of winding, same fix already applied in print_lab.html's
+    // own viewer material.
+    const material = new THREE.MeshStandardMaterial({ color: 0xb9c2dc, metalness: 0.5, roughness: 0.3, side: THREE.DoubleSide });
     currentMesh = new THREE.Mesh(geometry, material);
     currentMesh.castShadow = true;
     currentMesh.receiveShadow = true;
     scene.add(currentMesh);
 
     const wireGeo = new THREE.WireframeGeometry(geometry);
-    currentWire = new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0x8b5cf6, transparent: true, opacity: 0.12 }));
+    currentWire = new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0xc1402c, transparent: true, opacity: 0.12 }));
     scene.add(currentWire);
 
     const size = new THREE.Vector3();
@@ -1482,6 +1494,22 @@
     const center = new THREE.Vector3();
     geometry.boundingBox.getCenter(center);
     const radius = Math.max(size.length() / 2, 1);
+
+    // Confirmed real bug this fixes: the camera was created once with a
+    // FIXED far plane (5000) that never got revisited per-showcase. The
+    // camera sits at ~2.6x radius from the target (see camera.position
+    // below), so the model's own far side can reach ~3.6x radius from the
+    // camera -- harmless for a small showcase (radius ~150-200mm, nowhere
+    // near 5000), but the F1 car's radius is ~2280mm, pushing its far side
+    // to ~8200 units from the camera -- well past the old fixed far=5000,
+    // so that portion of the mesh was silently frustum-clipped. Which part
+    // is "far" changes as autoRotate spins the camera around the target,
+    // so this looked like "the model only shows from some angles" rather
+    // than a static framing bug. Scaled generously (8x) with the far plane
+    // so this holds for every showcase, not just a hardcoded F1-car case.
+    camera.near = Math.max(0.1, radius / 1000);
+    camera.far = radius * 8;
+    camera.updateProjectionMatrix();
 
     currentMesh.position.sub(center);
     currentWire.position.sub(center);

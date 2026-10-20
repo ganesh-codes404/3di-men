@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>3di-men — Print Lab</title>
-<link rel="icon" href="data:,">
+<title>Mitsuhub | Mitsugen — 3D printing</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%23C1402C%27/%3E%3Cstop offset=%271%27 stop-color=%27%234C6B8A%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-family=%27Georgia,serif%27 font-size=%2719%27 font-weight=%27700%27 fill=%27%230B0A09%27 text-anchor=%27middle%27%3EM%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -14,19 +14,19 @@
     --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
     --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-    --bg: #08090D;
-    --bg-panel: #101119;
-    --bg-raised: #171824;
-    --bg-input: #13141c;
-    --border: #29283A;
-    --border-soft: #1e1d2a;
-    --text: #F4F3FA;
-    --text-dim: #A1A0B2;
-    --text-faint: #65637a;
-    --accent-1: #8B5CF6;
-    --accent-2: #3B82F6;
-    --accent: #9D7BF8;
-    --accent-grad: linear-gradient(135deg, #8B5CF6, #3B82F6);
+    --bg: #0B0A09;
+    --bg-panel: #15120F;
+    --bg-raised: #1E1A16;
+    --bg-input: #1A1613;
+    --border: #332D27;
+    --border-soft: #241F1A;
+    --text: #F2ECE2;
+    --text-dim: #A89D8C;
+    --text-faint: #6E6356;
+    --accent-1: #C1402C;
+    --accent-2: #4C6B8A;
+    --accent: #D85940;
+    --accent-grad: linear-gradient(135deg, #C1402C, #4C6B8A);
     --ok: #3ddc84;
     --ok-bg: #122a1e;
     --warn: #f2b84b;
@@ -51,7 +51,7 @@
   }
   #topbar .wordmark .mark {
     width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; background: var(--accent-grad);
-    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #08090D;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #0B0A09;
     font-family: var(--font-mono);
   }
   #topbar .wordmark .sep { color: var(--text-faint); font-weight: 400; }
@@ -71,7 +71,7 @@
     width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
     background: var(--accent-grad); font-family: var(--font-mono);
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 13px; color: #08090D;
+    font-weight: 700; font-size: 13px; color: #0B0A09;
   }
   .brand h1 { font-family: var(--font-display); font-size: 15px; margin: 0; letter-spacing: 0.01em; font-weight: 650; }
   .brand .sub { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -98,7 +98,7 @@
   .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 
   button.primary {
-    background: var(--accent-grad); color: #08090D; border: none; border-radius: 8px; padding: 10px 14px;
+    background: var(--accent-grad); color: #0B0A09; border: none; border-radius: 8px; padding: 10px 14px;
     font-weight: 650; font-size: 13px; cursor: pointer; font-family: var(--font-body);
   }
   button.primary:hover { filter: brightness(1.1); }
@@ -167,16 +167,16 @@
 <body>
 
 <div id="topbar">
-  <a class="wordmark" href="/"><span class="mark">3d</span>3di-men <span class="sep">/</span> Print Lab</a>
+  <a class="wordmark" href="/"><span class="mark">M</span>Mitsuhub <span class="sep">/</span> Mitsugen — 3D Printing</a>
   <a class="back" href="/workspace">&larr; Back to workspace</a>
 </div>
 
 <div id="body-row">
 <div id="panel">
   <div class="brand">
-    <div class="mark">3d</div>
+    <div class="mark">M</div>
     <div>
-      <h1>Print Lab</h1>
+      <h1>Mitsugen</h1>
       <div class="sub">printability analysis</div>
     </div>
   </div>
@@ -341,7 +341,7 @@ function updateBuildPlate(volumeMm) {
   if (bedMesh) { scene.remove(bedMesh); bedMesh.geometry.dispose(); bedMesh.material.dispose(); }
   const [x, y, z] = volumeMm;
   const geo = new THREE.BoxGeometry(x, y, z);
-  const mat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, wireframe: true, transparent: true, opacity: 0.35 });
+  const mat = new THREE.MeshBasicMaterial({ color: 0x4c6b8a, wireframe: true, transparent: true, opacity: 0.35 });
   bedMesh = new THREE.Mesh(geo, mat);
   bedMesh.position.set(0, 0, z / 2); // printer origin = plate center at z=0, build volume extends upward
   bedMesh.visible = document.getElementById('toggleBedBtn').classList.contains('active');

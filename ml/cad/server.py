@@ -622,6 +622,97 @@ def api_print_slicers():
     return jsonify(slicer_availability())
 
 
+# ---------------- Mitsugen: slice-based 3D-printing generation ----------------
+# A DISTINCT product/pipeline from everything above -- see mitsugen/__init__.py
+# for why it deliberately never imports sandbox.Sandbox, program_model.py,
+# compositional_decomposer.py, assembly_plan.py, parallel_builder.py, or
+# llm_decompose.py. Shares only general-purpose infrastructure: this same
+# Flask app, printability.py (reused inside mitsugen/pipeline.py's own Stage
+# F), the mesh export route below (_export_mesh/_MESH_EXPORT_FORMATS are
+# format-agnostic, not CAD-specific), and -- for prompts that route to
+# mitsugen/freeform.py's own primitive-composition path -- the same
+# llama-cpp-python library and on-disk .gguf model llm_decompose.py uses,
+# via a second, independent Llama instance Mitsugen loads itself.
+
+@app.route("/mitsugen")
+def mitsugen_page():
+    """Mitsugen -- 3D Printing. A separate workspace page from /workspace
+    (3di-men -- CAD), same convention as /print-lab being its own page."""
+    return send_from_directory(Path(__file__).resolve().parent / "frontend", "mitsugen.html")
+
+
+@app.route("/api/mitsugen/generate", methods=["POST"])
+def api_mitsugen_generate():
+    from mitsugen.pipeline import generate_mitsugen_model
+
+    body = request.get_json(silent=True) or {}
+    prompt = (body.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"error": "prompt is required"}), 400
+
+    try:
+        max_slices = int(body.get("max_slices", 12))
+    except (TypeError, ValueError):
+        return jsonify({"error": "max_slices must be a positive integer"}), 400
+    if max_slices < 1:
+        return jsonify({"error": "max_slices must be a positive integer"}), 400
+
+    result = generate_mitsugen_model(
+        prompt, max_slices=max_slices,
+        tolerance_fraction=float(body.get("tolerance_fraction", 0.05)),
+        hollow=bool(body.get("hollow", False)),
+        wall_thickness_mm=body.get("wall_thickness_mm"),
+        printer_build_volume_mm=tuple(body["printer_build_volume_mm"]) if body.get("printer_build_volume_mm") else None,
+    )
+
+    mesh_url = _export_mesh(result.build.mesh) if (result.build and result.build.mesh is not None) else None
+    return jsonify({
+        "overall_status": result.overall_status,
+        "error": result.error,
+        "mesh_url": mesh_url,
+        "construction_mode": result.construction_mode,
+        "spec": {
+            "object_description": result.spec.object_description,
+            "height_mm": result.spec.height_mm,
+            "waypoints_mm": result.spec.waypoints_mm,
+            "explicit_mm": result.spec.explicit_mm,
+            "inferred_defaults_mm": result.spec.inferred_defaults_mm,
+            "max_slices": result.spec.max_slices,
+            "unsupported_reason": result.spec.unsupported_reason,
+        } if result.spec else None,
+        "plan": {
+            "actual_slice_count": result.plan.actual_slice_count,
+            "requested_max_slices": result.plan.requested_max_slices,
+            "approximation_error_fraction": result.plan.approximation_error_fraction,
+            "within_tolerance": result.plan.within_tolerance,
+            "limitation": result.plan.limitation,
+            "slices": [
+                {"slice_id": s.slice_id, "order": s.order, "height_fraction": s.height_fraction,
+                 "position_mm": s.position_mm, "radius_mm": s.radius_mm}
+                for s in result.plan.slices
+            ],
+        } if result.plan else None,
+        "freeform": {
+            "object_description": result.freeform_spec.object_description,
+            "fell_back": result.freeform_spec.fell_back,
+            "dropped_primitives": result.freeform_spec.dropped_primitives,
+            "auto_unioned_ids": result.freeform_spec.auto_unioned_ids,
+            "primitives": [
+                {"id": p.id, "kind": p.kind, "position_mm": p.position_mm, "rotation_deg": p.rotation_deg,
+                 "size_mm": p.size_mm, "radius_mm": p.radius_mm, "height_mm": p.height_mm}
+                for p in result.freeform_spec.primitives
+            ],
+            "operations": [{"op": s.op, "target_id": s.target_id} for s in result.freeform_spec.operations],
+        } if result.freeform_spec else None,
+        "hollow_applied": result.build.hollow_applied if result.build else False,
+        "findings": [
+            {"requirement": f.requirement, "expected": f.expected, "measured": f.measured, "passed": f.passed, "method": f.method}
+            for f in result.findings
+        ],
+        "printability": result.printability,
+    })
+
+
 def main():
     # Every /api/build call writes a fresh uuid-named .stl that nothing
     # ever deletes -- fine for one session, not across many restarts of a
