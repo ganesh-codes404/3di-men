@@ -657,13 +657,22 @@ def api_mitsugen_generate():
     if max_slices < 1:
         return jsonify({"error": "max_slices must be a positive integer"}), 400
 
-    result = generate_mitsugen_model(
-        prompt, max_slices=max_slices,
-        tolerance_fraction=float(body.get("tolerance_fraction", 0.05)),
-        hollow=bool(body.get("hollow", False)),
-        wall_thickness_mm=body.get("wall_thickness_mm"),
-        printer_build_volume_mm=tuple(body["printer_build_volume_mm"]) if body.get("printer_build_volume_mm") else None,
-    )
+    try:
+        result = generate_mitsugen_model(
+            prompt, max_slices=max_slices,
+            tolerance_fraction=float(body.get("tolerance_fraction", 0.05)),
+            hollow=bool(body.get("hollow", False)),
+            wall_thickness_mm=body.get("wall_thickness_mm"),
+            printer_build_volume_mm=tuple(body["printer_build_volume_mm"]) if body.get("printer_build_volume_mm") else None,
+        )
+    except Exception as exc:
+        # Every stage below is documented as "never raises" -- this is
+        # defense in depth, not the expected path. Without it, an
+        # exception here falls through to Flask's own HTML error page,
+        # which the frontend's res.json() then fails to parse as JSON
+        # (a real, reported failure -- "Unexpected token '<'") instead
+        # of surfacing as a readable error.
+        return jsonify({"error": f"generation failed unexpectedly: {exc}"}), 500
 
     mesh_url = _export_mesh(result.build.mesh) if (result.build and result.build.mesh is not None) else None
     return jsonify({

@@ -485,16 +485,73 @@ def test_separate_coincident_face_attachments_accounts_for_the_facing_rotation()
     assert bounding_box_overlap_fraction(placed_a, placed_b) < 0.05  # genuinely clear in the REAL placed geometry
 
 
-def test_separate_coincident_face_attachments_is_a_noop_for_three_or_more():
-    """Deliberately scoped to exactly 2 -- a 3+-way coincidence falls back
-    to the existing collision-exclusion safety net rather than guessing
-    at a general layout."""
+def test_separate_coincident_face_attachments_spaces_three_or_more_members_evenly():
+    """A real reported regression (live-reported "gusset issues", not a
+    hypothetical): a prompt producing three or more gussets on the SAME
+    face (e.g. "a gusset at each corner") used to hit this function's
+    old `len(members) != 2` scoping guard and do nothing, leaving every
+    one of them overlapping for parallel_builder's downstream collision-
+    exclusion to silently drop all but one of -- fewer gussets came out
+    than were asked for, with no explanation. Confirms the N-member
+    generalization actually spaces an overlapping trio apart instead of
+    being a no-op."""
+    sb = Sandbox()
+    plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))
+    sb2 = Sandbox()
+    gusset = sb2._get(sb2.add_extrusion("triangle", param_a=10, param_b=10, param_c=0, height=4))
+    rel = Relationship(kind="attached_to_face", target_id="plate", face="+y")
+    members = [("a", rel, gusset), ("b", rel, gusset), ("c", rel, gusset)]
+    result = separate_coincident_face_attachments(members, plate)
+    assert set(result.keys()) == {"a", "b", "c"}
+    offsets = [(result[k].offset_u, result[k].offset_v) for k in ("a", "b", "c")]
+    assert len(set(offsets)) == 3  # all three now distinct -- no longer stacked identically
+    # and genuinely non-overlapping, not just numerically different
+    spacing = sorted(o[0] for o in offsets) if offsets[0][0] != offsets[1][0] else sorted(o[1] for o in offsets)
+    gaps = [b - a for a, b in zip(spacing, spacing[1:])]
+    assert all(g > 0 for g in gaps)
+
+
+def test_separate_coincident_face_attachments_handles_mixed_sizes_not_just_uniform_groups():
+    """A real, live-reported regression (not hypothetical): a structural
+    "side" plate (60mm) and two smaller gussets (30mm each) sharing the
+    SAME attached_to_face target+face -- a genuine real-world case, e.g.
+    "a side plate standing up from the base, with a gusset supporting
+    each corner where the plates meet." The N-member fix above used
+    max(60, 30, 30)=60mm as the spacing unit for ALL THREE, demanding
+    3*60+2*2=184mm of room where only 150mm existed -- wrongly rejected
+    as "doesn't fit" even though the three fit fine (124mm) once each
+    member only needs its own real size. Confirmed via the EXACT
+    relationships a real decomposition produced for this scenario."""
+    sb = Sandbox()
+    base = sb._get(sb.add_box(150, 100, 10, [0, 0, 0]))
+    sb2 = Sandbox()
+    side = sb2._get(sb2.add_box(60, 60, 6, [0, 0, 0]))
+    sb3 = Sandbox()
+    gusset = sb3._get(sb3.add_extrusion("triangle", param_a=30, param_b=30, param_c=0, height=4))
+
+    rel_side = Relationship(kind="attached_to_face", target_id="base", face="+y")
+    rel_left = Relationship(kind="attached_to_face", target_id="base", face="+y", offset_v=-20)
+    rel_right = Relationship(kind="attached_to_face", target_id="base", face="+y", offset_v=20)
+    members = [("side", rel_side, side), ("gusset_left", rel_left, gusset), ("gusset_right", rel_right, gusset)]
+    result = separate_coincident_face_attachments(members, base)
+    assert set(result.keys()) == {"side", "gusset_left", "gusset_right"}
+    # genuinely non-overlapping afterward, not just numerically reshuffled
+    offsets_v = {k: result[k].offset_v for k in result}
+    spacing = sorted(offsets_v.values())
+    assert spacing[1] - spacing[0] >= 45  # (60+30)/2 -- side's half-width plus a gusset's half-width, at minimum
+    assert spacing[2] - spacing[1] >= 45
+
+
+def test_separate_coincident_face_attachments_too_many_to_fit_falls_back_to_noop():
+    """A group too large to space evenly on either axis still returns {}
+    -- the collision-exclusion safety net catches that case, same
+    discipline as the original 2-member version's own fallback."""
     sb = Sandbox()
     plate = sb._get(sb.add_box(60, 50, 6, [0, 0, 0]))
     sb2 = Sandbox()
     gusset = sb2._get(sb2.add_extrusion("triangle", param_a=20, param_b=20, param_c=0, height=4))
     rel = Relationship(kind="attached_to_face", target_id="plate", face="+y")
-    members = [("a", rel, gusset), ("b", rel, gusset), ("c", rel, gusset)]
+    members = [(f"g{i}", rel, gusset) for i in range(6)]  # 6 x 20mm-ish gussets can't fit on a 60x6 face
     assert separate_coincident_face_attachments(members, plate) == {}
 
 

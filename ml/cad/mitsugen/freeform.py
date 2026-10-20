@@ -327,24 +327,32 @@ def _fallback_spec(object_description: str, raw_llm_output: str) -> FreeformSpec
 
 
 def decompose_freeform_prompt(object_description: str, model_path: Path = MODEL_PATH) -> FreeformSpec:
-    """Never raises: an LLM response that can't be parsed into a usable
-    primitive+operation spec falls back to a single disclosed
-    approximate box (fell_back=True), never a crash and never a silent
-    claim that something more accurate was built."""
-    llm = _get_llm(model_path)
+    """Never raises -- not even if the model itself fails to load or the
+    inference call errors out (confirmed necessary, not defensive: an
+    uncaught exception here propagates all the way through
+    pipeline.py/server.py and surfaces to the browser as Flask's own
+    HTML error page, which the frontend's res.json() then fails to parse
+    as JSON -- a real, reported failure mode, not a hypothetical one).
+    Any such failure -- model load, inference, or parsing -- falls back
+    to the same single disclosed approximate box (fell_back=True) a bad
+    LLM response already falls back to."""
     try:
-        grammar = _get_freeform_grammar()
-    except Exception:
-        grammar = None
+        llm = _get_llm(model_path)
+        try:
+            grammar = _get_freeform_grammar()
+        except Exception:
+            grammar = None
 
-    response = llm.create_chat_completion(
-        messages=[
-            {"role": "system", "content": _FREEFORM_SYSTEM_PROMPT},
-            {"role": "user", "content": object_description},
-        ],
-        temperature=0.1, max_tokens=2048, repeat_penalty=1.15, grammar=grammar,
-    )
-    raw = response["choices"][0]["message"]["content"] or ""
+        response = llm.create_chat_completion(
+            messages=[
+                {"role": "system", "content": _FREEFORM_SYSTEM_PROMPT},
+                {"role": "user", "content": object_description},
+            ],
+            temperature=0.1, max_tokens=2048, repeat_penalty=1.15, grammar=grammar,
+        )
+        raw = response["choices"][0]["message"]["content"] or ""
+    except Exception as exc:
+        return _fallback_spec(object_description, f"<LLM call failed: {exc}>")
 
     try:
         return _parse_freeform(raw, object_description)

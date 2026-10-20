@@ -49,6 +49,27 @@ def test_extract_claimed_envelope_mm_returns_none_when_prompt_makes_no_claim():
     assert extract_claimed_envelope_mm("a water bottle") is None
 
 
+def test_extract_claimed_envelope_mm_recognizes_overall_size_and_dimensions_phrasing():
+    """Confirmed real gap (live-reported "dimension issues" that kept
+    recurring): the literal word "footprint" was the ONLY phrasing this
+    recognized, so a prompt claiming "overall size 150mm x 100mm" (an
+    equally common, equally explicit way to state the same thing) never
+    registered a claim at all -- the overrun diagnostic silently never
+    ran for it. "overall size"/"overall dimensions" must now match."""
+    assert extract_claimed_envelope_mm("a motor mount assembly, overall size 150mm x 100mm") == (150.0, 100.0)
+    assert extract_claimed_envelope_mm("overall dimensions of approximately 150mm x 100mm") == (150.0, 100.0)
+
+
+def test_extract_claimed_envelope_mm_requires_overall_for_size_and_dimensions_wording():
+    """Unlike "footprint" (unambiguous on its own), "size"/"dimensions"
+    are generic enough to describe a single PART's own claim ("the
+    plate's size is 150mm x 100mm") -- those two must only count as an
+    assembly-level envelope claim when "overall" makes that explicit,
+    never inferred from an ordinary per-part dimension statement."""
+    assert extract_claimed_envelope_mm("a plate, size 150mm x 100mm, 10mm thick") is None
+    assert extract_claimed_envelope_mm("a plate, dimensions 150mm x 100mm") is None
+
+
 def test_extract_claimed_envelope_mm_only_uses_the_first_match():
     """A footprint claim is a property of the whole assembly, not a
     per-component list (see the function's own docstring) -- a second

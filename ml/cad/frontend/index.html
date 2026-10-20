@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Mitsuhub | 3di-men — text to 3D geometry</title>
-<meta name="description" content="Mitsuhub: 3di-men (CAD) turns plain language into structured, inspectable 3D geometry; Mitsugen (3D Printing) prepares it for fabrication. Built locally, no cloud model required." />
+<meta name="description" content="Mitsuhub: 3di-men (CAD) turns plain language into structured, inspectable 3D geometry; Print Lab checks it for real printability; Mitsugen generates print-ready vessels and primitive-composed shapes directly from a prompt. Built locally, no cloud model required." />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%23C1402C%27/%3E%3Cstop offset=%271%27 stop-color=%27%234C6B8A%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-family=%27Georgia,serif%27 font-size=%2719%27 font-weight=%27700%27 fill=%27%230B0A09%27 text-anchor=%27middle%27%3EM%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -424,7 +424,8 @@
       <a href="#how-it-works">How it works</a>
       <a href="#capabilities">Capabilities</a>
       <a href="/workspace">3di-men — CAD</a>
-      <a href="/print-lab">Mitsugen — 3D Printing</a>
+      <a href="/print-lab">Print Lab</a>
+      <a href="/mitsugen">Mitsugen — 3D Printing</a>
     </nav>
     <div class="nav-right">
       <a class="btn-primary nav-cta" href="/workspace">Open Workspace</a>
@@ -439,7 +440,8 @@
     <a href="#how-it-works">How it works</a>
     <a href="#capabilities">Capabilities</a>
     <a href="/workspace">3di-men — CAD</a>
-    <a href="/print-lab">Mitsugen — 3D Printing</a>
+    <a href="/print-lab">Print Lab</a>
+    <a href="/mitsugen">Mitsugen — 3D Printing</a>
   </div>
 </header>
 
@@ -762,8 +764,8 @@
               </g>
             </svg>
           </div>
-          <h3>F1 car</h3>
-          <p class="prompt">17 parts — lofted nose and tail, a real halo loop, sidepods, wings with endplates, suspension links, a diffuser — built from the same generic tools as every other shape here, no car-specific code</p>
+          <h3>Retro F1 car</h3>
+          <p class="prompt">34 parts at real 1960s/70s F1 dimensions — chassis with a cut cockpit cavity, driver, 4 toroidal tires with spoked rims, distinct upper/lower suspension arms, front &amp; rear wings on real mounting struts, engine cover, exhausts — built from the same generic tools as every other shape here, no car-specific code</p>
         </button>
       </div>
 
@@ -941,7 +943,7 @@
     <div class="footer-grid">
       <div class="footer-brand">
         <a class="wordmark" href="#top"><span class="mark">M</span>Mitsuhub</a>
-        <p>3di-men and Mitsugen — real 3D geometry and printability, built locally, nothing faked.</p>
+        <p>3di-men, Print Lab, and Mitsugen — real 3D geometry, real printability, built locally, nothing faked.</p>
       </div>
       <div class="footer-links">
         <div>
@@ -952,7 +954,8 @@
         </div>
         <div>
           <a href="/workspace">3di-men — CAD</a>
-          <a href="/print-lab">Mitsugen — 3D Printing</a>
+          <a href="/print-lab">Print Lab</a>
+          <a href="/mitsugen">Mitsugen — 3D Printing</a>
         </div>
       </div>
     </div>
@@ -1274,97 +1277,206 @@
     // below uses the evidently-intended +-850mm value instead of
     // reproducing it.
     f1car: {
-      label: 'F1 car',
+      label: 'Retro F1 car',
       upAxis: 'y',
+      // Built at the real target dimensions of a late-1960s/early-70s F1
+      // car (2450mm wheelbase, 1500/1450mm front/rear track, 600/650mm
+      // front/rear tire diameters, etc.) -- converted from that spec's own
+      // X-forward/Y-left/Z-up convention into this showcase's established
+      // X-width/Y-height/Z-length one. Every part was verified against the
+      // live /api/execute_programs backend (watertight, correctly
+      // positioned, no floating/disconnected pieces -- confirmed by
+      // checking each neighboring pair's bounding boxes for a real
+      // zero-gap touch, not just eyeballed) before being hardcoded here.
       entities: [
-        { name: 'TubCockpit', position_mm: { x: 0, y: -80, z: 0 }, program: [
-          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 700, bottom_param_b: 380, bottom_param_c: 70, top_profile: 'rounded_rect', top_param_a: 640, top_param_b: 320, top_param_c: 70, height: 950, sections: 28 } },
-          { op: 'add_loft', args: { bottom_profile: 'ellipse', bottom_param_a: 240, bottom_param_b: 140, bottom_param_c: 0, top_profile: 'ellipse', top_param_a: 210, top_param_b: 120, top_param_c: 0, height: 500, center: [0, 120, 0], sections: 24 } },
+        { name: 'ChassisMid', position_mm: { x: 0, y: 415, z: 100 }, program: [
+          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 850, bottom_param_b: 470, bottom_param_c: 60, top_profile: 'rounded_rect', top_param_a: 850, top_param_b: 470, top_param_c: 60, height: 850, sections: 28 } },
+          { op: 'add_loft', args: { bottom_profile: 'ellipse', bottom_param_a: 260, bottom_param_b: 150, bottom_param_c: 0, top_profile: 'ellipse', top_param_a: 260, top_param_b: 150, top_param_c: 0, height: 850, sections: 24, center: [0, 235, 0] } },
           { op: 'boolean_difference', args: { a: 0, b: 1 } },
           { op: 'finalize', args: { target: 2 } },
         ] },
-        { name: 'Nose', position_mm: { x: 0, y: -80, z: 1125 }, program: [
-          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 700, bottom_param_b: 380, bottom_param_c: 70, top_profile: 'ellipse', top_param_a: 36, top_param_b: 54, top_param_c: 0, height: 1300, sections: 28 } },
+        { name: 'ChassisFront', position_mm: { x: 0, y: 415, z: 987.5 }, program: [
+          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 850, bottom_param_b: 470, bottom_param_c: 60, top_profile: 'rounded_rect', top_param_a: 320, top_param_b: 300, top_param_c: 50, height: 925, sections: 28 } },
           { op: 'finalize', args: { target: 0 } },
         ] },
-        { name: 'Tail', position_mm: { x: 0, y: -80, z: -1075 }, program: [
-          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 640, bottom_param_b: 320, bottom_param_c: 70, top_profile: 'ellipse', top_param_a: 160, top_param_b: 220, top_param_c: 0, height: 1200, sections: 28 } },
+        { name: 'ChassisRear', position_mm: { x: 0, y: 415, z: -737.5 }, program: [
+          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 650, bottom_param_b: 400, bottom_param_c: 50, top_profile: 'rounded_rect', top_param_a: 850, top_param_b: 470, top_param_c: 60, height: 825, sections: 28 } },
           { op: 'finalize', args: { target: 0 } },
         ] },
-        { name: 'Halo', position_mm: { x: 0, y: 90, z: 150 }, program: [
-          { op: 'add_tube', args: { outer_radius: 18, inner_radius: 13, path_kind: 'arc', path_param_a: 260, path_param_b: 200, path_param_c: 0, sections: 20, path_segments: 40 } },
-          { op: 'rotate', args: { target: 0, axis: 'x', angle_deg: 90 } },
+        { name: 'Nose', position_mm: { x: 0, y: 415, z: 1475 }, program: [
+          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 320, bottom_param_b: 300, bottom_param_c: 50, top_profile: 'ellipse', top_param_a: 34, top_param_b: 48, top_param_c: 0, height: 1150, sections: 28 } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'EngineCover', position_mm: { x: 0, y: 550, z: -770 }, program: [
+          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 180, bottom_param_b: 180, bottom_param_c: 40, top_profile: 'rounded_rect', top_param_a: 650, top_param_b: 420, top_param_c: 55, height: 850, sections: 24 } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'AirIntake', position_mm: { x: 0, y: 650, z: -120 }, program: [
+          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 220, bottom_param_b: 180, bottom_param_c: 40, top_profile: 'rounded_rect', top_param_a: 160, top_param_b: 130, top_param_c: 30, height: 160, sections: 16 } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'Seat', position_mm: { x: 0, y: 420, z: 50 }, program: [
+          { op: 'add_box', args: { length: 650, width: 420, height: 60, center: [0, 0, 0] } },
+          { op: 'add_box', args: { length: 60, width: 420, height: 420, center: [-295, 150, 0] } },
+          { op: 'rotate', args: { target: 1, axis: 'x', angle_deg: -25 } },
+          { op: 'boolean_union', args: { a: 0, b: 2 } },
+          { op: 'finalize', args: { target: 3 } },
+        ] },
+        { name: 'DriverTorso', position_mm: { x: 0, y: 560, z: 10 }, program: [
+          { op: 'add_capsule', args: { radius: 130, height: 420, center: [0, 0, 0], axis: 'y' } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'DriverHelmet', position_mm: { x: 0, y: 800, z: 100 }, program: [
+          { op: 'add_sphere', args: { radius: 125, center: [0, 0, 0] } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'DriverArms', position_mm: { x: 0, y: 640, z: 220 }, program: [
+          { op: 'add_capsule', args: { radius: 45, height: 320, center: [120, 0, 0], axis: 'z' } },
+          { op: 'add_capsule', args: { radius: 45, height: 320, center: [-120, 0, 0], axis: 'z' } },
+          { op: 'boolean_union', args: { a: 0, b: 1 } },
+          { op: 'finalize', args: { target: 2 } },
+        ] },
+        { name: 'SteeringWheel', position_mm: { x: 0, y: 600, z: 420 }, program: [
+          { op: 'add_torus', args: { major_radius: 128, minor_radius: 12, center: [0, 0, 0], axis: 'z' } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'SteeringColumn', position_mm: { x: 0, y: 540, z: 540 }, program: [
+          { op: 'add_tube', args: { outer_radius: 14, inner_radius: 9, path_kind: 'straight', path_param_a: 260, path_param_b: 0, path_param_c: 0, sections: 10, path_segments: 6 } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'FrontUpperArmL', position_mm: { x: -585, y: 390, z: 1185 }, program: [
+          { op: 'add_tube', args: { outer_radius: 16, inner_radius: 11, path_kind: 'straight', path_param_a: 330, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'FrontWing', position_mm: { x: 0, y: -210, z: 1865 }, program: [
-          { op: 'add_box', args: { length: 1700, width: 25, height: 260, center: [0, 0, 0] } },
-          { op: 'add_box', args: { length: 20, width: 180, height: 300, center: [-850, 77.5, 0] } },
+        { name: 'FrontUpperArmR', position_mm: { x: 585, y: 390, z: 1185 }, program: [
+          { op: 'add_tube', args: { outer_radius: 16, inner_radius: 11, path_kind: 'straight', path_param_a: 330, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
+          { op: 'finalize', args: { target: 1 } },
+        ] },
+        { name: 'FrontLowerArmL', position_mm: { x: -585, y: 210, z: 1265 }, program: [
+          { op: 'add_tube', args: { outer_radius: 20, inner_radius: 14, path_kind: 'straight', path_param_a: 330, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
+          { op: 'finalize', args: { target: 1 } },
+        ] },
+        { name: 'FrontLowerArmR', position_mm: { x: 585, y: 210, z: 1265 }, program: [
+          { op: 'add_tube', args: { outer_radius: 20, inner_radius: 14, path_kind: 'straight', path_param_a: 330, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
+          { op: 'finalize', args: { target: 1 } },
+        ] },
+        { name: 'RearUpperArmL', position_mm: { x: -572.5, y: 425, z: -1150 }, program: [
+          { op: 'add_tube', args: { outer_radius: 17, inner_radius: 11, path_kind: 'straight', path_param_a: 305, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
+          { op: 'finalize', args: { target: 1 } },
+        ] },
+        { name: 'RearUpperArmR', position_mm: { x: 572.5, y: 425, z: -1150 }, program: [
+          { op: 'add_tube', args: { outer_radius: 17, inner_radius: 11, path_kind: 'straight', path_param_a: 305, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
+          { op: 'finalize', args: { target: 1 } },
+        ] },
+        { name: 'RearLowerArmL', position_mm: { x: -572.5, y: 225, z: -1150 }, program: [
+          { op: 'add_tube', args: { outer_radius: 22, inner_radius: 15, path_kind: 'straight', path_param_a: 305, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
+          { op: 'finalize', args: { target: 1 } },
+        ] },
+        { name: 'RearLowerArmR', position_mm: { x: 572.5, y: 225, z: -1150 }, program: [
+          { op: 'add_tube', args: { outer_radius: 22, inner_radius: 15, path_kind: 'straight', path_param_a: 305, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
+          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
+          { op: 'finalize', args: { target: 1 } },
+        ] },
+        { name: 'TireFL', position_mm: { x: -750, y: 300, z: 1225 }, program: [
+          { op: 'add_torus', args: { major_radius: 210, minor_radius: 90, center: [0, 0, 0], axis: 'x' } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'TireFR', position_mm: { x: 750, y: 300, z: 1225 }, program: [
+          { op: 'add_torus', args: { major_radius: 210, minor_radius: 90, center: [0, 0, 0], axis: 'x' } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'TireRL', position_mm: { x: -725, y: 325, z: -1225 }, program: [
+          { op: 'add_torus', args: { major_radius: 185, minor_radius: 140, center: [0, 0, 0], axis: 'x' } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'TireRR', position_mm: { x: 725, y: 325, z: -1225 }, program: [
+          { op: 'add_torus', args: { major_radius: 185, minor_radius: 140, center: [0, 0, 0], axis: 'x' } },
+          { op: 'finalize', args: { target: 0 } },
+        ] },
+        { name: 'RimFL', position_mm: { x: -750, y: 300, z: 1225 }, program: [
+          { op: 'add_box', args: { length: 100, width: 16, height: 78, center: [95, 0, 0] } },
+          { op: 'radial_array_oriented', args: { target: 0, count: 8, radius: 0 } },
+          { op: 'rotate', args: { target: 1, axis: 'y', angle_deg: 90 } },
+          { op: 'add_cylinder', args: { radius: 45, height: 130, axis: 'x' } },
+          { op: 'boolean_union', args: { a: 2, b: 3 } },
+          { op: 'add_ring', args: { outer_radius: 165, inner_radius: 145, height: 130, axis: 'x' } },
+          { op: 'boolean_union', args: { a: 4, b: 5 } },
+          { op: 'finalize', args: { target: 6 } },
+        ] },
+        { name: 'RimFR', position_mm: { x: 750, y: 300, z: 1225 }, program: [
+          { op: 'add_box', args: { length: 100, width: 16, height: 78, center: [95, 0, 0] } },
+          { op: 'radial_array_oriented', args: { target: 0, count: 8, radius: 0 } },
+          { op: 'rotate', args: { target: 1, axis: 'y', angle_deg: 90 } },
+          { op: 'add_cylinder', args: { radius: 45, height: 130, axis: 'x' } },
+          { op: 'boolean_union', args: { a: 2, b: 3 } },
+          { op: 'add_ring', args: { outer_radius: 165, inner_radius: 145, height: 130, axis: 'x' } },
+          { op: 'boolean_union', args: { a: 4, b: 5 } },
+          { op: 'finalize', args: { target: 6 } },
+        ] },
+        { name: 'RimRL', position_mm: { x: -725, y: 325, z: -1225 }, program: [
+          { op: 'add_box', args: { length: 120, width: 16, height: 120, center: [110, 0, 0] } },
+          { op: 'radial_array_oriented', args: { target: 0, count: 8, radius: 0 } },
+          { op: 'rotate', args: { target: 1, axis: 'y', angle_deg: 90 } },
+          { op: 'add_cylinder', args: { radius: 50, height: 200, axis: 'x' } },
+          { op: 'boolean_union', args: { a: 2, b: 3 } },
+          { op: 'add_ring', args: { outer_radius: 190, inner_radius: 170, height: 200, axis: 'x' } },
+          { op: 'boolean_union', args: { a: 4, b: 5 } },
+          { op: 'finalize', args: { target: 6 } },
+        ] },
+        { name: 'RimRR', position_mm: { x: 725, y: 325, z: -1225 }, program: [
+          { op: 'add_box', args: { length: 120, width: 16, height: 120, center: [110, 0, 0] } },
+          { op: 'radial_array_oriented', args: { target: 0, count: 8, radius: 0 } },
+          { op: 'rotate', args: { target: 1, axis: 'y', angle_deg: 90 } },
+          { op: 'add_cylinder', args: { radius: 50, height: 200, axis: 'x' } },
+          { op: 'boolean_union', args: { a: 2, b: 3 } },
+          { op: 'add_ring', args: { outer_radius: 190, inner_radius: 170, height: 200, axis: 'x' } },
+          { op: 'boolean_union', args: { a: 4, b: 5 } },
+          { op: 'finalize', args: { target: 6 } },
+        ] },
+        { name: 'FrontWing', position_mm: { x: 0, y: 170, z: 1850 }, program: [
+          { op: 'add_box', args: { length: 1700, width: 25, height: 100, center: [0, 0, 0] } },
+          { op: 'add_box', args: { length: 20, width: 150, height: 260, center: [-850, 62.5, 0] } },
           { op: 'boolean_union', args: { a: 0, b: 1 } },
-          { op: 'add_box', args: { length: 20, width: 180, height: 300, center: [850, 77.5, 0] } },
+          { op: 'add_box', args: { length: 20, width: 150, height: 260, center: [850, 62.5, 0] } },
           { op: 'boolean_union', args: { a: 2, b: 3 } },
           { op: 'finalize', args: { target: 4 } },
         ] },
-        { name: 'RearWing', position_mm: { x: 0, y: 110, z: -1805 }, program: [
-          { op: 'add_box', args: { length: 1700, width: 25, height: 260, center: [0, 0, 0] } },
-          { op: 'add_box', args: { length: 20, width: 180, height: 300, center: [-850, 77.5, 0] } },
+        { name: 'FrontWingSupports', position_mm: { x: 0, y: 330, z: 1700 }, program: [
+          { op: 'add_box', args: { length: 20, width: 180, height: 110, center: [160, 0, 0] } },
+          { op: 'add_box', args: { length: 20, width: 180, height: 110, center: [-160, 0, 0] } },
           { op: 'boolean_union', args: { a: 0, b: 1 } },
-          { op: 'add_box', args: { length: 20, width: 180, height: 300, center: [850, 77.5, 0] } },
+          { op: 'finalize', args: { target: 2 } },
+        ] },
+        { name: 'RearWing', position_mm: { x: 0, y: 800, z: -1650 }, program: [
+          { op: 'add_box', args: { length: 1250, width: 25, height: 300, center: [0, 0, 0] } },
+          { op: 'add_box', args: { length: 20, width: 200, height: 340, center: [-625, 20, 0] } },
+          { op: 'boolean_union', args: { a: 0, b: 1 } },
+          { op: 'add_box', args: { length: 20, width: 200, height: 340, center: [625, 20, 0] } },
           { op: 'boolean_union', args: { a: 2, b: 3 } },
           { op: 'finalize', args: { target: 4 } },
         ] },
-        { name: 'SidepodL', position_mm: { x: -460, y: -70, z: -100 }, program: [
-          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 240, bottom_param_b: 320, bottom_param_c: 40, top_profile: 'rounded_rect', top_param_a: 360, top_param_b: 160, top_param_c: 30, height: 850, sections: 20 } },
-          { op: 'finalize', args: { target: 0 } },
-        ] },
-        { name: 'SidepodR', position_mm: { x: 460, y: -70, z: -100 }, program: [
-          { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 240, bottom_param_b: 320, bottom_param_c: 40, top_profile: 'rounded_rect', top_param_a: 360, top_param_b: 160, top_param_c: 30, height: 850, sections: 20 } },
-          { op: 'finalize', args: { target: 0 } },
-        ] },
-        { name: 'WheelFL', position_mm: { x: -870, y: 0, z: 850 }, program: [
-          { op: 'add_cylinder', args: { radius: 330, height: 300, axis: 'x' } },
-          { op: 'add_cylinder', args: { radius: 230, height: 310, axis: 'x' } },
-          { op: 'boolean_difference', args: { a: 0, b: 1 } },
+        { name: 'RearWingSupports', position_mm: { x: 0, y: 705, z: -1337.5 }, program: [
+          { op: 'add_box', args: { length: 26, width: 110, height: 290, center: [150, 0, 0] } },
+          { op: 'add_box', args: { length: 26, width: 110, height: 290, center: [-150, 0, 0] } },
+          { op: 'boolean_union', args: { a: 0, b: 1 } },
           { op: 'finalize', args: { target: 2 } },
         ] },
-        { name: 'WheelFR', position_mm: { x: 870, y: 0, z: 850 }, program: [
-          { op: 'add_cylinder', args: { radius: 330, height: 300, axis: 'x' } },
-          { op: 'add_cylinder', args: { radius: 230, height: 310, axis: 'x' } },
-          { op: 'boolean_difference', args: { a: 0, b: 1 } },
-          { op: 'finalize', args: { target: 2 } },
+        { name: 'Exhausts', position_mm: { x: 0, y: 350, z: -950 }, program: [
+          { op: 'add_tube', args: { outer_radius: 22, inner_radius: 16, path_kind: 'arc', path_param_a: 180, path_param_b: 70, path_param_c: 0, sections: 14, path_segments: 16 } },
+          { op: 'translate', args: { target: 0, dx: 300, dy: 0, dz: 0 } },
+          { op: 'add_tube', args: { outer_radius: 22, inner_radius: 16, path_kind: 'arc', path_param_a: 180, path_param_b: 70, path_param_c: 0, sections: 14, path_segments: 16 } },
+          { op: 'translate', args: { target: 2, dx: -300, dy: 0, dz: 0 } },
+          { op: 'boolean_union', args: { a: 1, b: 3 } },
+          { op: 'finalize', args: { target: 4 } },
         ] },
-        { name: 'WheelRL', position_mm: { x: -870, y: 0, z: -850 }, program: [
-          { op: 'add_cylinder', args: { radius: 330, height: 300, axis: 'x' } },
-          { op: 'add_cylinder', args: { radius: 230, height: 310, axis: 'x' } },
-          { op: 'boolean_difference', args: { a: 0, b: 1 } },
-          { op: 'finalize', args: { target: 2 } },
-        ] },
-        { name: 'WheelRR', position_mm: { x: 870, y: 0, z: -850 }, program: [
-          { op: 'add_cylinder', args: { radius: 330, height: 300, axis: 'x' } },
-          { op: 'add_cylinder', args: { radius: 230, height: 310, axis: 'x' } },
-          { op: 'boolean_difference', args: { a: 0, b: 1 } },
-          { op: 'finalize', args: { target: 2 } },
-        ] },
-        { name: 'LinkFL', position_mm: { x: -560, y: -120, z: 850 }, program: [
-          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'straight', path_param_a: 620, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 8 } },
-          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
-          { op: 'finalize', args: { target: 1 } },
-        ] },
-        { name: 'LinkFR', position_mm: { x: 560, y: -120, z: 850 }, program: [
-          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'straight', path_param_a: 620, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 8 } },
-          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
-          { op: 'finalize', args: { target: 1 } },
-        ] },
-        { name: 'LinkRL', position_mm: { x: -560, y: -120, z: -850 }, program: [
-          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'straight', path_param_a: 620, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 8 } },
-          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
-          { op: 'finalize', args: { target: 1 } },
-        ] },
-        { name: 'LinkRR', position_mm: { x: 560, y: -120, z: -850 }, program: [
-          { op: 'add_tube', args: { outer_radius: 12, inner_radius: 8, path_kind: 'straight', path_param_a: 620, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 8 } },
-          { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
-          { op: 'finalize', args: { target: 1 } },
-        ] },
-        { name: 'Diffuser', position_mm: { x: 0, y: -205, z: -1425 }, program: [
+        { name: 'Diffuser', position_mm: { x: 0, y: 275, z: -1425 }, program: [
           { op: 'add_loft', args: { bottom_profile: 'rect', bottom_param_a: 700, bottom_param_b: 15, bottom_param_c: 0, top_profile: 'rect', top_param_a: 600, top_param_b: 130, top_param_c: 0, height: 500, sections: 4 } },
           { op: 'finalize', args: { target: 0 } },
         ] },
@@ -1564,7 +1676,7 @@
       const body = spec.program ? { program: spec.program } : { entities: spec.entities };
       const res = await fetch(endpoint, {
         method: 'POST',
-        signal: AbortSignal.timeout(45000), // the F1 car's 17 parts (lofts + booleans) measured ~18s on this hardware -- comfortable margin over that, not just the ~1-4s the simpler showcases need
+        signal: AbortSignal.timeout(45000), // the retro F1 car's 34 parts (lofts + booleans + a torus/ring/pattern-based wheel) measured ~16s on this hardware -- comfortable margin over that, not just the ~1-4s the simpler showcases need
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });

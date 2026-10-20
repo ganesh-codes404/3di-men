@@ -338,7 +338,17 @@ async function generate() {
   };
   try {
     const res = await fetch('/api/mitsugen/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // The server returned something that isn't JSON at all (e.g. an HTML
+      // error page from a crashed worker, or a proxy timeout page) --
+      // surface that plainly instead of letting the raw JSON.parse error
+      // ("Unexpected token '<'...") be the only thing the user sees.
+      throw new Error(`server returned a non-JSON response (HTTP ${res.status}) -- it may have crashed or the request may have timed out`);
+    }
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     renderResult(data);
     setStatus(data.mesh_url ? 'generation complete' : 'generation failed — see status');

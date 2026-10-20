@@ -370,52 +370,57 @@ def resolve_rotation_deg(relationship: Relationship) -> tuple[float, float, floa
 def separate_coincident_face_attachments(
     members: list[tuple[str, Relationship, trimesh.Trimesh]], target_mesh: trimesh.Trimesh,
 ) -> dict[str, Relationship]:
-    """Confirmed real gap (mission-brief audit), in TWO separate
+    """Confirmed real gaps (mission-brief audit, plus a live-reported
+    regression after this function first shipped), in THREE separate
     regressions: "the request for gussets on opposite sides produces
     identical instances in the same position" (gusset_right 100%
-    overlapping gusset_left on one run) and, after an earlier version of
-    this function only caught byte-IDENTICAL offset_u/offset_v, a SECOND
-    real run still overlapped 82% with genuinely different (but not
-    different ENOUGH) offsets on a DIFFERENT attachment face. Both trace
-    to the same root cause: offset_u vs offset_v's correspondence to a
-    "safe, wide" in-plane direction depends entirely on the specific
-    face's own normal (_plane_basis), which neither the LLM nor a fixed
-    worked example can reliably get right by picking a field name alone
-    -- confirmed directly: a 150x100x10 base's +x face spans only 10mm in
-    u but 100mm in v, the OPPOSITE of what a +y face gives. Patching one
-    worked example (as a prior round of this project did) only fixes
-    that one face.
+    overlapping gusset_left on one run); a SECOND real run still
+    overlapped 82% with genuinely different (but not different ENOUGH)
+    offsets on a DIFFERENT attachment face, after an earlier version of
+    this function only caught byte-IDENTICAL offsets; and a THIRD,
+    reported live (not a unit-test scenario): a prompt producing THREE OR
+    MORE gussets on the same face (e.g. "a gusset at each corner") hit
+    this function's own original `len(members) != 2: return {}` scoping
+    guard and did nothing at all, leaving every one of them overlapping
+    for parallel_builder's downstream collision-exclusion to silently
+    drop all but one of -- which looks, from the user's side, exactly
+    like "gusset issues": fewer gussets came out than were asked for, no
+    explanation given. All three trace to the same root cause: offset_u
+    vs offset_v's correspondence to a "safe, wide" in-plane direction
+    depends entirely on the specific face's own normal (_plane_basis),
+    which neither the LLM nor a fixed worked example can reliably get
+    right by picking a field name alone -- confirmed directly: a
+    150x100x10 base's +x face spans only 10mm in u but 100mm in v, the
+    OPPOSITE of what a +y face gives. Patching one worked example (as a
+    prior round of this project did) only fixes that one face.
 
     So this checks for an ACTUAL overlap using each member's own real
     projected extent against their ACTUAL given offsets (not requiring
-    them to be identical), and resolves it the same way regardless of
-    which face or which offsets were originally given -- the same
-    "correct from real geometry the moment it's available, never invent
-    a number" discipline resolve_position itself follows, and the
-    geometric analogue of llm_decompose._correct_gear_mesh_spacing
-    (after-the-fact correction from real numbers, just for a face-
-    attached pair's in-plane offset instead of a meshing gear pair's
-    center distance). Without this, the only thing catching an overlap
-    is parallel_builder._find_and_resolve_collisions AFTER the fact,
-    which excludes one of the two from the final mesh -- safe, but not
-    what was actually requested (a mirrored PAIR, not one part silently
-    dropped).
+    them to be identical), for ANY NUMBER of members sharing the same
+    target+face (not just exactly 2), and resolves it the same way
+    regardless of which face, which offsets, or how many members were
+    originally given -- the same "correct from real geometry the moment
+    it's available, never invent a number" discipline resolve_position
+    itself follows, and the geometric analogue of
+    llm_decompose._correct_gear_mesh_spacing (after-the-fact correction
+    from real numbers, just for a face-attached GROUP's in-plane offsets
+    instead of a meshing gear pair's center distance).
 
-    Deliberately scoped to exactly 2 members -- a pair that's already
-    sufficiently separated is left alone (not this function's job), and
-    a pair that doesn't fit on either axis returns {} rather than
-    guessing at a squeeze -- the existing collision-exclusion safety net
+    A group that's already sufficiently separated (no two members
+    overlap) is left alone -- not this function's job -- and a group
+    that doesn't fit evenly spaced on EITHER axis returns {} rather than
+    guessing at a squeeze; the existing collision-exclusion safety net
     still catches that case downstream, same as before this function
     existed."""
-    if len(members) != 2:
+    if len(members) < 2:
         return {}
-    (id_a, rel_a, mesh_a), (id_b, rel_b, mesh_b) = members
-    if rel_a.target_id != rel_b.target_id or rel_a.face != rel_b.face:
-        return {}
+    target_id0, face0 = members[0][1].target_id, members[0][1].face
+    if any(rel.target_id != target_id0 or rel.face != face0 for _id, rel, _mesh in members[1:]):
+        return {}  # not actually one group sharing the same attachment face -- not this function's job
 
     from mesh_quality import find_facet_by_direction
 
-    face_dir = rel_a.face or "+z"
+    face_dir = face0 or "+z"
     direction = np.array(_FACE_DIRECTION_VECTORS[face_dir], dtype=float)
     face = find_facet_by_direction(target_mesh, direction)
     if face is None:
@@ -451,50 +456,86 @@ def separate_coincident_face_attachments(
     # this for every face, not just "-y" -- the bug is structural (measuring
     # pre-rotation geometry against a post-rotation frame), not specific to
     # one face's particular u/v mapping.
-    rot_rx, rot_ry, rot_rz = (np.radians(d) for d in resolve_rotation_deg(rel_a))
+    rot_rx, rot_ry, rot_rz = (np.radians(d) for d in resolve_rotation_deg(members[0][1]))
     rot_matrix = (
         trimesh.transformations.rotation_matrix(rot_rz, (0.0, 0.0, 1.0))
         @ trimesh.transformations.rotation_matrix(rot_ry, (0.0, 1.0, 0.0))
         @ trimesh.transformations.rotation_matrix(rot_rx, (1.0, 0.0, 0.0))
     )
-    mesh_a_rotated, mesh_b_rotated = mesh_a.copy(), mesh_b.copy()
-    mesh_a_rotated.apply_transform(rot_matrix)
-    mesh_b_rotated.apply_transform(rot_matrix)
+    rotated_meshes = []
+    for _id, _rel, mesh in members:
+        rotated = mesh.copy()
+        rotated.apply_transform(rot_matrix)
+        rotated_meshes.append(rotated)
 
-    own_u = max(_projected_extent(mesh_a_rotated, face.u), _projected_extent(mesh_b_rotated, face.u))
-    own_v = max(_projected_extent(mesh_a_rotated, face.v), _projected_extent(mesh_b_rotated, face.v))
+    # PER-MEMBER sizes, not a single group-wide max. Confirmed real bug
+    # the group-wide-max version of this had (live-reported "gusset
+    # issues" that persisted after the N-member generalization above):
+    # a structural "side" plate (60mm) sharing a face with two much
+    # smaller gussets (30mm) used max(60, 30, 30)=60mm as the spacing
+    # unit for ALL THREE, demanding 3*60+2*2=184mm of room on an axis
+    # that only had 150mm -- rejected as "doesn't fit" even though the
+    # three actually DO fit fine once each one only needs its own real
+    # size, not the biggest member's size. Reproduced directly: this
+    # exact (side, gusset_top_left, gusset_top_right) trio, real
+    # relationships from a live decomposition, confirmed un-fittable
+    # under the old uniform sizing and fittable (124mm needed vs 150mm
+    # available) under this one.
+    own_u_list = [_projected_extent(m, face.u) for m in rotated_meshes]
+    own_v_list = [_projected_extent(m, face.v) for m in rotated_meshes]
 
     # Each member's ACTUAL attach-plane coordinate from its own given
-    # offset -- not assumed identical. A simple 2D AABB overlap test in
-    # the face's own u/v plane: this is what the eventual world-space
-    # collision check would also find, just computed here BEFORE
-    # placement instead of after.
-    u_a, v_a = face_center_u + rel_a.offset_u, face_center_v + rel_a.offset_v
-    u_b, v_b = face_center_u + rel_b.offset_u, face_center_v + rel_b.offset_v
-    if abs(u_a - u_b) >= own_u or abs(v_a - v_b) >= own_v:
+    # offset -- not assumed identical. A pairwise 2D AABB overlap test in
+    # the face's own u/v plane, across every pair in the group (not just
+    # the first two), using EACH PAIR's own combined half-extents (not a
+    # shared threshold): this is what the eventual world-space collision
+    # check would also find, just computed here BEFORE placement instead
+    # of after.
+    positions = [(face_center_u + rel.offset_u, face_center_v + rel.offset_v) for _id, rel, _mesh in members]
+    n = len(members)
+    any_overlap = any(
+        abs(positions[i][0] - positions[j][0]) < (own_u_list[i] + own_u_list[j]) / 2.0
+        and abs(positions[i][1] - positions[j][1]) < (own_v_list[i] + own_v_list[j]) / 2.0
+        for i in range(n) for j in range(i + 1, n)
+    )
+    if not any_overlap:
         return {}  # already sufficiently separated -- not this function's job
 
-    gap = 2.0  # small clearance beyond touching -- visibly two parts, not sharing an edge
-    u_fits = (own_u + gap) <= face_u_span
-    v_fits = (own_v + gap) <= face_v_span
-    # Re-centered on the face's own midpoint, not a delta from whichever
-    # (confirmed unreliable) offsets were originally given -- a clean,
-    # symmetric, valid pair beats trying to preserve a guess that caused
-    # the overlap in the first place.
-    if u_fits and (not v_fits or (face_u_span - own_u) >= (face_v_span - own_v)):
-        half = (own_u + gap) / 2.0
-        return {
-            id_a: Relationship(kind=rel_a.kind, target_id=rel_a.target_id, face=rel_a.face,
-                                offset_u=-half, offset_v=rel_a.offset_v, standoff=rel_a.standoff),
-            id_b: Relationship(kind=rel_b.kind, target_id=rel_b.target_id, face=rel_b.face,
-                                offset_u=half, offset_v=rel_b.offset_v, standoff=rel_b.standoff),
-        }
-    if v_fits:
-        half = (own_v + gap) / 2.0
-        return {
-            id_a: Relationship(kind=rel_a.kind, target_id=rel_a.target_id, face=rel_a.face,
-                                offset_u=rel_a.offset_u, offset_v=-half, standoff=rel_a.standoff),
-            id_b: Relationship(kind=rel_b.kind, target_id=rel_b.target_id, face=rel_b.face,
-                                offset_u=rel_b.offset_u, offset_v=half, standoff=rel_b.standoff),
-        }
-    return {}  # neither axis has room -- leave as-is; the collision-exclusion safety net still catches this
+    gap = 2.0  # small clearance beyond touching -- visibly separate parts, not sharing an edge
+    total_u = sum(own_u_list) + (n - 1) * gap
+    total_v = sum(own_v_list) + (n - 1) * gap
+    u_fits = total_u <= face_u_span
+    v_fits = total_v <= face_v_span
+    if not u_fits and not v_fits:
+        return {}  # the whole group doesn't fit on either axis even with per-member sizing -- leave as-is; the collision-exclusion safety net still catches this
+
+    # Re-centered on the face's own midpoint, sequentially packed using
+    # each member's OWN real size (never a shared one), not a delta from
+    # whichever (confirmed unreliable) offsets were originally given --
+    # a clean, valid layout beats trying to preserve a guess that caused
+    # the overlap in the first place. Ordered along the chosen axis by
+    # each member's ORIGINALLY GIVEN offset, preserving whatever
+    # left/right (or top/bottom) intent the relationships already
+    # expressed, rather than an arbitrary id order. Reduces to the
+    # original half/-half result exactly when every member is the same
+    # size.
+    use_u_axis = u_fits and (not v_fits or (face_u_span - total_u) >= (face_v_span - total_v))
+    sizes = own_u_list if use_u_axis else own_v_list
+    total = total_u if use_u_axis else total_v
+    order = sorted(range(n), key=lambda i: positions[i][0] if use_u_axis else positions[i][1])
+
+    new_coord = [0.0] * n
+    cursor = -total / 2.0
+    for i in order:
+        new_coord[i] = cursor + sizes[i] / 2.0
+        cursor += sizes[i] + gap
+
+    result: dict[str, Relationship] = {}
+    for idx, (id_, rel, _mesh) in enumerate(members):
+        if use_u_axis:
+            result[id_] = Relationship(kind=rel.kind, target_id=rel.target_id, face=rel.face,
+                                        offset_u=new_coord[idx], offset_v=rel.offset_v, standoff=rel.standoff)
+        else:
+            result[id_] = Relationship(kind=rel.kind, target_id=rel.target_id, face=rel.face,
+                                        offset_u=rel.offset_u, offset_v=new_coord[idx], standoff=rel.standoff)
+    return result

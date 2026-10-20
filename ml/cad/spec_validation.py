@@ -77,8 +77,28 @@ def extract_claimed_dimensions_mm(description: str) -> list[float]:
 # part description). Deliberately permissive about the connecting words
 # ("close to"/"of roughly"/"around"/nothing at all) since real prompts
 # phrase this loosely by design (an approximate target, not a part spec).
+#
+# Confirmed real gap (live-reported "dimension issues" that kept recurring
+# despite _diagnose_envelope_overrun existing): the ORIGINAL version of
+# this regex required the literal word "footprint" -- a prompt phrasing
+# the exact same claim as "overall size 150mm x 100mm" (confirmed directly:
+# extract_claimed_envelope_mm returned None for it) never even registered
+# a claim to check the built assembly against, so the overrun diagnostic
+# silently never ran for that whole class of ordinary phrasing. "footprint"
+# vs "overall size"/"overall dimensions" now both match -- still requires
+# an EXPLICIT assembly-level claim in the prompt's own words (never
+# inferred from a single part's own stated size, which is a different,
+# unrelated, much riskier guess this deliberately does not make).
 _ENVELOPE_CLAIM_RE = re.compile(
-    r"(?:overall\s+)?footprint\s*(?:close\s+to|of\s+(?:roughly|approximately)?|around|approximately)?\s*"
+    # "footprint" is unambiguous on its own (always means the whole
+    # assembly's own footprint, "overall" prefix optional); "size"/
+    # "dimensions" are far more generic words that just as often describe
+    # a SINGLE part (e.g. "the plate's size is 150mm x 100mm") -- those
+    # two only count as an assembly-level claim when "overall" makes that
+    # explicit, so this never infers an envelope claim from an ordinary
+    # per-part dimension statement.
+    r"(?:(?:overall\s+)?footprint|overall\s+(?:size|dimensions?))\s*"
+    r"(?:close\s+to|of\s+(?:roughly|approximately)?|around|approximately)?\s*"
     r"(\d+(?:\.\d+)?)\s*(?:mm)?\s*x\s*(\d+(?:\.\d+)?)\s*mm",
     re.IGNORECASE,
 )

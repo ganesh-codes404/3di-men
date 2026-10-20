@@ -561,13 +561,19 @@ def build_assembly_from_points(
                 if pid in adjusted_relationships:
                     # Disclosed, never silent -- same discipline as repair.py's
                     # RepairAttempt log and collision_warnings: this part's real
-                    # placement differs from what the ORIGINAL (coincident)
-                    # relationship would have given, because a sibling shared
-                    # the identical target+face+offset.
+                    # placement differs from what the ORIGINAL relationship
+                    # would have given, because one or more OTHER members
+                    # sharing the same attached_to_face target+face ended up
+                    # too close together in the REAL built geometry. Phrased
+                    # generically (not "identical offset", not "a sibling")
+                    # since separate_coincident_face_attachments now handles
+                    # groups of any size with non-identical offsets too (e.g.
+                    # a structural plate plus two smaller gussets sharing one
+                    # face, none of which were given the same offset).
                     note = (
-                        f"auto-separated from a sibling that shared the identical attached_to_face placement -- "
-                        f"used offset_u={effective_relationship.offset_u:g}, offset_v={effective_relationship.offset_v:g} "
-                        "instead of the identical offset both were originally given"
+                        "auto-separated from other part(s) sharing the same attached_to_face target+face -- the "
+                        f"originally given offsets put them too close together in the real built geometry; used "
+                        f"offset_u={effective_relationship.offset_u:g}, offset_v={effective_relationship.offset_v:g} instead"
                     )
                     error = f"{error}; {note}" if error else note
 
