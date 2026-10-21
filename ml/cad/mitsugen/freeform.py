@@ -132,6 +132,16 @@ List primitives in a sensible build order: the FIRST primitive is the object's m
 
 "operations" is an array of {"op": "union"|"difference"|"intersection", "target_id": "<id of a primitive other than the first>"}, applied in order starting from the first primitive as the running result. Use "union" to add a feature (a wheel, a handle, a boss, a leg), "difference" to cut a hole or cavity, "intersection" rarely (clipping one shape by another).
 
+EVERY FEATURE THE REQUEST NAMES MUST APPEAR AS ITS OWN PRIMITIVE -- this is the single most common mistake: if the request says "with a handle" / "with a hook" / "with four legs" / "with a spout", that feature is NOT optional and is NOT satisfied by the main body alone, no matter how plausible the main body looks on its own. A mug with no handle primitive at all is wrong even if the cylinder itself is perfect.
+
+Example -- request: "a coffee mug with a handle, 90mm tall, 75mm diameter". The body is a plain cylinder; the handle is a curved loop, so it must be a torus (never a straight cylinder, which cannot bend), rotated so its own hole faces sideways (through the ring, toward the mug) and unioned onto the body's own side wall:
+{"primitives": [
+  {"id": "body", "type": "cylinder", "radius_mm": 37.5, "height_mm": 90, "position_mm": [0, 0, 0]},
+  {"id": "handle", "type": "torus", "major_radius_mm": 22, "minor_radius_mm": 6, "position_mm": [0, 43, 0], "rotation_deg": [0, 90, 0]}
+], "operations": [{"op": "union", "target_id": "handle"}]}
+
+BEFORE ANSWERING, check your own primitives array against the request one more time: for every feature word in the request (handle, hook, leg, wheel, spout, wing, ear, tail, boss, foot, arm, strap, hinge, lid), confirm there is a primitive for it AND an operation referencing that primitive's id. A primitives array that only describes the main body when the request named an additional feature is incomplete -- add the missing primitive and operation before responding, never answer with the feature silently left out.
+
 Respond with ONLY one JSON object: {"primitives": [...], "operations": [...]}. No prose, no explanation, no markdown fences, no extra top-level keys.
 
 /no_think"""
@@ -399,3 +409,129 @@ def decompose_freeform_prompt(object_description: str, model_path: Path = MODEL_
         return _parse_freeform(raw, object_description)
     except Exception:
         return _fallback_spec(object_description, raw)
+
+
+# ---------------- Stage A(b): optional clarify step ----------------
+# Mitsugen's own independent analogue of llm_decompose.py's
+# ask_clarifying_questions/fold_answers_into_prompt -- same OPTIONAL,
+# never-raises, never-blocks shape (a caller can always skip straight
+# to decompose_freeform_prompt with the original text), but with its
+# own system prompt scoped to THIS module's own primitive vocabulary
+# and concerns (which primitive a feature should be, how many of a
+# repeated feature, overall size for a custom object), never a mode of
+# or an import from llm_decompose.py.
+
+_CLARIFY_SYSTEM_PROMPT = """You are reviewing a request for a 3D-printable object before decomposing it into simple geometric primitives (box, cylinder, sphere, cone, torus) combined with boolean operations. Given the request, decide whether you need more information before decomposing it, and if so, ask up to 3 short, specific questions -- the kind that would actually change which primitives get used or how they're arranged, not generic follow-ups.
+
+Only ask about things that actually change the decomposition:
+- A missing overall size for a CUSTOM object with no sensible typical size (not a named everyday object like a mug, vase, bottle, or toy car).
+- An ambiguous count of a repeated feature the request itself implies (how many legs, how many spokes, how many wheels) when it isn't stated.
+- Whether a named feature's own shape is genuinely ambiguous given the request's own wording (rare -- most named features, like "a handle" or "a hook", have one obvious shape and need no question).
+
+Do NOT ask about dimensions for a well-known everyday object (a mug, a vase, a bottle, a toy car, a bracket) -- typical real-world sizing is used automatically. Do NOT ask about anything this primitive vocabulary cannot represent anyway: material, color, surface finish, texture, or printing settings.
+
+If the request already gives enough to decompose (even using typical sizing for a named everyday object), return an empty list. Most requests need zero questions.
+
+Example 1 -- request: "a toy car". A well-known object with sensible typical sizing and no ambiguous repeated feature (a car has 4 wheels by default). Correct output: {"questions": []}
+
+Example 2 -- request: "a stand with some legs". A custom object with no typical size and an unstated leg count. Correct output: {"questions": ["Roughly how big should this be overall (in mm)?", "How many legs?"]}
+
+Respond with ONLY a JSON object: {"questions": [...]}. No other text, no explanation.
+
+/no_think"""
+
+_CLARIFY_JSON_SCHEMA = json.dumps({
+    "type": "object",
+    "properties": {"questions": {"type": "array", "items": {"type": "string"}, "maxItems": 3}},
+    "required": ["questions"],
+})
+
+_clarify_grammar: Any = None
+
+
+def _get_clarify_grammar():
+    global _clarify_grammar
+    if _clarify_grammar is None:
+        from llama_cpp import LlamaGrammar
+
+        _clarify_grammar = LlamaGrammar.from_json_schema(_CLARIFY_JSON_SCHEMA, verbose=False)
+    return _clarify_grammar
+
+
+@dataclass
+class ClarifyResult:
+    questions: list[str]
+    raw_llm_output: str
+
+
+def _find_clarify_shaped_objects(text: str) -> list[dict]:
+    """Brace-balanced scan for a {"questions": [...]} object -- the SAME
+    scanning technique _find_schema_shaped_objects above uses, but
+    against this different schema (a "questions" list, not a
+    "primitives" list) -- kept as its own small function rather than
+    overloading the primitives-shaped one with an extra parameter."""
+    candidates: list[dict] = []
+    depth = 0
+    start = None
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start is not None:
+                    candidate_text = text[start : i + 1]
+                    try:
+                        parsed = json.loads(candidate_text)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(parsed, dict) and isinstance(parsed.get("questions"), list):
+                        candidates.append(parsed)
+    return candidates
+
+
+def ask_clarifying_questions(object_description: str, model_path: Path = MODEL_PATH, max_questions: int = 3) -> ClarifyResult:
+    """Never raises: any failure (model load, inference, or parsing) is
+    treated the same as "no questions needed" -- an optional step that
+    could itself crash or block generation would defeat the point of
+    it being optional."""
+    try:
+        llm = _get_llm(model_path)
+        try:
+            grammar = _get_clarify_grammar()
+        except Exception:
+            grammar = None
+        response = llm.create_chat_completion(
+            messages=[
+                {"role": "system", "content": _CLARIFY_SYSTEM_PROMPT},
+                {"role": "user", "content": object_description},
+            ],
+            temperature=0.2, max_tokens=512, repeat_penalty=1.15, grammar=grammar,
+        )
+        raw = response["choices"][0]["message"]["content"] or ""
+    except Exception:
+        return ClarifyResult(questions=[], raw_llm_output="")
+
+    answer_segment = raw.rsplit("</think>", 1)[-1]
+    candidates = _find_clarify_shaped_objects(answer_segment)
+    if not candidates:
+        return ClarifyResult(questions=[], raw_llm_output=raw)
+    questions = [str(q).strip() for q in candidates[0]["questions"] if str(q).strip()]
+    return ClarifyResult(questions=questions[:max_questions], raw_llm_output=raw)
+
+
+def fold_answers_into_prompt(object_description: str, qa_pairs: list[tuple[str, str]]) -> str:
+    """Combines the original description with the user's answers into
+    one enriched description -- a plain string append, so
+    decompose_freeform_prompt never needs its own code path for "a
+    clarify stage happened." Independent copy of the same simple
+    technique llm_decompose.py's own fold_answers_into_prompt uses --
+    there is no CAD-specific (or Mitsugen-specific) logic in a plain
+    string join worth importing across the architectural boundary for."""
+    answered = [(q, a) for q, a in qa_pairs if a and a.strip()]
+    if not answered:
+        return object_description
+    details = "\n".join(f"- {q} {a.strip()}" for q, a in answered)
+    return f"{object_description}\n\nAdditional details:\n{details}"

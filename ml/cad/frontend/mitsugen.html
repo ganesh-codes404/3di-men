@@ -86,6 +86,20 @@
   .btn-row { display: flex; gap: 8px; }
   .btn-row button { flex: 1; }
 
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center;
+    padding: 24px; background: rgba(8, 9, 13, 0.62); backdrop-filter: blur(6px);
+  }
+  .modal-overlay.show { display: flex; }
+  #mitsugenClarifyCard { width: 100%; max-width: 440px; max-height: 80vh; overflow-y: auto; box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--border-soft); }
+  .q-block { display: flex; flex-direction: column; gap: 5px; }
+  .q-label { font-size: 12px; color: var(--text); line-height: 1.4; }
+  .q-block input {
+    background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 7px;
+    padding: 8px 10px; font-size: 12.5px; font-family: inherit;
+  }
+  .q-block input:focus { outline: none; border-color: var(--accent-2); }
+
   .badge { border-radius: 999px; padding: 3px 11px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); display: inline-block; }
   .badge.PASS { background: var(--ok-bg); color: var(--ok); }
   .badge.INCOMPLETE { background: var(--warn-bg); color: var(--warn); }
@@ -207,6 +221,17 @@
     <div id="statusLine"></div>
   </div>
 </div>
+</div>
+
+<div id="mitsugenClarifyOverlay" class="modal-overlay">
+  <div class="card" id="mitsugenClarifyCard" role="dialog" aria-modal="true" aria-labelledby="mitsugenClarifyTitle">
+    <div class="card-title" id="mitsugenClarifyTitle">A few quick questions</div>
+    <div id="mitsugenQuestionsList"></div>
+    <div class="btn-row">
+      <button class="secondary" id="mitsugenSkipBtn">Skip &amp; generate as-is</button>
+      <button class="primary" id="mitsugenAnswerBuildBtn">Generate</button>
+    </div>
+  </div>
 </div>
 
 <script type="importmap">
@@ -332,14 +357,51 @@ function renderSliceStrip(slices) {
     `Slice ${slices[0].slice_id}: height 0% (${slices[0].position_mm.toFixed(1)}mm), radius ${slices[0].radius_mm.toFixed(1)}mm`;
 }
 
+const mitsugenClarifyOverlay = document.getElementById('mitsugenClarifyOverlay');
+const mitsugenQuestionsListEl = document.getElementById('mitsugenQuestionsList');
+let mitsugenPendingQuestions = [];
+
 async function generate() {
   const prompt = document.getElementById('prompt').value.trim();
   if (!prompt) { setStatus('type a prompt first', true); return; }
 
   document.getElementById('generateBtn').disabled = true;
+  mitsugenClarifyOverlay.classList.remove('show');
+  setStatus('checking whether anything needs clarifying…');
+  try {
+    const res = await fetch('/api/mitsugen/clarify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `clarify failed (HTTP ${res.status})`);
+
+    mitsugenPendingQuestions = data.questions || [];
+    if (mitsugenPendingQuestions.length === 0) {
+      await runMitsugenGenerate([]);
+    } else {
+      mitsugenQuestionsListEl.innerHTML = '';
+      mitsugenPendingQuestions.forEach((q, i) => {
+        const block = document.createElement('div');
+        block.className = 'q-block';
+        block.innerHTML = `<label class="q-label">${q}</label><input type="text" data-i="${i}" placeholder="your answer (optional)" />`;
+        mitsugenQuestionsListEl.appendChild(block);
+      });
+      mitsugenClarifyOverlay.classList.add('show');
+      mitsugenQuestionsListEl.querySelector('input')?.focus();
+      setStatus('answer what you can, or skip straight to generating');
+      document.getElementById('generateBtn').disabled = false;
+    }
+  } catch (err) {
+    setStatus('Error: ' + err.message, true);
+    document.getElementById('generateBtn').disabled = false;
+  }
+}
+
+async function runMitsugenGenerate(answers) {
+  mitsugenClarifyOverlay.classList.remove('show');
+  const prompt = document.getElementById('prompt').value.trim();
+  document.getElementById('generateBtn').disabled = true;
   setStatus('generating…');
   const body = {
-    prompt, max_slices: Number(document.getElementById('maxSlices').value),
+    prompt, answers, max_slices: Number(document.getElementById('maxSlices').value),
     tolerance_fraction: Number(document.getElementById('tolerance').value) / 100,
     hollow: document.getElementById('hollowCheckbox').checked,
     wall_thickness_mm: Number(document.getElementById('wallThickness').value),
@@ -366,6 +428,21 @@ async function generate() {
     document.getElementById('generateBtn').disabled = false;
   }
 }
+
+document.getElementById('mitsugenSkipBtn').addEventListener('click', () => runMitsugenGenerate([]));
+document.getElementById('mitsugenAnswerBuildBtn').addEventListener('click', () => {
+  const answers = mitsugenPendingQuestions.map((q, i) => {
+    const input = mitsugenQuestionsListEl.querySelector(`input[data-i="${i}"]`);
+    return { question: q, answer: input ? input.value : '' };
+  });
+  runMitsugenGenerate(answers);
+});
+mitsugenClarifyOverlay.addEventListener('click', e => {
+  if (e.target === mitsugenClarifyOverlay) runMitsugenGenerate([]);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && mitsugenClarifyOverlay.classList.contains('show')) runMitsugenGenerate([]);
+});
 
 function renderResult(data) {
   document.getElementById('statusCard').style.display = 'flex';

@@ -303,3 +303,55 @@ def test_model_path_own_override_still_wins_over_the_shared_one(monkeypatch):
         monkeypatch.delenv("MODEL_PATH", raising=False)
         monkeypatch.delenv("MITSUGEN_FREEFORM_MODEL_PATH", raising=False)
         importlib.reload(ff)
+
+
+# ---------------- clarify stage: Mitsugen's own independent analogue of llm_decompose.py's ask_clarifying_questions ----------------
+
+def test_find_clarify_shaped_objects_parses_a_well_formed_questions_object():
+    from mitsugen.freeform import _find_clarify_shaped_objects
+
+    candidates = _find_clarify_shaped_objects('{"questions": ["Roughly how big should this be?", "How many legs?"]}')
+    assert len(candidates) == 1
+    assert candidates[0]["questions"] == ["Roughly how big should this be?", "How many legs?"]
+
+
+def test_find_clarify_shaped_objects_strips_qwen3_reasoning_and_ignores_unrelated_objects():
+    from mitsugen.freeform import _find_clarify_shaped_objects
+
+    text = '<think>the user wants {"primitives": [1]} something</think>{"questions": []}'
+    # _find_clarify_shaped_objects itself doesn't strip </think> (that's ask_clarifying_questions'
+    # own job, mirroring _extract_json_object) -- but it must still ignore an object shaped like a
+    # freeform decomposition (no "questions" key) even when scanning the whole string.
+    candidates = _find_clarify_shaped_objects(text)
+    assert len(candidates) == 1
+    assert candidates[0]["questions"] == []
+
+
+def test_fold_answers_into_prompt_appends_only_answered_questions():
+    from mitsugen.freeform import fold_answers_into_prompt
+
+    enriched = fold_answers_into_prompt("a stand with some legs", [("How many legs?", "4"), ("Color?", "")])
+    assert "a stand with some legs" in enriched
+    assert "How many legs? 4" in enriched
+    assert "Color?" not in enriched  # unanswered -- never folded in
+
+
+def test_fold_answers_into_prompt_is_a_noop_with_no_real_answers():
+    from mitsugen.freeform import fold_answers_into_prompt
+
+    assert fold_answers_into_prompt("a toy car", []) == "a toy car"
+    assert fold_answers_into_prompt("a toy car", [("Q?", "")]) == "a toy car"
+
+
+def test_ask_clarifying_questions_never_raises_on_llm_failure(monkeypatch):
+    """Same never-raises discipline as decompose_freeform_prompt -- an
+    optional step that could itself crash would defeat the point of
+    being optional."""
+    import mitsugen.freeform as ff
+
+    def broken_get_llm(model_path=None):
+        raise RuntimeError("model not found")
+
+    monkeypatch.setattr(ff, "_get_llm", broken_get_llm)
+    result = ff.ask_clarifying_questions("a stand with some legs")
+    assert result.questions == []

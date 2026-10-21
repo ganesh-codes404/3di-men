@@ -641,14 +641,42 @@ def mitsugen_page():
     return send_from_directory(Path(__file__).resolve().parent / "frontend", "mitsugen.html")
 
 
+@app.route("/api/mitsugen/clarify", methods=["POST"])
+def api_mitsugen_clarify():
+    """Mitsugen's own clarify stage -- same optional, never-blocking
+    shape as 3di-men's /api/clarify, via mitsugen/freeform.py's own
+    independent ask_clarifying_questions (not llm_decompose.py's)."""
+    from mitsugen.freeform import ask_clarifying_questions
+
+    body = request.get_json(silent=True) or {}
+    prompt = (body.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"error": "prompt is required"}), 400
+
+    try:
+        result = ask_clarifying_questions(prompt)
+    except Exception as exc:
+        return jsonify({"error": f"{type(exc).__name__}: {exc}"}), 500
+
+    return jsonify({"questions": result.questions})
+
+
 @app.route("/api/mitsugen/generate", methods=["POST"])
 def api_mitsugen_generate():
+    from mitsugen.freeform import fold_answers_into_prompt
     from mitsugen.pipeline import generate_mitsugen_model
 
     body = request.get_json(silent=True) or {}
     prompt = (body.get("prompt") or "").strip()
     if not prompt:
         return jsonify({"error": "prompt is required"}), 400
+
+    # answers is an optional list of {question, answer} from Mitsugen's
+    # own clarify step above -- folded into the prompt text before
+    # generation, same convention /api/build already uses for 3di-men.
+    answers = body.get("answers") or []
+    qa_pairs = [(a.get("question", ""), a.get("answer", "")) for a in answers if isinstance(a, dict)]
+    prompt = fold_answers_into_prompt(prompt, qa_pairs)
 
     try:
         max_slices = int(body.get("max_slices", 12))
