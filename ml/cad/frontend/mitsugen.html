@@ -450,7 +450,8 @@ function renderResult(data) {
   badge.className = 'badge ' + data.overall_status;
   badge.textContent = data.overall_status;
   const modeBadge = document.getElementById('modeBadge');
-  modeBadge.textContent = data.construction_mode === 'primitive_composition' ? 'primitive composition' : 'radial sweep (exact)';
+  const modeLabels = { primitive_composition: 'primitive composition', neural_generation: 'neural generation (TripoSR)', radial_sweep: 'radial sweep (exact)' };
+  modeBadge.textContent = modeLabels[data.construction_mode] || data.construction_mode;
   document.getElementById('statusError').textContent = data.error || '';
 
   document.getElementById('specCard').style.display = data.spec ? 'flex' : 'none';

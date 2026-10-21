@@ -56,7 +56,7 @@ class ValidationFinding:
 
 @dataclass
 class MitsugenResult:
-    construction_mode: str  # "radial_sweep" | "primitive_composition"
+    construction_mode: str  # "radial_sweep" | "primitive_composition" | "neural_generation"
     spec: "MitsugenShapeSpec | None"  # set when construction_mode == "radial_sweep"
     freeform_spec: "FreeformSpec | None"  # set when construction_mode == "primitive_composition"
     plan: "SlicePlan | None"
@@ -315,15 +315,93 @@ def _primitive_composition_path(
     )
 
 
+def _neural_generation_path(
+    prompt: str, hollow: bool, printer_build_volume_mm: "tuple[float, float, float] | None",
+) -> MitsugenResult:
+    """Route B: a genuinely organic/complex object, attempted via
+    mitsugen/neural_adapter.py's TripoSR pipeline instead of primitive
+    composition. Never raises -- if the neural backend isn't available
+    on this machine (no CUDA, dependencies/weights missing) or the
+    generation call itself fails, falls through to the SAME
+    primitive-composition path everything else uses, with a disclosed
+    finding explaining why -- never a silent swap, and never a bare
+    failure when a real (if approximate) fallback exists."""
+    from mitsugen.neural_adapter import check_neural_generation_available, generate_neural_mesh
+
+    availability = check_neural_generation_available()
+    if not availability.available:
+        fallback = _primitive_composition_path(prompt, hollow, printer_build_volume_mm)
+        fallback.findings.insert(0, ValidationFinding(
+            requirement="genuinely organic/complex objects are best served by neural generation (Route B)",
+            expected="attempted", measured=f"unavailable on this machine ({availability.reason}) -- approximated via primitive composition instead",
+            passed=True, method="mitsugen/neural_adapter.py's own availability check",
+        ))
+        return fallback
+
+    neural_result = generate_neural_mesh(prompt)
+    if neural_result.error:
+        fallback = _primitive_composition_path(prompt, hollow, printer_build_volume_mm)
+        fallback.findings.insert(0, ValidationFinding(
+            requirement="genuinely organic/complex objects are best served by neural generation (Route B)",
+            expected="attempted", measured=f"neural generation failed ({neural_result.error}) -- approximated via primitive composition instead",
+            passed=False, method="mitsugen/neural_adapter.py's own generate_neural_mesh",
+        ))
+        return fallback
+
+    build = BuildResult(mesh=neural_result.mesh, profiles=[], hollow_applied=False, error=None)
+    findings = [ValidationFinding(
+        requirement="genuinely organic/complex objects are best served by neural generation (Route B)",
+        expected="attempted", measured=f"generated via TripoSR (reference image: {neural_result.reference_image_path})",
+        passed=True, method="mitsugen/neural_adapter.py's own generate_neural_mesh",
+    )]
+    if hollow:
+        findings.append(ValidationFinding(
+            requirement="hollow interior was requested", expected="applied",
+            measured="not supported on the neural-generation path -- built as a solid instead",
+            passed=False, method="n/a",
+        ))
+
+    is_watertight = bool(build.mesh.is_watertight)
+    volume = float(build.mesh.volume) if is_watertight else 0.0
+    findings.append(ValidationFinding(
+        requirement="exported geometry is a valid watertight solid", expected="watertight, volume > 0",
+        measured=f"watertight={is_watertight}, volume={volume:.0f}mm3",
+        passed=bool(is_watertight and volume > 0), method="trimesh topology properties",
+    ))
+
+    printability_dict, printability_finding = _analyze_printability(build.mesh, printer_build_volume_mm)
+    findings.append(printability_finding)
+
+    hard_failures = [f for f in findings if not f.passed and f.requirement in (
+        "exported geometry is a valid watertight solid",
+        "fits the selected printer's build volume",
+    )]
+    soft_failures = [f for f in findings if not f.passed and f not in hard_failures]
+    overall_status = "FAIL" if hard_failures else ("INCOMPLETE" if soft_failures else "PASS")
+
+    return MitsugenResult(
+        construction_mode="neural_generation", spec=None, freeform_spec=None, plan=None, build=build,
+        printability=printability_dict, findings=findings, overall_status=overall_status, error=None,
+    )
+
+
 def generate_mitsugen_model(
     prompt: str, max_slices: int = 12, tolerance_fraction: float = 0.05,
     hollow: bool = False, wall_thickness_mm: "float | None" = None,
     printer_build_volume_mm: "tuple[float, float, float] | None" = None,
 ) -> MitsugenResult:
     """Entry point. Routes to the precise radial_sweep path for a plain
-    body of revolution, else to primitive_composition (see this module's
-    own docstring and _requires_freeform). Never raises."""
+    body of revolution, to neural_generation (Route B) for a genuinely
+    organic/complex object when that backend is configured, else to
+    primitive_composition (see this module's own docstring,
+    _requires_freeform, and neural_adapter.requires_neural_generation).
+    Never raises."""
     vessel_spec = compose_spec_from_prompt(prompt, default_max_slices=max_slices)
-    if _requires_freeform(prompt, vessel_spec):
-        return _primitive_composition_path(prompt, hollow, printer_build_volume_mm)
-    return _radial_sweep_path(vessel_spec, tolerance_fraction, hollow, wall_thickness_mm, printer_build_volume_mm)
+    if not _requires_freeform(prompt, vessel_spec):
+        return _radial_sweep_path(vessel_spec, tolerance_fraction, hollow, wall_thickness_mm, printer_build_volume_mm)
+
+    from mitsugen.neural_adapter import requires_neural_generation
+
+    if requires_neural_generation(prompt):
+        return _neural_generation_path(prompt, hollow, printer_build_volume_mm)
+    return _primitive_composition_path(prompt, hollow, printer_build_volume_mm)

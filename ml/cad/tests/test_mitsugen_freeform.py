@@ -403,3 +403,54 @@ def test_pattern_operation_axis_defaults_to_z_when_missing_or_invalid():
     ], "operations": [{"op": "linear_pattern", "target_id": "rib", "count": 3, "spacing_mm": 18, "axis": "diagonal"}]}"""
     spec = _parse_freeform(raw, "a plate with ribs")
     assert spec.operations[0].axis == "z"
+
+
+# ---------------- Route B routing: neural generation, with an honest fallback when unavailable ----------------
+
+def test_organic_prompt_falls_back_to_primitive_composition_with_a_disclosed_reason(monkeypatch):
+    """On a machine with no neural backend configured (true of every
+    machine by default, and genuinely true of the one these tests run
+    on -- no CUDA GPU), an organic/figurine-style request must still
+    produce a REAL result via the existing, proven primitive-
+    composition path -- never a bare failure just because the ideal
+    path isn't available -- with a disclosed finding explaining
+    specifically why Route B wasn't used."""
+    import mitsugen.pipeline as pipeline_mod
+
+    def fake_decompose(prompt, model_path=None):
+        from mitsugen.freeform import FreeformSpec, PrimitiveSpec
+
+        return FreeformSpec(object_description=prompt, primitives=[PrimitiveSpec(id="body", kind="sphere", radius_mm=30.0)], operations=[])
+
+    monkeypatch.setenv("MITSUGEN_NEURAL_ENABLED", "0")
+    original = pipeline_mod.decompose_freeform_prompt
+    pipeline_mod.decompose_freeform_prompt = fake_decompose
+    try:
+        result = generate_mitsugen_model("a cat figurine")
+        assert result.construction_mode == "primitive_composition"
+        route_b_finding = next(f for f in result.findings if "Route B" in f.requirement)
+        assert route_b_finding.passed is True  # unavailability is disclosed, not treated as this result's own failure
+        assert "unavailable" in route_b_finding.measured
+    finally:
+        pipeline_mod.decompose_freeform_prompt = original
+
+
+def test_non_organic_prompt_never_attempts_route_b_at_all():
+    """A plain Route A request (no organic/figurine keyword) must not
+    even check neural availability -- confirmed by the absence of any
+    Route B finding, not just by the construction_mode."""
+    import mitsugen.pipeline as pipeline_mod
+
+    def fake_decompose(prompt, model_path=None):
+        from mitsugen.freeform import FreeformSpec, PrimitiveSpec
+
+        return FreeformSpec(object_description=prompt, primitives=[PrimitiveSpec(id="body", kind="box", size_mm=(40.0, 40.0, 40.0))], operations=[])
+
+    original = pipeline_mod.decompose_freeform_prompt
+    pipeline_mod.decompose_freeform_prompt = fake_decompose
+    try:
+        result = generate_mitsugen_model("a wall hook with a mounting plate")
+        assert result.construction_mode == "primitive_composition"
+        assert not any("Route B" in f.requirement for f in result.findings)
+    finally:
+        pipeline_mod.decompose_freeform_prompt = original
