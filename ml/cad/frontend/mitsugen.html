@@ -415,6 +415,7 @@ function renderResult(data) {
     data.freeform.primitives.forEach(p => {
       const dims = p.kind === 'box' ? `${p.size_mm.map(v => v.toFixed(0)).join('×')}mm`
         : p.kind === 'sphere' ? `r${p.radius_mm.toFixed(0)}mm`
+        : p.kind === 'torus' ? `major r${p.major_radius_mm.toFixed(0)}×minor r${p.minor_radius_mm.toFixed(0)}mm`
         : `r${p.radius_mm.toFixed(0)}×h${p.height_mm.toFixed(0)}mm`;
       const row = document.createElement('div');
       row.textContent = `${p.id} — ${p.kind}, ${dims}, at (${p.position_mm.map(v => v.toFixed(0)).join(', ')})`;

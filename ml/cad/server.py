@@ -720,7 +720,8 @@ def api_mitsugen_generate():
             "auto_unioned_ids": result.freeform_spec.auto_unioned_ids,
             "primitives": [
                 {"id": p.id, "kind": p.kind, "position_mm": p.position_mm, "rotation_deg": p.rotation_deg,
-                 "size_mm": p.size_mm, "radius_mm": p.radius_mm, "height_mm": p.height_mm}
+                 "size_mm": p.size_mm, "radius_mm": p.radius_mm, "height_mm": p.height_mm,
+                 "major_radius_mm": p.major_radius_mm, "minor_radius_mm": p.minor_radius_mm}
                 for p in result.freeform_spec.primitives
             ],
             "operations": [{"op": s.op, "target_id": s.target_id} for s in result.freeform_spec.operations],
