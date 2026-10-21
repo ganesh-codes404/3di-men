@@ -32,9 +32,34 @@ from typing import Any
 PRIMITIVE_KINDS = {"box", "cylinder", "sphere", "cone", "torus"}
 BOOLEAN_OPS = {"union", "difference", "intersection"}
 
+# Confirmed real, severe bug this fixes (live-reported "Mitsugen
+# generates cubes for nearly every prompt"): this used to read ONLY its
+# own MITSUGEN_FREEFORM_MODEL_PATH, never the shared MODEL_PATH env var
+# llm_decompose.py (and this whole project's .env/.env.rtx4060.example
+# profiles) already use. On the RTX4060 laptop profile specifically,
+# .env sets MODEL_PATH=models/Qwen3-8B-Q4_K_M.gguf (a deliberately
+# BIGGER model than the Mac's default, see .env.rtx4060.example's own
+# comment) -- but MITSUGEN_FREEFORM_MODEL_PATH is never set there, so
+# this fell through to the Mac-specific hardcoded Qwen3-4B path, which
+# does not exist on that machine. Every single freeform decomposition
+# call on that machine failed to even load the model, was caught by
+# decompose_freeform_prompt's own try/except, and silently (from the
+# user's perspective -- the fallback IS disclosed in the result, but
+# easy to miss) substituted the single default box -- for EVERY
+# non-vase prompt, since the vase/bottle/bowl/cup radial-sweep path is
+# pure regex and never calls an LLM at all, so it alone kept working.
+# Falling back through the SHARED MODEL_PATH before the Mac-specific
+# default (not instead of MITSUGEN_FREEFORM_MODEL_PATH, which still
+# wins if someone deliberately wants Mitsugen on a DIFFERENT model than
+# 3di-men's own CAD decomposition) fixes this without coupling the two
+# products' CODE -- only the env var NAME is shared, the same choice
+# already made for N_GPU_LAYERS/N_THREADS below.
 MODEL_PATH = Path(os.environ.get(
     "MITSUGEN_FREEFORM_MODEL_PATH",
-    str(Path(__file__).resolve().parent.parent / "models" / "qwen" / "quantized" / "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"),
+    os.environ.get(
+        "MODEL_PATH",
+        str(Path(__file__).resolve().parent.parent / "models" / "qwen" / "quantized" / "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"),
+    ),
 ))
 # This module's own context budget -- kept separately namespaced from
 # llm_decompose.py's MAX_CONTEXT (not shared) because the right VALUE

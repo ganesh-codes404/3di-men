@@ -704,6 +704,18 @@ def api_mitsugen_generate():
         "freeform": {
             "object_description": result.freeform_spec.object_description,
             "fell_back": result.freeform_spec.fell_back,
+            # Only sent when the fallback actually fired -- this is the
+            # single most actionable field for diagnosing WHY (e.g. a
+            # model-load failure reads literally "<LLM call failed:
+            # ...>" with the real exception message, see
+            # mitsugen/freeform.py's own decompose_freeform_prompt).
+            # Confirmed real need for this: a live-reported "generates
+            # cubes for nearly every prompt" turned out to be the model
+            # failing to load on a machine with a different configured
+            # model path, invisible from the UI with no way to tell
+            # "the model is wrong" apart from "the model tried and gave
+            # up" without this.
+            "fallback_reason": result.freeform_spec.raw_llm_output if result.freeform_spec.fell_back else None,
             "dropped_primitives": result.freeform_spec.dropped_primitives,
             "auto_unioned_ids": result.freeform_spec.auto_unioned_ids,
             "primitives": [

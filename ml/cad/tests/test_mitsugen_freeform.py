@@ -253,3 +253,53 @@ def test_torus_primitive_rejects_a_tube_thicker_than_the_ring_itself():
     spec = _parse_freeform(raw, "something")
     assert len(spec.primitives) == 1
     assert "bad_ring" in spec.dropped_primitives
+
+
+# ---------------- MODEL_PATH resolution (the real "generates cubes" root cause) ----------------
+
+def test_model_path_falls_back_to_the_shared_model_path_env_var(monkeypatch):
+    """Confirmed real, severe bug this guards against (live-reported
+    "Mitsugen generates cubes for nearly every prompt"): this module
+    used to read ONLY its own MITSUGEN_FREEFORM_MODEL_PATH, never the
+    shared MODEL_PATH env var llm_decompose.py and this project's own
+    .env.rtx4060.example profile already use. On that machine, .env
+    sets MODEL_PATH to a deliberately bigger model (Qwen3-8B) at a path
+    that doesn't match this module's Mac-specific hardcoded default --
+    every freeform decomposition call failed to even load the model,
+    silently falling back to the disclosed default box for every
+    non-vase prompt (the vase/bottle/bowl/cup path is pure regex and
+    never calls an LLM, which is why only THAT path kept working).
+    Re-imports the module fresh under a patched environment since
+    MODEL_PATH is resolved once at import time, not per-call."""
+    import importlib
+
+    import mitsugen.freeform as ff
+
+    monkeypatch.setenv("MODEL_PATH", "models/Qwen3-8B-Q4_K_M.gguf")
+    monkeypatch.delenv("MITSUGEN_FREEFORM_MODEL_PATH", raising=False)
+    try:
+        importlib.reload(ff)
+        assert str(ff.MODEL_PATH) == "models/Qwen3-8B-Q4_K_M.gguf"
+    finally:
+        monkeypatch.delenv("MODEL_PATH", raising=False)
+        importlib.reload(ff)  # restore the real module state for any test that runs after this one
+
+
+def test_model_path_own_override_still_wins_over_the_shared_one(monkeypatch):
+    """MITSUGEN_FREEFORM_MODEL_PATH stays a real override for the rare
+    case someone deliberately wants Mitsugen on a DIFFERENT model than
+    3di-men's own CAD decomposition -- the shared MODEL_PATH fallback
+    above must never shadow it."""
+    import importlib
+
+    import mitsugen.freeform as ff
+
+    monkeypatch.setenv("MODEL_PATH", "models/Qwen3-8B-Q4_K_M.gguf")
+    monkeypatch.setenv("MITSUGEN_FREEFORM_MODEL_PATH", "models/some-other-model.gguf")
+    try:
+        importlib.reload(ff)
+        assert str(ff.MODEL_PATH) == "models/some-other-model.gguf"
+    finally:
+        monkeypatch.delenv("MODEL_PATH", raising=False)
+        monkeypatch.delenv("MITSUGEN_FREEFORM_MODEL_PATH", raising=False)
+        importlib.reload(ff)

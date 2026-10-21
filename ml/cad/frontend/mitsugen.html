@@ -401,7 +401,9 @@ function renderResult(data) {
   if (data.freeform) {
     document.getElementById('freeformApproxNote').textContent =
       'Constructive approximation — box/cylinder/sphere/cone + boolean ops, not an exact reproduction.' +
-      (data.freeform.fell_back ? ' The LLM\'s own decomposition was unusable; a single default box was substituted.' : '');
+      (data.freeform.fell_back
+        ? ` The LLM's own decomposition was unusable; a single default box was substituted. Reason: ${data.freeform.fallback_reason || '(not disclosed)'}`
+        : '');
     const stats = document.getElementById('freeformStats');
     stats.innerHTML = '';
     renderStat(stats, 'Primitives', data.freeform.primitives.length);
