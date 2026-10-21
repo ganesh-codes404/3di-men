@@ -202,13 +202,24 @@ _HOLE_COUNT_WORDS = {
     "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
 }
-# "<count word/digit> [NNmm [diameter]] hole(s)" -- matches this project's
-# own established phrasings ("a 6mm diameter hole through it", "a corner
-# array of four holes", "four 6.6mm diameter holes, each..."). Deliberately
-# simple/permissive like extract_claimed_dimensions_mm above: a false
-# positive just means one extra claim checked, reported as unmatched if
-# nothing lines up, never a silently wrong pass/fail.
-_HOLE_COUNT_RE = re.compile(r"\b(\w+)\s+(?:[\d.]+\s*mm\s*(?:diameter\s*)?)?holes?\b", re.IGNORECASE)
+# "<count word/digit> [NNmm [diameter]] [a descriptive word] hole(s)" --
+# matches this project's own established phrasings ("a 6mm diameter hole
+# through it", "a corner array of four holes", "four 6.6mm diameter
+# holes, each...", "four 8mm diameter through-holes", "two 6mm diameter
+# mounting holes"). The trailing descriptive-word group is a SMALL,
+# EXPLICIT list, not a generic "\w+" filler -- confirmed real regression
+# from an earlier, more permissive version of this fix: a bare "any
+# word" filler can swallow the actual count word itself ("a corner
+# array of four holes" matched group(1)="array", not "four", because
+# "of"+"four" got absorbed as 2 generic filler words before "holes").
+# Restricting the filler to real descriptive/connector words that
+# actually precede "hole(s)" in practice avoids that ambiguity --
+# "of"/"four"/"array" are never in this list, so they can never be
+# mistaken for filler.
+_HOLE_DESCRIPTOR_WORDS = r"(?:through|mounting|pilot|clearance|locating|alignment|access|drain|vent|screw|bolt|counterbore|countersink|tapped|threaded)"
+_HOLE_COUNT_RE = re.compile(
+    rf"\b(\w+)\s+(?:[\d.]+\s*mm\s*(?:diameter\s*)?)?(?:{_HOLE_DESCRIPTOR_WORDS}-?\s*){{0,2}}holes?\b", re.IGNORECASE,
+)
 
 
 def extract_claimed_hole_count(description: str) -> int | None:

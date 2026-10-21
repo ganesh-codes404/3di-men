@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-PRIMITIVE_KINDS = {"box", "cylinder", "sphere", "cone"}
+PRIMITIVE_KINDS = {"box", "cylinder", "sphere", "cone", "torus"}
 BOOLEAN_OPS = {"union", "difference", "intersection"}
 
 MODEL_PATH = Path(os.environ.get(
@@ -68,6 +68,8 @@ class PrimitiveSpec:
     size_mm: "tuple[float, float, float] | None" = None  # box
     radius_mm: "float | None" = None  # cylinder / cone / sphere
     height_mm: "float | None" = None  # cylinder / cone
+    major_radius_mm: "float | None" = None  # torus: center of the ring to the center of its tube
+    minor_radius_mm: "float | None" = None  # torus: the tube's own thickness radius
 
 
 @dataclass
@@ -87,16 +89,17 @@ class FreeformSpec:
     raw_llm_output: str = ""
 
 
-_FREEFORM_SYSTEM_PROMPT = """You are decomposing a description of a physical object into a small set of simple geometric primitives (box, cylinder, sphere, cone) combined with boolean operations, for a 3D-printing CSG builder. This is a CONSTRUCTIVE APPROXIMATION: pick primitives and booleans that best resemble the object's overall form and major features. Organic, sculptural, or highly detailed surface geometry is honestly out of reach for this vocabulary -- approximate it as closely as box/cylinder/sphere/cone allow, never invent a fifth primitive type.
+_FREEFORM_SYSTEM_PROMPT = """You are decomposing a description of a physical object into a small set of simple geometric primitives (box, cylinder, sphere, cone, torus) combined with boolean operations, for a 3D-printing CSG builder. This is a CONSTRUCTIVE APPROXIMATION: pick primitives and booleans that best resemble the object's overall form and major features. Organic, sculptural, or highly detailed surface geometry is honestly out of reach for this vocabulary -- approximate it as closely as box/cylinder/sphere/cone/torus allow, never invent a sixth primitive type. Use "torus" for any curved ring/loop/handle/hook shape (a mug's handle, a key ring, a hook's curved part) -- a straight cylinder cannot represent a curve, a torus is the one primitive here that can.
 
 Use plausible real-world sizing for a named everyday object (a toy car, a mug, a bracket) even when no dimensions are given -- never an arbitrary or token-small size.
 
 Each primitive is an object with:
 - "id": a short stable string, unique within this object
-- "type": one of "box", "cylinder", "sphere", "cone"
+- "type": one of "box", "cylinder", "sphere", "cone", "torus"
 - "box" needs "size_mm": [length_x, width_y, height_z]
 - "cylinder" and "cone" need "radius_mm" and "height_mm" (a cone tapers from radius_mm at its base to a point at the top)
 - "sphere" needs "radius_mm"
+- "torus" needs "major_radius_mm" (center of the ring to the center of its tube) and "minor_radius_mm" (the tube's own thickness) -- its own local Z axis runs through the hole in the middle of the ring (like a donut lying flat), so rotate it if the ring should stand upright or face sideways
 - "position_mm": [x, y, z] -- the primitive's own CENTER in world space (every primitive spans +/- half its own size/height around this center along each axis, even the cone)
 - "rotation_deg": [x, y, z] -- optional Euler angles in degrees, applied about the primitive's own center in X-then-Y-then-Z order; omit or [0,0,0] for no rotation
 
@@ -122,6 +125,8 @@ _FREEFORM_JSON_SCHEMA = json.dumps({
                     "size_mm": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
                     "radius_mm": {"type": "number"},
                     "height_mm": {"type": "number"},
+                    "major_radius_mm": {"type": "number"},
+                    "minor_radius_mm": {"type": "number"},
                     "position_mm": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
                     "rotation_deg": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
                 },
@@ -235,6 +240,8 @@ def _parse_primitive(raw: dict) -> "PrimitiveSpec | None":
     size_mm = None
     radius_mm = None
     height_mm = None
+    major_radius_mm = None
+    minor_radius_mm = None
     if kind == "box":
         size_mm = _coerce_vec3(raw.get("size_mm"), default=None)
         if size_mm is None or any(s <= 0 for s in size_mm):
@@ -246,6 +253,14 @@ def _parse_primitive(raw: dict) -> "PrimitiveSpec | None":
             return None
         if radius_mm <= 0:
             return None
+    elif kind == "torus":
+        try:
+            major_radius_mm = float(raw.get("major_radius_mm"))
+            minor_radius_mm = float(raw.get("minor_radius_mm"))
+        except (TypeError, ValueError):
+            return None
+        if major_radius_mm <= 0 or minor_radius_mm <= 0 or minor_radius_mm >= major_radius_mm:
+            return None  # a tube thicker than the ring itself isn't a real torus -- rejected, not clamped
     else:  # cylinder / cone
         try:
             radius_mm = float(raw.get("radius_mm"))
@@ -257,6 +272,7 @@ def _parse_primitive(raw: dict) -> "PrimitiveSpec | None":
     return PrimitiveSpec(
         id=pid, kind=kind, position_mm=position_mm, rotation_deg=rotation_deg,
         size_mm=size_mm, radius_mm=radius_mm, height_mm=height_mm,
+        major_radius_mm=major_radius_mm, minor_radius_mm=minor_radius_mm,
     )
 
 

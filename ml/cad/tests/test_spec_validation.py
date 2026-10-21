@@ -192,6 +192,28 @@ def test_extract_claimed_hole_count_returns_none_when_no_holes_mentioned():
     assert extract_claimed_hole_count("a plain box with no holes at all") is None  # "no" isn't a valid count word
 
 
+def test_extract_claimed_hole_count_handles_a_descriptive_word_before_hole():
+    """Confirmed real gap (mission-brief audit): "four 8mm diameter
+    through-holes" and "two 6mm diameter mounting holes" both matched
+    NOTHING at all before this fix, since "through-"/"mounting" sat
+    directly between "diameter" and "hole(s)"."""
+    assert extract_claimed_hole_count("a rectangular plate 100mm x 80mm x 6mm with four 8mm diameter through-holes near the corners") == 4
+    assert extract_claimed_hole_count("a bracket 80mm x 50mm x 5mm with two 6mm diameter mounting holes") == 2
+
+
+def test_extract_claimed_hole_count_descriptor_word_never_swallows_the_real_count_word():
+    """Confirmed real regression from an earlier, more permissive fix
+    attempt: a generic "any word" filler between the dimension and
+    "hole(s)" could itself swallow the actual count word ("a corner
+    array of four holes" matched group(1)="array", not "four", because
+    "of"+"four" got absorbed as filler). The descriptor-word list is a
+    small, explicit set specifically so this can't happen -- re-checked
+    here as its own regression guard, separate from the simpler case
+    test_extract_claimed_hole_count_handles_word_and_digit_counts
+    already covers."""
+    assert extract_claimed_hole_count("a box with a corner array of four holes") == 4
+
+
 def test_validate_hole_count_matches_when_counts_agree():
     report = validate_hole_count_against_description(
         "a box with a corner array of four holes, each 8mm diameter", {"detected_hole_count": 4},

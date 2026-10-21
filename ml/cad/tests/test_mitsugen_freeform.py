@@ -223,3 +223,33 @@ def test_real_llm_decomposes_a_toy_car_into_a_connected_printable_solid():
     if build.mesh is not None:
         assert build.mesh.is_watertight
         assert build.mesh.body_count == 1
+
+
+# ---------------- torus: the curved-ring primitive (handles, hooks) ----------------
+
+def test_torus_primitive_parses_and_builds_a_mug_handle():
+    """Confirmed real vocabulary gap (mission-brief audit): a straight
+    cylinder/cone cannot represent a curved handle or hook at all -- a
+    live test of "a wall hook" produced a cone standing in for the
+    hook's curve, visibly wrong. torus is the one primitive here that
+    can actually represent a ring/loop/curve."""
+    raw = """{"primitives": [
+      {"id": "body", "type": "cylinder", "radius_mm": 40, "height_mm": 95, "position_mm": [0, 0, 0]},
+      {"id": "handle", "type": "torus", "major_radius_mm": 25, "minor_radius_mm": 6, "position_mm": [0, 45, 10], "rotation_deg": [0, 90, 0]}
+    ], "operations": [{"op": "union", "target_id": "handle"}]}"""
+    spec = _parse_freeform(raw, "a mug with a handle")
+    assert len(spec.primitives) == 2
+    build = build_freeform_solid(spec)
+    assert build.error is None
+    assert build.mesh.is_watertight
+    assert build.mesh.body_count == 1
+
+
+def test_torus_primitive_rejects_a_tube_thicker_than_the_ring_itself():
+    raw = """{"primitives": [
+      {"id": "body", "type": "box", "size_mm": [40, 40, 40], "position_mm": [0, 0, 0]},
+      {"id": "bad_ring", "type": "torus", "major_radius_mm": 10, "minor_radius_mm": 15, "position_mm": [0, 0, 0]}
+    ], "operations": [{"op": "union", "target_id": "bad_ring"}]}"""
+    spec = _parse_freeform(raw, "something")
+    assert len(spec.primitives) == 1
+    assert "bad_ring" in spec.dropped_primitives

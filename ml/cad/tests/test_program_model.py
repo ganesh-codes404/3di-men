@@ -92,9 +92,10 @@ def test_predict_program_hybrid_does_not_force_a_weakly_matched_rag_sequence(tin
     (which can include ops like add_cylinder or round_box_edges that share
     no real connection to the actual request) onto a text with no genuinely
     close neighbor at all is exactly how an unrequested cylinder or rounded
-    block could reach a built model. Below bundle.config.ood_similarity_
-    threshold, the classifier's own (unforced) program must be used
-    instead, even when it disagrees with RAG's retrieved sequence."""
+    block could reach a built model. Below bundle.config.
+    rag_override_similarity_threshold, the classifier's own (unforced)
+    program must be used instead, even when it disagrees with RAG's
+    retrieved sequence."""
     from program_model import ProgramModelConfig, predict_program, predict_program_hybrid, train_program_model
 
     bundle, _ = train_program_model(tiny_program_dataset, ProgramModelConfig(seed=0))
@@ -111,10 +112,14 @@ def test_predict_program_hybrid_does_not_force_a_weakly_matched_rag_sequence(tin
 
 def test_predict_program_hybrid_still_uses_rag_when_the_match_is_strong(tiny_program_dataset):
     """The other half of the same gate: a genuinely close match (similarity
-    at/above ood_similarity_threshold) that disagrees with the classifier
-    must still win -- this is the hybrid's own documented value-add
-    (measured gains on hand_written/generic_composition prompts), and the
-    new floor must not quietly disable it for every disagreement."""
+    at/above rag_override_similarity_threshold) that disagrees with the
+    classifier must still win -- this is the hybrid's own documented
+    value-add (measured gains on hand_written/generic_composition
+    prompts), and the floor must not quietly disable it for every
+    disagreement. Uses rag_override_similarity_threshold specifically
+    (NOT ood_similarity_threshold -- see ProgramModelConfig's own
+    docstring for why these are now two separate floors, not one reused
+    number)."""
     from program_model import ProgramModelConfig, predict_program, predict_program_hybrid, train_program_model
 
     bundle, _ = train_program_model(tiny_program_dataset, ProgramModelConfig(seed=0))
@@ -122,7 +127,7 @@ def test_predict_program_hybrid_still_uses_rag_when_the_match_is_strong(tiny_pro
     classifier_program = predict_program(bundle, text)
     disagreeing_ops = ("add_cylinder", "finalize")  # short, valid, and different from the plate's own prediction
     assert tuple(c.op for c in classifier_program) != disagreeing_ops
-    strong_sim = bundle.config.ood_similarity_threshold + 0.1
+    strong_sim = bundle.config.rag_override_similarity_threshold + 0.1
 
     with patch("program_model.retrieve_nearest_op_sequence", return_value=(disagreeing_ops, strong_sim)):
         program, used_rag = predict_program_hybrid(bundle, text)
@@ -169,3 +174,93 @@ def test_malformed_handcrafted_program_is_rejected_not_silently_repaired():
     result = Sandbox.execute(program)
     assert result.status == "rejected"
     assert result.mesh is None
+
+
+def test_override_bore_hole_dimensions_uses_the_literal_diameter_near_bore_or_hole():
+    """Feature-level analogue of the base-shape override: confirmed real
+    gap (mission-brief audit, live-reproduced against the actual trained
+    bundle) -- a feature op's own explicit bore/hole diameter had no
+    override mechanism at all, unlike the base shape's own primary
+    dimensions. "12mm diameter bore" -> radius 6.0, regardless of what
+    the (possibly very wrong) regressor predicted."""
+    from program_model import _override_bore_hole_dimensions
+
+    text = "a cylinder, 40mm diameter, 30mm tall, with a 12mm diameter bore through it"
+    args = {"target": 0, "radius": 99.0, "depth": 5.0, "center": [0, 0, 0], "axis": "z"}
+    overridden = _override_bore_hole_dimensions("drill_hole", args, text)
+    assert overridden["radius"] == 6.0
+    assert overridden["depth"] == 5.0  # untouched -- this override is scoped to the radius field only
+
+
+def test_override_bore_hole_dimensions_handles_bore_before_the_number_too():
+    from program_model import _override_bore_hole_dimensions
+
+    text = "a boss with a bore of 8mm through the plate"
+    args = {"target": 0, "direction": "+z", "offset_u": 0.0, "offset_v": 0.0, "boss_radius": 20.0, "boss_height": 10.0, "bore_radius": 99.0}
+    overridden = _override_bore_hole_dimensions("add_boss_with_bore", args, text)
+    assert overridden["bore_radius"] == 4.0
+
+
+def test_override_bore_hole_dimensions_does_nothing_without_an_explicit_bore_claim():
+    """Never a guessed mapping: with no "Nmm bore/hole" phrasing at all,
+    the regressor's own prediction is left untouched."""
+    from program_model import _override_bore_hole_dimensions
+
+    args = {"target": 0, "radius": 7.5, "depth": 5.0, "center": [0, 0, 0], "axis": "z"}
+    overridden = _override_bore_hole_dimensions("drill_hole", args, "a cylinder 40mm diameter, 30mm tall")
+    assert overridden is args or overridden["radius"] == 7.5
+
+
+def test_override_bore_hole_dimensions_does_not_apply_to_unrelated_ops():
+    """Scoped to the small, explicit _BORE_HOLE_RADIUS_FIELD map -- an op
+    with no corresponding entry (e.g. the base shape itself) is passed
+    through unchanged, never guessed at."""
+    from program_model import _override_bore_hole_dimensions
+
+    args = {"radius": 20.0, "height": 30.0, "axis": "z", "center": [0, 0, 0]}
+    overridden = _override_bore_hole_dimensions("add_cylinder", args, "a cylinder with a 12mm diameter bore")
+    assert overridden is args
+
+
+def test_override_gear_dimensions_matches_every_field_by_its_own_label():
+    """Confirmed real, severe gap (mission-brief audit, live-reproduced
+    against the actual trained bundle): _override_primary_shape_dimensions
+    never fires for a gear at all (module/tooth_count have no "mm" suffix,
+    so len(literals) < len(numeric_fields)), and training's own
+    _render_gear (data/prompt_dataset.py) shuffles clause order, so
+    position wouldn't be safe even if it did fire. Every one of the 4
+    stated numbers must land exactly, regardless of order."""
+    from program_model import _override_gear_dimensions
+
+    text = "a gear, module 2, 20 teeth, 10mm face width, with a 6mm bore"
+    args = {"module_mm": 2.54, "tooth_count": 21.0, "face_width_mm": 12.29, "bore_diameter_mm": 7.46, "pressure_angle_deg": 20.0, "center": [0, 0, 0]}
+    overridden = _override_gear_dimensions("add_gear_profile", args, text)
+    assert overridden["module_mm"] == 2.0
+    assert overridden["tooth_count"] == 20
+    assert overridden["face_width_mm"] == 10.0
+    assert overridden["bore_diameter_mm"] == 6.0
+    assert overridden["pressure_angle_deg"] == 20.0  # no claim in the text -- regressor's own value kept
+
+
+def test_override_gear_dimensions_is_order_independent():
+    """The exact scenario _override_primary_shape_dimensions cannot
+    handle: training shuffles clause order, so "20 teeth" can appear
+    before OR after "module 2" in real text -- label-based matching
+    must get both right regardless."""
+    from program_model import _override_gear_dimensions
+
+    text = "spur gear, 6mm bore, 20 teeth, 10mm face width, module 2"
+    args = {"module_mm": 1.0, "tooth_count": 1.0, "face_width_mm": 1.0, "bore_diameter_mm": 1.0, "pressure_angle_deg": 20.0, "center": [0, 0, 0]}
+    overridden = _override_gear_dimensions("add_gear_profile", args, text)
+    assert overridden["module_mm"] == 2.0
+    assert overridden["tooth_count"] == 20
+    assert overridden["face_width_mm"] == 10.0
+    assert overridden["bore_diameter_mm"] == 6.0
+
+
+def test_override_gear_dimensions_does_not_apply_to_other_ops():
+    from program_model import _override_gear_dimensions
+
+    args = {"radius": 20.0, "height": 30.0, "axis": "z", "center": [0, 0, 0]}
+    overridden = _override_gear_dimensions("add_cylinder", args, "module 2, 20 teeth")
+    assert overridden is args

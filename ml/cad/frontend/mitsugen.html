@@ -4,21 +4,27 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Mitsugen — 3D Printing</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%232E5C8A%27/%3E%3Cstop offset=%271%27 stop-color=%27%23C9A227%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2717%27 font-weight=%27700%27 fill=%27%23120D08%27 text-anchor=%27middle%27%3E%E6%BA%90%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Shippori+Mincho:wght@500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
     --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
     --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-    --bg: #08090D; --bg-panel: #101119; --bg-raised: #171824; --bg-input: #13141c;
-    --border: #29283A; --border-soft: #1e1d2a;
-    --text: #F4F3FA; --text-dim: #A1A0B2; --text-faint: #65637a;
-    --accent-1: #8B5CF6; --accent-2: #3B82F6;
-    --accent-grad: linear-gradient(135deg, #8B5CF6, #3B82F6);
+    --font-jp-serif: "Shippori Mincho", "Hiragino Mincho ProN", serif;
+    --font-jp-sans: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", sans-serif;
+    --bg: #0B0A09; --bg-panel: #15120F; --bg-raised: #1E1A16; --bg-input: #1A1613;
+    --border: #332D27; --border-soft: #241F1A;
+    --text: #F2ECE2; --text-dim: #A89D8C; --text-faint: #6E6356;
+    /* Mitsugen's own identity within the shared Mitsuhub palette: ai-iro
+       (indigo) into kin-iro (gold) -- the company seal (below) stays
+       vermillion everywhere, but each product carries its own accent. */
+    --accent-1: #2E5C8A; --accent-2: #C9A227;
+    --accent-grad: linear-gradient(135deg, #2E5C8A, #C9A227);
+    --seal: #B23A28;
     --ok: #3ddc84; --ok-bg: #122a1e;
     --warn: #f2b84b; --warn-bg: #2a2113;
     --bad: #f2566e; --bad-bg: #2b151c;
@@ -39,11 +45,13 @@
     font-family: var(--font-display); font-weight: 600; font-size: 14px; letter-spacing: 0.01em;
   }
   #topbar .wordmark .mark {
-    width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; background: var(--accent-grad);
-    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #08090D;
-    font-family: var(--font-mono);
+    width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; background: var(--seal);
+    display: flex; align-items: center; justify-content: center; font-size: 13px; color: #F2ECE2;
+    font-family: var(--font-jp-serif); font-weight: 700; transform: rotate(-3deg);
+    box-shadow: inset 0 0 0 1.5px rgba(242,236,226,0.4);
   }
   #topbar .wordmark .sep { color: var(--text-faint); font-weight: 400; }
+  #topbar .wordmark .jp { font-family: var(--font-jp-sans); font-size: 11px; color: var(--text-faint); margin-left: 2px; }
   #topbar .back { font-size: 12px; color: var(--text-dim); text-decoration: none; padding: 6px 10px; border-radius: 7px; }
   #topbar .back:hover { color: var(--text); background: var(--bg-input); }
   #body-row { flex: 1; display: flex; min-height: 0; overflow: hidden; }
@@ -53,7 +61,7 @@
   #panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
 
   .brand { display: flex; align-items: center; gap: 10px; }
-  .brand .mark { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; background: var(--accent-grad); font-family: var(--font-mono); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #08090D; }
+  .brand .mark { width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0; background: var(--accent-grad); font-family: var(--font-jp-serif); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: #120D08; transform: rotate(-3deg); }
   .brand h1 { font-family: var(--font-display); font-size: 15px; margin: 0; letter-spacing: 0.01em; font-weight: 650; }
   .brand .sub { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
   p.hint { font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.5; }
@@ -70,9 +78,9 @@
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
 
-  button.primary { background: var(--accent-grad); color: #08090D; border: none; border-radius: 8px; padding: 10px 14px; font-weight: 650; font-size: 13px; cursor: pointer; font-family: var(--font-body); width: 100%; }
+  button.primary { background: var(--accent-grad); color: #120D08; border: none; border-radius: 8px; padding: 10px 14px; font-weight: 650; font-size: 13px; cursor: pointer; font-family: var(--font-body); width: 100%; }
   button.primary:hover { filter: brightness(1.1); }
-  button.primary:disabled { background: #2a2b36; color: var(--text-faint); cursor: default; filter: none; }
+  button.primary:disabled { background: var(--border); color: var(--text-faint); cursor: default; filter: none; }
   button.secondary { background: var(--bg-input); color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; cursor: pointer; font-family: var(--font-body); }
   button.secondary:hover { border-color: var(--accent-1); color: var(--text); }
   .btn-row { display: flex; gap: 8px; }
@@ -102,7 +110,7 @@
     background: var(--bg-input); display: flex; flex-direction: column; align-items: center; justify-content: center;
     cursor: pointer; font-size: 9px; color: var(--text-faint);
   }
-  .slice-chip.selected { border-color: var(--accent-1); background: #1d1a33; color: var(--text); }
+  .slice-chip.selected { border-color: var(--accent-1); background: #241A10; color: var(--text); }
   .slice-chip .r { font-family: var(--font-mono); font-weight: 650; color: var(--text); font-size: 10px; }
   #sliceDetail { font-size: 11.5px; color: var(--text-dim); }
 
@@ -116,14 +124,14 @@
 <body>
 
 <div id="topbar">
-  <a class="wordmark" href="/"><span class="mark">3d</span>Mitsuhub <span class="sep">/</span> Mitsugen — 3D Printing</a>
+  <a class="wordmark" href="/"><span class="mark">光</span>Mitsuhub <span class="sep">/</span> Mitsugen<span class="jp">光源</span> — 3D Printing</a>
   <a class="back" href="/workspace">3di-men — CAD &rarr;</a>
 </div>
 
 <div id="body-row">
 <div id="panel">
   <div class="brand">
-    <div class="mark">3d</div>
+    <div class="mark">源</div>
     <div><h1>Mitsugen</h1><div class="sub">3D Printing — slice-based generation</div></div>
   </div>
   <p class="hint">A distinct generation pipeline from 3di-men's CAD engine. Plain bodies of revolution (a vase, a bottle, a bowl, a handle-less cup) go through a structured shape spec and a bounded sequence of construction slices, lofted into a real solid. Anything else — a mug with a handle, a toy car, a bracket, any object with real features or a non-round cross-section — is approximated through primitive composition (box/cylinder/sphere/cone + boolean ops) by a local LLM. Both paths are disclosed explicitly in the result; neither is claimed to be a perfect reproduction of a free-form object.</p>

@@ -201,6 +201,56 @@ class ProgramModelConfig:
     # statistically rigorous threshold -- expect some misses in both
     # directions, not a guarantee.
     ood_similarity_threshold: float = 0.20
+    # A SEPARATE, independently-tunable floor for predict_program_hybrid's
+    # own arbitration decision (does RAG's retrieved op-sequence get to
+    # override the classifier's own independent one on disagreement) --
+    # kept as its OWN config field, not folded back into
+    # ood_similarity_threshold, even though this investigation ended up
+    # keeping the same 0.20 VALUE. The split exists because disclosure
+    # and override-authority are different risk profiles (disclosing low
+    # confidence is free; overriding an independently-plausible answer
+    # with a weak match can destroy a correct result) -- but a real,
+    # broader check (not just the one example that first motivated this)
+    # showed raising the number is NOT a clean fix:
+    #   - "a cylinder, 40mm diameter, 30mm tall, with a 12mm diameter bore
+    #     through it" -- classifier CORRECT (add_cylinder, drill_hole),
+    #     RAG WRONG (add_box, add_cylinder, boolean_intersection) at 0.346
+    #     similarity. Raising the floor above 0.346 fixes this one.
+    #   - "a rectangular plate ... with four 8mm through-holes" --
+    #     classifier WRONG (add_box, add_box, boolean_difference -- no
+    #     hole pattern at all), RAG RIGHT (add_box, counterbore_hole_
+    #     pattern) at 0.387 similarity -- HIGHER than the bore case above.
+    #   - "a bracket 80x50x5mm with two 6mm mounting holes" -- classifier
+    #     WRONG (add_cylinder as the BASE SHAPE for an explicitly
+    #     rectangular bracket), RAG better-but-imperfect (add_extrusion,
+    #     drill_hole x4) at only 0.257 similarity -- LOWER than the bore
+    #     case.
+    # No single threshold separates "RAG helps" from "RAG hurts" here --
+    # the harmful case (0.346) sits BETWEEN the two helpful ones (0.257,
+    # 0.387). Confirmed directly, not just by these 3 examples, with a
+    # real threshold sweep (scripts/sweep_rag_override_threshold.py)
+    # against this project's own held-out 3-bucket eval, same dataset,
+    # only the threshold varying:
+    #   threshold   synthetic_test   hand_written   generic_composition
+    #     0.20          0.910           0.833             0.961
+    #     0.30          0.910           0.833             0.961
+    #     0.40          0.910           0.667             0.951
+    #     0.50          0.910           0.667             0.951
+    #     0.60          0.915           0.667             0.942
+    # Raising the floor to 0.40+ to block the one harmful override costs
+    # 16.6 points on hand_written and 1-1.9 on generic_composition --
+    # exactly the two buckets the hybrid design's own RAG half exists to
+    # help (see predict_program_hybrid's own docstring) -- for at most a
+    # tiny, inconsistent 0.5-point gain on synthetic_test. Left at 0.20
+    # (unchanged from the original, reused number): the measured cost of
+    # "fixing" the one confirmed bad case is larger than the benefit.
+    # The bore-case regression is reported, not silently patched over by
+    # a change this project's own eval shows is net harmful -- see this
+    # investigation's own final report for the honest conclusion: this
+    # needs a smarter arbitration signal (e.g. a trained meta-classifier
+    # over both candidates, or a structural-plausibility check), not a
+    # single similarity floor.
+    rag_override_similarity_threshold: float = 0.20
 
 
 @dataclass
@@ -420,6 +470,138 @@ def _override_primary_shape_dimensions(op: str, args: dict, text: str) -> dict:
     return overridden
 
 
+# Each op's own SINGLE field representing a through-hole/bore radius --
+# the one feature-level dimension most commonly stated explicitly in
+# text and most visibly wrong if only approximated (e.g. "a 12mm bore").
+# A small, deliberately narrow per-op map, not a generic "any numeric
+# field" rule -- see _override_bore_hole_dimensions's own docstring for
+# why position-based mapping (which works for the base shape above)
+# isn't safe for a feature op.
+_BORE_HOLE_RADIUS_FIELD: dict[str, str] = {
+    "drill_hole": "radius",
+    "add_boss_with_bore": "bore_radius",
+    "counterbore_hole": "hole_radius",
+    # Pattern variants -- the one stated diameter applies to every hole
+    # in the pattern alike (e.g. "four 8mm diameter through-holes").
+    "drill_hole_pattern": "radius",
+    "counterbore_hole_pattern": "hole_radius",
+}
+
+# Looks for a literal "Nmm" adjacent to the word "bore"/"hole" (either
+# order: "12mm diameter bore" or "a bore of 12mm") -- proximity to the
+# describing word, not position in the text, since a feature's own
+# dimension can appear anywhere relative to the base shape's own numbers
+# or an unrelated count ("four 8mm holes" has its count BEFORE its own
+# size, for instance). The middle descriptor-word group reuses
+# spec_validation.py's own small, explicit _HOLE_DESCRIPTOR_WORDS list
+# (through/mounting/pilot/clearance/...) rather than a generic "any
+# word" filler -- confirmed real misses without it: "8mm diameter
+# through-holes" and "6mm diameter mounting holes" both matched
+# NOTHING at all, since a descriptive word sat directly between
+# "diameter" and "hole". A GENERIC "\w+" filler was tried first and
+# rejected (same regression spec_validation.py's own hole-COUNT
+# extractor hit): it can swallow an unrelated word that happens to sit
+# there, so this deliberately reuses the same curated, non-generic list
+# both extractors rely on, kept in one place to avoid the two drifting
+# out of sync.
+from spec_validation import _HOLE_DESCRIPTOR_WORDS
+
+_BORE_HOLE_DIAMETER_RE = re.compile(
+    rf"(\d+(?:\.\d+)?)\s*mm\s*(?:diameter\s*)?(?:{_HOLE_DESCRIPTOR_WORDS}-?\s*){{0,2}}(?:bore|hole)"
+    rf"|(?:{_HOLE_DESCRIPTOR_WORDS}-?\s*){{0,2}}(?:bore|hole)(?:\s+(?:of|is|diameter))?\s*(\d+(?:\.\d+)?)\s*mm",
+    re.IGNORECASE,
+)
+
+
+def _override_bore_hole_dimensions(op: str, args: dict, text: str) -> dict:
+    """Feature-level analogue of _override_primary_shape_dimensions above,
+    for a hole/bore-creating op's own explicit diameter. Confirmed real
+    gap this closes (mission-brief audit, live-reproduced): the base-
+    shape override only ever applies to the FIRST (shape-creating) op in
+    a program -- a feature op's own explicit diameter (a bore, a plain
+    drilled hole) had NO equivalent mechanism and came entirely from the
+    trained regressor's approximation, silently, with only a post-hoc
+    "suspect" flag if wrong (parallel_builder.py's dimension_match_rate
+    check) -- never an actual correction. Reproduced directly: for "a
+    cylinder, 40mm diameter, 30mm tall, with a 12mm diameter bore through
+    it" built via add_boss_with_bore, the predicted bore_radius came from
+    the regressor alone with no way to know the request said exactly
+    12mm.
+
+    Deliberately scoped to the single field in _BORE_HOLE_RADIUS_FIELD
+    for whichever op is passed in, found by PROXIMITY to "bore"/"hole" in
+    the text, never by position -- unlike the base shape's own
+    dimensions (reliably the first few numbers stated), a feature's own
+    number can appear anywhere in the sentence relative to unrelated
+    numbers (the base shape's size, an unrelated count), so position
+    alone is not a safe signal here. If no such literal is found, nothing
+    is overridden -- never a guessed mapping."""
+    field = _BORE_HOLE_RADIUS_FIELD.get(op)
+    if field is None or field not in args:
+        return args
+    m = _BORE_HOLE_DIAMETER_RE.search(text)
+    if not m:
+        return args
+    literal = float(m.group(1) or m.group(2))
+    overridden = dict(args)
+    overridden[field] = literal / 2.0
+    return overridden
+
+
+# Each of add_gear_profile's own 4 stated dimensions, matched by the WORD
+# next to its own number, never by position -- see
+# _override_gear_dimensions's own docstring for why position (which
+# _override_primary_shape_dimensions relies on for every other base
+# shape) specifically fails for a gear.
+_GEAR_MODULE_RE = re.compile(r"module\s*(\d+(?:\.\d+)?)", re.IGNORECASE)
+_GEAR_TEETH_RE = re.compile(r"(\d+)\s*teeth", re.IGNORECASE)
+_GEAR_FACE_WIDTH_RE = re.compile(r"(\d+(?:\.\d+)?)\s*mm\s*face\s*width", re.IGNORECASE)
+_GEAR_BORE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*mm\s*bore", re.IGNORECASE)
+
+
+def _override_gear_dimensions(op: str, args: dict, text: str) -> dict:
+    """add_gear_profile's own analogue of _override_primary_shape_dimensions,
+    kept as a SEPARATE function rather than folded into it: that
+    function's positional "first N literal Nmm values, in ARG_SCHEMA
+    order" assumption breaks for a gear on BOTH counts --
+    module/tooth_count are stated WITHOUT an "mm" suffix ("module 2",
+    "20 teeth"), so _DIMENSION_RE never even sees them, and training's
+    own _render_gear (data/prompt_dataset.py) SHUFFLES its clause order,
+    so position cannot be trusted even where "mm" IS present elsewhere
+    in the text.
+
+    Confirmed real, severe gap this closes (mission-brief audit, live-
+    reproduced against the actual trained bundle): "a gear, module 2, 20
+    teeth, 10mm face width, with a 6mm bore" predicted module_mm=2.54,
+    tooth_count=21, face_width_mm=12.29, bore_diameter_mm=7.46 -- every
+    single stated number wrong by 20-30%, because
+    _override_primary_shape_dimensions never fires here at all
+    (len(literals)=2 -- only the two "Nmm" values -- is less than
+    len(numeric_fields)=4, so its own "never a partial mapping" rule
+    correctly refuses to guess, but that leaves nothing else to catch
+    this).
+
+    Each field is matched by the word next to its own number, so clause
+    order never matters; a field with no matching phrase in the text is
+    left at the regressor's own prediction, never guessed at."""
+    if op != "add_gear_profile":
+        return args
+    overridden = dict(args)
+    m = _GEAR_MODULE_RE.search(text)
+    if m:
+        overridden["module_mm"] = float(m.group(1))
+    m = _GEAR_TEETH_RE.search(text)
+    if m:
+        overridden["tooth_count"] = int(m.group(1))
+    m = _GEAR_FACE_WIDTH_RE.search(text)
+    if m:
+        overridden["face_width_mm"] = float(m.group(1))
+    m = _GEAR_BORE_RE.search(text)
+    if m:
+        overridden["bore_diameter_mm"] = float(m.group(1))
+    return overridden
+
+
 def predict_program(bundle: ProgramModelBundle, text: str, forced_ops: list[str] | None = None) -> list:
     """K-slot autoregressive loop: predicts one op per slot (features =
     TF-IDF + summary of the model's OWN previously predicted slots, not
@@ -472,6 +654,8 @@ def predict_program(bundle: ProgramModelBundle, text: str, forced_ops: list[str]
                 else:
                     args[name] = float(estimator.predict(X_arg)[0])
             args = _override_primary_shape_dimensions(op, args, text)
+            args = _override_bore_hole_dimensions(op, args, text)
+            args = _override_gear_dimensions(op, args, text)
 
         full_args = _unflatten_args(op, args, slot) if ARG_SCHEMA[op] else {}
         program.append(ToolCall(op=op, args=full_args))
@@ -582,10 +766,7 @@ def predict_program_hybrid(bundle: ProgramModelBundle, text: str) -> tuple[list,
     failure signature -- it chose an op combination that doesn't
     correspond to any single real training example -- so RAG wins,
     PROVIDED the winning neighbor's own similarity to `text` clears
-    bundle.config.ood_similarity_threshold (the same floor
-    nearest_neighbor_similarity() already uses to flag a prediction
-    out_of_distribution elsewhere -- reused here, not a second invented
-    number).
+    bundle.config.rag_override_similarity_threshold.
 
     Confirmed real gap this closes (a mission-brief audit, not
     hypothetical): disagreement alone used to force RAG's sequence
@@ -605,15 +786,20 @@ def predict_program_hybrid(bundle: ProgramModelBundle, text: str) -> tuple[list,
     instead -- not because it's guaranteed correct, but because it's at
     least derived from THIS text's own per-slot read, not a forced
     transplant from an unrelated training example. Either way,
-    in_distribution (predict_program_checked) is computed from this same
-    real nearest-neighbor similarity, so a low-confidence result is still
-    honestly disclosed, never silently promoted by this gate."""
+    in_distribution (predict_program_checked) is computed from the
+    SEPARATE ood_similarity_threshold, so a low-confidence result is still
+    honestly disclosed regardless of which program this function returns
+    -- disclosure and override-authority are deliberately different
+    floors now (see ProgramModelConfig.rag_override_similarity_threshold's
+    own docstring for the confirmed regression that made reusing one
+    number for both wrong: a correct classifier answer overridden by a
+    merely-above-the-disclosure-floor RAG match)."""
     classifier_program = predict_program(bundle, text)
     classifier_ops = tuple(c.op for c in classifier_program)
     rag_ops, rag_sim = retrieve_nearest_op_sequence(bundle, text)
     if classifier_ops == tuple(rag_ops):
         return classifier_program, False
-    if rag_sim < bundle.config.ood_similarity_threshold:
+    if rag_sim < bundle.config.rag_override_similarity_threshold:
         return classifier_program, False
     return predict_program(bundle, text, forced_ops=list(rag_ops)), True
 

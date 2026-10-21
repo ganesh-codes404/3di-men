@@ -48,6 +48,10 @@ def _build_primitive_mesh(p: PrimitiveSpec) -> "trimesh.Trimesh | None":
             return None
         mesh = trimesh.creation.cone(radius=p.radius_mm, height=p.height_mm, sections=32)
         mesh.apply_translation([0.0, 0.0, -p.height_mm / 2.0])  # trimesh's cone spans z=[0, height] -- recenter so position_mm means the same "own center" thing for every primitive kind
+    elif p.kind == "torus":
+        if not p.major_radius_mm or not p.minor_radius_mm or p.major_radius_mm <= 0 or p.minor_radius_mm <= 0:
+            return None
+        mesh = trimesh.creation.torus(major_radius=p.major_radius_mm, minor_radius=p.minor_radius_mm, major_sections=32, minor_sections=24)
     else:
         return None
 

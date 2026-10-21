@@ -5,16 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Mitsuhub | 3di-men — text to 3D geometry</title>
 <meta name="description" content="Mitsuhub: 3di-men (CAD) turns plain language into structured, inspectable 3D geometry; Print Lab checks it for real printability; Mitsugen generates print-ready vessels and primitive-composed shapes directly from a prompt. Built locally, no cloud model required." />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%23C1402C%27/%3E%3Cstop offset=%271%27 stop-color=%27%234C6B8A%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-family=%27Georgia,serif%27 font-size=%2719%27 font-weight=%27700%27 fill=%27%230B0A09%27 text-anchor=%27middle%27%3EM%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%23C1402C%27/%3E%3Cstop offset=%271%27 stop-color=%27%234C6B8A%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2719%27 font-weight=%27700%27 fill=%27%230B0A09%27 text-anchor=%27middle%27%3E%E5%85%89%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Shippori+Mincho:wght@500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
     --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
     --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --font-jp-serif: "Shippori Mincho", "Hiragino Mincho ProN", serif;
+    --font-jp-sans: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", sans-serif;
 
     --bg: #0B0A09;
     --bg-2: #15120F;
@@ -31,6 +33,8 @@
     --accent-grad: linear-gradient(135deg, #C1402C, #4C6B8A);
     --accent-grad-hover: linear-gradient(135deg, #D85940, #5E7FA0);
     --accent-glow: rgba(193, 64, 44, 0.14);
+    --seal: #B23A28;
+    --gold: #C9A227;
 
     --max: 1180px;
   }
@@ -62,6 +66,25 @@
     mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, rgba(0,0,0,0.9), transparent 75%);
   }
 
+  /* seigaiha (青海波) -- a traditional repeating-wave motif, run at near-zero
+     opacity as a quiet texture behind the hero rather than a loud pattern */
+  .bg-waves {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60' viewBox='0 0 120 60'%3E%3Cg fill='none' stroke='%23F2ECE2' stroke-width='1.1'%3E%3Cpath d='M0 50 a30 30 0 0 1 60 0 a30 30 0 0 1 60 0'/%3E%3Cpath d='M0 38 a18 18 0 0 1 36 0 a18 18 0 0 1 36 0 a18 18 0 0 1 36 0'/%3E%3Cpath d='M0 26 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 120px 60px;
+    mask-image: radial-gradient(ellipse 75% 60% at 50% 10%, rgba(0,0,0,0.9), transparent 70%);
+  }
+
+  /* ---------- hanko (判子): the company seal mark, reused wherever a page needs
+     the Mitsuhub wordmark -- solid vermillion ink, a hair-rotated stamp, and
+     the kanji for "light" (光), standing in for the Latin "M" it replaced ---------- */
+  .hanko {
+    font-family: var(--font-jp-serif); font-weight: 700; transform: rotate(-3deg);
+    box-shadow: inset 0 0 0 1.5px rgba(242,236,226,0.4);
+  }
+
+  .jp { font-family: var(--font-jp-sans); }
+
   /* ---------- nav ---------- */
   .nav {
     position: sticky; top: 0; z-index: 40; background: rgba(11,10,9,0.7); border-bottom: 1px solid transparent;
@@ -70,7 +93,7 @@
   .nav.scrolled { background: rgba(11,10,9,0.92); border-bottom-color: var(--border); box-shadow: 0 12px 28px -20px rgba(0,0,0,0.7); }
   .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
   .wordmark { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--font-display); font-weight: 600; font-size: 17px; }
-  .wordmark .mark { width: 28px; height: 28px; border-radius: 7px; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: #0B0A09; flex-shrink: 0; }
+  .wordmark .mark { width: 28px; height: 28px; border-radius: 7px; background: var(--seal); display: flex; align-items: center; justify-content: center; font-size: 15px; color: #F2ECE2; flex-shrink: 0; }
   .nav-links { display: flex; gap: 28px; font-size: 14.5px; }
   .nav-links a {
     text-decoration: none; color: var(--text-dim); transition: color 0.15s; padding: 4px 0; position: relative;
@@ -82,6 +105,10 @@
   .nav-links a:hover { color: var(--text); }
   .nav-links a.active { color: var(--text); }
   .nav-links a.active::after { right: 0; }
+  .nav-links a .jp, .mobile-menu a .jp, .footer-links a .jp {
+    font-size: 11px; color: var(--text-faint); margin-left: 6px; letter-spacing: 0.04em;
+  }
+  @media (max-width: 1060px) { .nav-links a .jp { display: none; } }
   .nav-right { display: flex; align-items: center; gap: 18px; }
   .nav-toggle {
     display: none; background: transparent; border: 1px solid var(--border); border-radius: 7px; color: var(--text);
@@ -156,7 +183,29 @@
   }
   .hero h1 .lavender { color: var(--lavender); }
   .hero .lede { font-size: 17px; color: var(--text-dim); max-width: 42ch; line-height: 1.6; position: relative; z-index: 1; }
+  .hero .jp-tagline {
+    font-family: var(--font-jp-serif); font-size: 14px; color: var(--text-faint); margin: 10px 0 20px;
+    letter-spacing: 0.03em; position: relative; z-index: 1;
+  }
   .hero .ctas { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; position: relative; z-index: 1; }
+
+  /* a quiet vertical line of Japanese running down the hero's edge -- a
+     common minimalist motif on Japanese product sites, kept decorative
+     and out of the tab order */
+  .hero-vertical-jp {
+    position: absolute; top: 50%; right: 18px; transform: translateY(-50%);
+    writing-mode: vertical-rl; font-family: var(--font-jp-serif); font-size: 13px;
+    letter-spacing: 0.3em; color: var(--text-faint); opacity: 0.55; pointer-events: none; z-index: 0;
+  }
+  @media (max-width: 1240px) { .hero-vertical-jp { display: none; } }
+
+  /* a stamped corner seal on the live viewport, like an artist's hanko on a print */
+  .hanko-stamp {
+    position: absolute; top: 14px; right: 16px; z-index: 4; width: 34px; height: 34px; border-radius: 50%;
+    border: 1.5px solid var(--seal); color: var(--seal); display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-jp-serif); font-weight: 700; font-size: 15px; transform: rotate(-6deg);
+    opacity: 0.8; pointer-events: none; background: rgba(11,10,9,0.35);
+  }
 
   /* ---------- tech-frame: the recurring corner-bracket + coordinate-tag signature ---------- */
   .tech-frame { position: relative; }
@@ -414,18 +463,19 @@
 <body>
 
 <div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-waves" aria-hidden="true"></div>
 
 <header class="nav" id="top">
   <div class="wrap nav-inner">
-    <a class="wordmark" href="#top"><span class="mark">M</span>Mitsuhub</a>
+    <a class="wordmark" href="#top"><span class="mark hanko">光</span>Mitsuhub</a>
     <nav class="nav-links" aria-label="Primary">
       <a href="#who-its-for">Who it's for</a>
       <a href="#product">Product</a>
       <a href="#how-it-works">How it works</a>
       <a href="#capabilities">Capabilities</a>
-      <a href="/workspace">3di-men — CAD</a>
-      <a href="/print-lab">Print Lab</a>
-      <a href="/mitsugen">Mitsugen — 3D Printing</a>
+      <a href="/workspace">3di-men — CAD<span class="jp">図面</span></a>
+      <a href="/print-lab">Print Lab<span class="jp">工房</span></a>
+      <a href="/mitsugen">Mitsugen — 3D Printing<span class="jp">光源</span></a>
     </nav>
     <div class="nav-right">
       <a class="btn-primary nav-cta" href="/workspace">Open Workspace</a>
@@ -439,21 +489,23 @@
     <a href="#product">Product</a>
     <a href="#how-it-works">How it works</a>
     <a href="#capabilities">Capabilities</a>
-    <a href="/workspace">3di-men — CAD</a>
-    <a href="/print-lab">Print Lab</a>
-    <a href="/mitsugen">Mitsugen — 3D Printing</a>
+    <a href="/workspace">3di-men — CAD<span class="jp">図面</span></a>
+    <a href="/print-lab">Print Lab<span class="jp">工房</span></a>
+    <a href="/mitsugen">Mitsugen — 3D Printing<span class="jp">光源</span></a>
   </div>
 </header>
 
 <main>
 
   <section class="hero">
+    <span class="hero-vertical-jp" aria-hidden="true">光より、かたちを生む 〇 ことばから立体へ</span>
     <div class="wrap hero-grid">
       <div class="reveal" id="heroText">
         <span class="hero-ghost" aria-hidden="true">3DM</span>
         <span class="eyebrow"><span class="status-dot" id="heroStatusDot"></span>TEXT → GEOMETRY</span>
         <h1>Describe it.<br><span class="lavender">Watch it build.</span></h1>
         <p class="lede">A sentence in, a real dimensioned mesh out — rendered live, on the right, right now.</p>
+        <p class="jp-tagline">図面 — ことばが、かたちになる。<span class="mono" style="color:var(--text-faint); font-size:11px; margin-left:8px;">zumen — words become form</span></p>
         <div class="ctas">
           <a class="btn-primary" href="/workspace">Enter the Workspace</a>
           <a class="btn-secondary" href="#how-it-works">Explore the System</a>
@@ -461,6 +513,7 @@
       </div>
 
       <div class="hero-visual tech-frame reveal" id="heroVisual">
+        <span class="hanko-stamp" aria-hidden="true">光</span>
         <span class="frame-tag tl">REAL-TIME RENDER · DRAG TO ORBIT</span>
         <span class="frame-tag br" id="heroStatsTag">VERTS — · FACES —</span>
         <div class="hero-3d" id="hero3d">
@@ -942,8 +995,9 @@
   <div class="wrap">
     <div class="footer-grid">
       <div class="footer-brand">
-        <a class="wordmark" href="#top"><span class="mark">M</span>Mitsuhub</a>
+        <a class="wordmark" href="#top"><span class="mark hanko">光</span>Mitsuhub</a>
         <p>3di-men, Print Lab, and Mitsugen — real 3D geometry, real printability, built locally, nothing faked.</p>
+        <p class="jp" style="font-family: var(--font-jp-serif); color: var(--text-faint); font-size: 12.5px; margin-top: 10px; letter-spacing: 0.02em;">光より、かたちを。 — from light, form.</p>
       </div>
       <div class="footer-links">
         <div>
@@ -953,9 +1007,9 @@
           <a href="#capabilities">Capabilities</a>
         </div>
         <div>
-          <a href="/workspace">3di-men — CAD</a>
-          <a href="/print-lab">Print Lab</a>
-          <a href="/mitsugen">Mitsugen — 3D Printing</a>
+          <a href="/workspace">3di-men — CAD<span class="jp">図面</span></a>
+          <a href="/print-lab">Print Lab<span class="jp">工房</span></a>
+          <a href="/mitsugen">Mitsugen — 3D Printing<span class="jp">光源</span></a>
         </div>
       </div>
     </div>
