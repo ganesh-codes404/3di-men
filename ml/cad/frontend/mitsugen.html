@@ -484,11 +484,19 @@ function renderResult(data) {
     const stats = document.getElementById('freeformStats');
     stats.innerHTML = '';
     renderStat(stats, 'Primitives', data.freeform.primitives.length);
-    renderStat(stats, 'Boolean ops', data.freeform.operations.length);
+    renderStat(stats, 'Operations', data.freeform.operations.length);
     if (data.freeform.dropped_primitives.length) renderStat(stats, 'Dropped (malformed)', data.freeform.dropped_primitives.join(', '), 'inferred');
     if (data.freeform.auto_unioned_ids.length) renderStat(stats, 'Auto-unioned', data.freeform.auto_unioned_ids.join(', '), 'inferred');
     const list = document.getElementById('freeformPrimitivesList');
     list.innerHTML = '';
+    data.freeform.operations.filter(op => op.op === 'linear_pattern' || op.op === 'circular_pattern').forEach(op => {
+      const detail = op.op === 'linear_pattern' ? `${op.count}× along ${op.axis}, ${op.spacing_mm}mm apart`
+        : `${op.count}× around a ${op.pattern_radius_mm}mm radius circle (axis ${op.axis})`;
+      const row = document.createElement('div');
+      row.style.color = 'var(--accent-2)';
+      row.textContent = `${op.op}: '${op.target_id}' × ${detail}`;
+      list.appendChild(row);
+    });
     data.freeform.primitives.forEach(p => {
       const dims = p.kind === 'box' ? `${p.size_mm.map(v => v.toFixed(0)).join('×')}mm`
         : p.kind === 'sphere' ? `r${p.radius_mm.toFixed(0)}mm`

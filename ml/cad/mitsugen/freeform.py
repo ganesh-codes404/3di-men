@@ -31,6 +31,17 @@ from typing import Any
 
 PRIMITIVE_KINDS = {"box", "cylinder", "sphere", "cone", "torus"}
 BOOLEAN_OPS = {"union", "difference", "intersection"}
+# Repeats a primitive N times and unions every copy into the running
+# result in one operation -- added so the LLM can declare ONE instance
+# of a repeated feature (a leg, a tooth, a spoke) plus ONE pattern
+# operation, instead of enumerating N separate primitives by hand
+# (confirmed real risk of that: the more copies a request implies, the
+# more chances to drop one or get the count wrong -- exactly the class
+# of bug a dedicated pattern op removes by construction, same reasoning
+# 3di-men's own sandbox.py linear_pattern/circular_pattern tools were
+# added for). Fresh, independent geometry below (freeform_builder.py)
+# -- not a call into sandbox.py's own tools.
+PATTERN_OPS = {"linear_pattern", "circular_pattern"}
 
 # Confirmed real, severe bug this fixes (live-reported "Mitsugen
 # generates cubes for nearly every prompt"): this used to read ONLY its
@@ -54,13 +65,27 @@ BOOLEAN_OPS = {"union", "difference", "intersection"}
 # 3di-men's own CAD decomposition) fixes this without coupling the two
 # products' CODE -- only the env var NAME is shared, the same choice
 # already made for N_GPU_LAYERS/N_THREADS below.
-MODEL_PATH = Path(os.environ.get(
-    "MITSUGEN_FREEFORM_MODEL_PATH",
-    os.environ.get(
-        "MODEL_PATH",
-        str(Path(__file__).resolve().parent.parent / "models" / "qwen" / "quantized" / "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"),
-    ),
-))
+def _resolve_model_path() -> Path:
+    """Pulled out of the plain MODEL_PATH = Path(os.environ.get(...))
+    assignment so tests can exercise this resolution order directly
+    (with monkeypatched env vars) without reloading the whole module --
+    reloading recreates every class in it (BooleanStep, PrimitiveSpec,
+    ...) as a NEW object, which breaks == for anything that imported a
+    name from this module before the reload still holding the OLD
+    class. Confirmed real: an earlier version of this test file's own
+    MODEL_PATH tests did exactly that and intermittently broke an
+    unrelated pattern-operation test's BooleanStep equality check,
+    purely from test ordering."""
+    return Path(os.environ.get(
+        "MITSUGEN_FREEFORM_MODEL_PATH",
+        os.environ.get(
+            "MODEL_PATH",
+            str(Path(__file__).resolve().parent.parent / "models" / "qwen" / "quantized" / "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"),
+        ),
+    ))
+
+
+MODEL_PATH = _resolve_model_path()
 # This module's own context budget -- kept separately namespaced from
 # llm_decompose.py's MAX_CONTEXT (not shared) because the right VALUE
 # genuinely differs: that file's system prompt alone runs ~6850 tokens
@@ -99,8 +124,12 @@ class PrimitiveSpec:
 
 @dataclass
 class BooleanStep:
-    op: str  # one of BOOLEAN_OPS
+    op: str  # one of BOOLEAN_OPS | PATTERN_OPS
     target_id: str
+    count: "int | None" = None  # linear_pattern / circular_pattern
+    spacing_mm: "float | None" = None  # linear_pattern: center-to-center distance between consecutive copies
+    pattern_radius_mm: "float | None" = None  # circular_pattern: distance from the target's own position to each copy
+    axis: str = "z"  # linear_pattern: direction copies are offset along; circular_pattern: the circle's own normal
 
 
 @dataclass
@@ -130,15 +159,24 @@ Each primitive is an object with:
 
 List primitives in a sensible build order: the FIRST primitive is the object's main body. Every OTHER primitive must be referenced by exactly one operation.
 
-"operations" is an array of {"op": "union"|"difference"|"intersection", "target_id": "<id of a primitive other than the first>"}, applied in order starting from the first primitive as the running result. Use "union" to add a feature (a wheel, a handle, a boss, a leg), "difference" to cut a hole or cavity, "intersection" rarely (clipping one shape by another).
+"operations" is an array applied in order starting from the first primitive as the running result. Each entry is one of:
+- {"op": "union"|"difference"|"intersection", "target_id": "<id of a primitive other than the first>"} -- "union" to add a feature (a wheel, a handle, a boss, a leg), "difference" to cut a hole or cavity, "intersection" rarely (clipping one shape by another).
+- {"op": "linear_pattern", "target_id": "<id>", "count": N, "spacing_mm": S, "axis": "x"|"y"|"z"} -- repeats that ONE primitive N times in a straight row along "axis", each copy S mm apart, centered on the primitive's own stated position, and unions every copy in. Use this for a row of repeated features (teeth, ribs, slats) INSTEAD OF declaring N separate primitives by hand -- declare the feature ONCE, at the row's own center position, then pattern it.
+- {"op": "circular_pattern", "target_id": "<id>", "count": N, "pattern_radius_mm": R, "axis": "x"|"y"|"z"} -- repeats that ONE primitive N times evenly spaced around a circle of radius R (in the plane perpendicular to "axis"), centered on the primitive's own stated position, and unions every copy in. Use this for ANY feature the request states a count of 3 or more for (legs, spokes, wheels arranged radially) INSTEAD OF declaring each one as its own primitive -- declare the feature ONCE, at the circle's own center, then pattern it. This is the single most reliable way to get a repeated-feature COUNT right, since the count is one explicit number instead of counting how many primitives you remembered to write out.
 
-EVERY FEATURE THE REQUEST NAMES MUST APPEAR AS ITS OWN PRIMITIVE -- this is the single most common mistake: if the request says "with a handle" / "with a hook" / "with four legs" / "with a spout", that feature is NOT optional and is NOT satisfied by the main body alone, no matter how plausible the main body looks on its own. A mug with no handle primitive at all is wrong even if the cylinder itself is perfect.
+EVERY FEATURE THE REQUEST NAMES MUST APPEAR AS ITS OWN PRIMITIVE -- this is the single most common mistake: if the request says "with a handle" / "with a hook" / "with four legs" / "with a spout", that feature is NOT optional and is NOT satisfied by the main body alone, no matter how plausible the main body looks on its own. A mug with no handle primitive at all is wrong even if the cylinder itself is perfect. For a COUNTED repeated feature (N legs, N spokes), prefer ONE primitive + a pattern operation over N separate primitives -- it is far less likely to silently end up with the wrong count.
 
 Example -- request: "a coffee mug with a handle, 90mm tall, 75mm diameter". The body is a plain cylinder; the handle is a curved loop, so it must be a torus (never a straight cylinder, which cannot bend), rotated so its own hole faces sideways (through the ring, toward the mug) and unioned onto the body's own side wall:
 {"primitives": [
   {"id": "body", "type": "cylinder", "radius_mm": 37.5, "height_mm": 90, "position_mm": [0, 0, 0]},
   {"id": "handle", "type": "torus", "major_radius_mm": 22, "minor_radius_mm": 6, "position_mm": [0, 43, 0], "rotation_deg": [0, 90, 0]}
 ], "operations": [{"op": "union", "target_id": "handle"}]}
+
+Example -- request: "a round stool with a seat and four legs, 300mm diameter seat, 450mm tall". Declare ONE leg at the ring's own center position, then pattern it -- never four separate leg primitives:
+{"primitives": [
+  {"id": "seat", "type": "cylinder", "radius_mm": 150, "height_mm": 20, "position_mm": [0, 0, 440]},
+  {"id": "leg", "type": "cylinder", "radius_mm": 12, "height_mm": 430, "position_mm": [0, 0, 215]}
+], "operations": [{"op": "circular_pattern", "target_id": "leg", "count": 4, "pattern_radius_mm": 120, "axis": "z"}]}
 
 BEFORE ANSWERING, check your own primitives array against the request one more time: for every feature word in the request (handle, hook, leg, wheel, spout, wing, ear, tail, boss, foot, arm, strap, hinge, lid), confirm there is a primitive for it AND an operation referencing that primitive's id. A primitives array that only describes the main body when the request named an additional feature is incomplete -- add the missing primitive and operation before responding, never answer with the feature silently left out.
 
@@ -173,8 +211,12 @@ _FREEFORM_JSON_SCHEMA = json.dumps({
             "items": {
                 "type": "object",
                 "properties": {
-                    "op": {"type": "string", "enum": sorted(BOOLEAN_OPS)},
+                    "op": {"type": "string", "enum": sorted(BOOLEAN_OPS | PATTERN_OPS)},
                     "target_id": {"type": "string"},
+                    "count": {"type": "integer"},
+                    "spacing_mm": {"type": "number"},
+                    "pattern_radius_mm": {"type": "number"},
+                    "axis": {"type": "string", "enum": ["x", "y", "z"]},
                 },
                 "required": ["op", "target_id"],
             },
@@ -342,9 +384,32 @@ def _parse_freeform(raw: str, object_description: str) -> FreeformSpec:
             continue
         op = op_raw.get("op")
         target_id = op_raw.get("target_id")
-        if op not in BOOLEAN_OPS or target_id not in valid_ids or target_id == base_id:
+        if target_id not in valid_ids or target_id == base_id:
             continue
-        operations.append(BooleanStep(op=op, target_id=target_id))
+        axis = op_raw.get("axis")
+        axis = axis if axis in ("x", "y", "z") else "z"  # a sensible default, same as rotation_deg/position_mm defaulting elsewhere -- never a reason to drop the whole operation
+        if op in BOOLEAN_OPS:
+            operations.append(BooleanStep(op=op, target_id=target_id))
+        elif op == "linear_pattern":
+            try:
+                count = int(op_raw.get("count"))
+                spacing_mm = float(op_raw.get("spacing_mm"))
+            except (TypeError, ValueError):
+                continue  # malformed pattern fields -- drop the operation, not the whole spec
+            if count < 1 or spacing_mm <= 0:
+                continue
+            operations.append(BooleanStep(op=op, target_id=target_id, count=count, spacing_mm=spacing_mm, axis=axis))
+        elif op == "circular_pattern":
+            try:
+                count = int(op_raw.get("count"))
+                pattern_radius_mm = float(op_raw.get("pattern_radius_mm"))
+            except (TypeError, ValueError):
+                continue
+            if count < 1 or pattern_radius_mm <= 0:
+                continue
+            operations.append(BooleanStep(op=op, target_id=target_id, count=count, pattern_radius_mm=pattern_radius_mm, axis=axis))
+        else:
+            continue
         referenced.add(target_id)
 
     auto_unioned: list[str] = []

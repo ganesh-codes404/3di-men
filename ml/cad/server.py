@@ -752,7 +752,11 @@ def api_mitsugen_generate():
                  "major_radius_mm": p.major_radius_mm, "minor_radius_mm": p.minor_radius_mm}
                 for p in result.freeform_spec.primitives
             ],
-            "operations": [{"op": s.op, "target_id": s.target_id} for s in result.freeform_spec.operations],
+            "operations": [
+                {"op": s.op, "target_id": s.target_id, "count": s.count, "spacing_mm": s.spacing_mm,
+                 "pattern_radius_mm": s.pattern_radius_mm, "axis": s.axis}
+                for s in result.freeform_spec.operations
+            ],
         } if result.freeform_spec else None,
         "hollow_applied": result.build.hollow_applied if result.build else False,
         "findings": [

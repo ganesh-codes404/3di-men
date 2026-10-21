@@ -15,6 +15,7 @@ import pytest
 
 from mitsugen.freeform import (
     MODEL_PATH,
+    BooleanStep,
     FreeformSpec,
     PrimitiveSpec,
     _fallback_spec,
@@ -269,20 +270,17 @@ def test_model_path_falls_back_to_the_shared_model_path_env_var(monkeypatch):
     silently falling back to the disclosed default box for every
     non-vase prompt (the vase/bottle/bowl/cup path is pure regex and
     never calls an LLM, which is why only THAT path kept working).
-    Re-imports the module fresh under a patched environment since
-    MODEL_PATH is resolved once at import time, not per-call."""
-    import importlib
-
-    import mitsugen.freeform as ff
+    Calls _resolve_model_path() directly under a patched environment --
+    NOT importlib.reload(), which recreates every class in the module as
+    a new object and breaks == for any name (like BooleanStep) another
+    test file already imported before the reload; confirmed real, not
+    hypothetical: an earlier version of this test intermittently broke
+    a pattern-operation test's BooleanStep equality check this way."""
+    from mitsugen.freeform import _resolve_model_path
 
     monkeypatch.setenv("MODEL_PATH", "models/Qwen3-8B-Q4_K_M.gguf")
     monkeypatch.delenv("MITSUGEN_FREEFORM_MODEL_PATH", raising=False)
-    try:
-        importlib.reload(ff)
-        assert str(ff.MODEL_PATH) == "models/Qwen3-8B-Q4_K_M.gguf"
-    finally:
-        monkeypatch.delenv("MODEL_PATH", raising=False)
-        importlib.reload(ff)  # restore the real module state for any test that runs after this one
+    assert str(_resolve_model_path()) == "models/Qwen3-8B-Q4_K_M.gguf"
 
 
 def test_model_path_own_override_still_wins_over_the_shared_one(monkeypatch):
@@ -290,19 +288,11 @@ def test_model_path_own_override_still_wins_over_the_shared_one(monkeypatch):
     case someone deliberately wants Mitsugen on a DIFFERENT model than
     3di-men's own CAD decomposition -- the shared MODEL_PATH fallback
     above must never shadow it."""
-    import importlib
-
-    import mitsugen.freeform as ff
+    from mitsugen.freeform import _resolve_model_path
 
     monkeypatch.setenv("MODEL_PATH", "models/Qwen3-8B-Q4_K_M.gguf")
     monkeypatch.setenv("MITSUGEN_FREEFORM_MODEL_PATH", "models/some-other-model.gguf")
-    try:
-        importlib.reload(ff)
-        assert str(ff.MODEL_PATH) == "models/some-other-model.gguf"
-    finally:
-        monkeypatch.delenv("MODEL_PATH", raising=False)
-        monkeypatch.delenv("MITSUGEN_FREEFORM_MODEL_PATH", raising=False)
-        importlib.reload(ff)
+    assert str(_resolve_model_path()) == "models/some-other-model.gguf"
 
 
 # ---------------- clarify stage: Mitsugen's own independent analogue of llm_decompose.py's ask_clarifying_questions ----------------
@@ -355,3 +345,61 @@ def test_ask_clarifying_questions_never_raises_on_llm_failure(monkeypatch):
     monkeypatch.setattr(ff, "_get_llm", broken_get_llm)
     result = ff.ask_clarifying_questions("a stand with some legs")
     assert result.questions == []
+
+
+# ---------------- pattern operations: declare a feature once, repeat it, instead of enumerating N primitives ----------------
+
+def test_circular_pattern_parses_and_builds_a_four_legged_stool():
+    """The exact scenario pattern ops exist for: ONE leg primitive +
+    ONE circular_pattern operation, instead of 4 separately-declared
+    leg primitives (the enumeration approach that's most likely to
+    silently end up with the wrong count)."""
+    raw = """{"primitives": [
+      {"id": "seat", "type": "cylinder", "radius_mm": 150, "height_mm": 20, "position_mm": [0, 0, 440]},
+      {"id": "leg", "type": "cylinder", "radius_mm": 12, "height_mm": 430, "position_mm": [0, 0, 215]}
+    ], "operations": [{"op": "circular_pattern", "target_id": "leg", "count": 4, "pattern_radius_mm": 120, "axis": "z"}]}"""
+    spec = _parse_freeform(raw, "a round stool with four legs")
+    assert len(spec.primitives) == 2
+    assert len(spec.operations) == 1
+    assert spec.operations[0].op == "circular_pattern"
+    assert spec.operations[0].count == 4
+    build = build_freeform_solid(spec)
+    assert build.error is None
+    assert build.mesh.is_watertight
+    assert build.mesh.body_count == 1
+    assert build.mesh.extents[2] == pytest.approx(450, abs=1)  # seat top (450) -- full stool height
+
+
+def test_linear_pattern_parses_and_builds_a_ribbed_plate():
+    raw = """{"primitives": [
+      {"id": "plate", "type": "box", "size_mm": [100, 40, 5], "position_mm": [0, 0, 0]},
+      {"id": "rib", "type": "box", "size_mm": [4, 40, 10], "position_mm": [0, 0, 7.5]}
+    ], "operations": [{"op": "linear_pattern", "target_id": "rib", "count": 5, "spacing_mm": 18, "axis": "x"}]}"""
+    spec = _parse_freeform(raw, "a plate with five ribs")
+    build = build_freeform_solid(spec)
+    assert build.error is None
+    assert build.mesh.is_watertight
+    assert build.mesh.body_count == 1
+
+
+def test_pattern_operation_with_malformed_fields_is_dropped_not_fatal():
+    """A malformed pattern op (missing count) is dropped, same discipline
+    as a malformed primitive -- the target then falls through to
+    auto_unioned (a single, unpatterned instance) rather than losing
+    the feature or failing the whole spec."""
+    raw = """{"primitives": [
+      {"id": "seat", "type": "cylinder", "radius_mm": 150, "height_mm": 20, "position_mm": [0, 0, 440]},
+      {"id": "leg", "type": "cylinder", "radius_mm": 12, "height_mm": 430, "position_mm": [0, 0, 215]}
+    ], "operations": [{"op": "circular_pattern", "target_id": "leg", "pattern_radius_mm": 120, "axis": "z"}]}"""
+    spec = _parse_freeform(raw, "a stool")
+    assert spec.operations == [BooleanStep(op="union", target_id="leg")]
+    assert spec.auto_unioned_ids == ["leg"]
+
+
+def test_pattern_operation_axis_defaults_to_z_when_missing_or_invalid():
+    raw = """{"primitives": [
+      {"id": "plate", "type": "box", "size_mm": [100, 40, 5], "position_mm": [0, 0, 0]},
+      {"id": "rib", "type": "box", "size_mm": [4, 40, 10], "position_mm": [0, 0, 7.5]}
+    ], "operations": [{"op": "linear_pattern", "target_id": "rib", "count": 3, "spacing_mm": 18, "axis": "diagonal"}]}"""
+    spec = _parse_freeform(raw, "a plate with ribs")
+    assert spec.operations[0].axis == "z"
