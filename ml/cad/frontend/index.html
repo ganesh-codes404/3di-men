@@ -5,45 +5,50 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Mitsuhub | 3di-men — text to 3D geometry</title>
 <meta name="description" content="Mitsuhub: 3di-men (CAD) turns plain language into structured, inspectable 3D geometry; Print Lab checks it for real printability; Mitsugen generates print-ready vessels and primitive-composed shapes directly from a prompt. Built locally, no cloud model required." />
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%23C1402C%27/%3E%3Cstop offset=%271%27 stop-color=%27%234C6B8A%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2719%27 font-weight=%27700%27 fill=%27%230B0A09%27 text-anchor=%27middle%27%3E%E5%85%89%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23090A09%27/%3E%3Ccircle cx=%2716%27 cy=%2717%27 r=%278.2%27 fill=%27none%27 stroke=%27%23D94332%27 stroke-width=%272%27/%3E%3Ccircle cx=%2716%27 cy=%2717%27 r=%272.1%27 fill=%27%23D94332%27/%3E%3Cline x1=%2716%27 y1=%277.3%27 x2=%2716%27 y2=%274%27 stroke=%27%23D94332%27 stroke-width=%272%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Shippori+Mincho:wght@500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
     --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
     --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-    --font-jp-serif: "Shippori Mincho", "Hiragino Mincho ProN", serif;
-    --font-jp-sans: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", sans-serif;
 
-    --bg: #0B0A09;
-    --bg-2: #15120F;
-    --bg-3: #1E1A16;
-    --border: #332D27;
-    --border-soft: #241F1A;
-    --text: #F2ECE2;
-    --text-dim: #A89D8C;
-    --text-faint: #6E6356;
-    --lavender: #E3A98A;
+    /* ink, paper, lacquer -- the material palette the whole site is built from */
+    --bg: #090A09;
+    --bg-2: #111310;
+    --bg-3: #181A17;
+    --border: #2B2E29;
+    --border-soft: #1C1E1A;
+    --text: #F0EDE4;
+    --text-dim: #A7AAA2;
+    --text-faint: #63695A;
 
-    --accent-1: #C1402C;
-    --accent-2: #4C6B8A;
-    --accent-grad: linear-gradient(135deg, #C1402C, #4C6B8A);
-    --accent-grad-hover: linear-gradient(135deg, #D85940, #5E7FA0);
-    --accent-glow: rgba(193, 64, 44, 0.14);
-    --seal: #B23A28;
-    --gold: #C9A227;
+    --accent-1: #D94332;
+    --accent-2: #555A87;
+    --accent-grad: linear-gradient(135deg, #D94332, #555A87);
+    --accent-grad-hover: linear-gradient(135deg, #E35A48, #6B70A0);
+    --accent-glow: rgba(217, 67, 50, 0.16);
+    --sage: #858C75;
+    --silver: #A7AAA2;
+
+    /* the one light-surface material, used for exactly one section */
+    --paper-bg: #F0EDE4;
+    --paper-bg-2: #E5E0D5;
+    --paper-text: #171712;
+    --paper-text-dim: #6B6656;
+    --paper-border: #D9D2C2;
 
     --max: 1180px;
   }
 
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; overflow-x: hidden; }
   body {
     margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body);
-    font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+    font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; overflow-x: hidden;
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
@@ -66,25 +71,6 @@
     mask-image: radial-gradient(ellipse 80% 55% at 50% 0%, rgba(0,0,0,0.9), transparent 75%);
   }
 
-  /* seigaiha (青海波) -- a traditional repeating-wave motif, run at near-zero
-     opacity as a quiet texture behind the hero rather than a loud pattern */
-  .bg-waves {
-    position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: 0.05;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60' viewBox='0 0 120 60'%3E%3Cg fill='none' stroke='%23F2ECE2' stroke-width='1.1'%3E%3Cpath d='M0 50 a30 30 0 0 1 60 0 a30 30 0 0 1 60 0'/%3E%3Cpath d='M0 38 a18 18 0 0 1 36 0 a18 18 0 0 1 36 0 a18 18 0 0 1 36 0'/%3E%3Cpath d='M0 26 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0 a9 9 0 0 1 18 0'/%3E%3C/g%3E%3C/svg%3E");
-    background-size: 120px 60px;
-    mask-image: radial-gradient(ellipse 75% 60% at 50% 10%, rgba(0,0,0,0.9), transparent 70%);
-  }
-
-  /* ---------- hanko (判子): the company seal mark, reused wherever a page needs
-     the Mitsuhub wordmark -- solid vermillion ink, a hair-rotated stamp, and
-     the kanji for "light" (光), standing in for the Latin "M" it replaced ---------- */
-  .hanko {
-    font-family: var(--font-jp-serif); font-weight: 700; transform: rotate(-3deg);
-    box-shadow: inset 0 0 0 1.5px rgba(242,236,226,0.4);
-  }
-
-  .jp { font-family: var(--font-jp-sans); }
-
   /* ---------- nav ---------- */
   .nav {
     position: sticky; top: 0; z-index: 40; background: rgba(11,10,9,0.7); border-bottom: 1px solid transparent;
@@ -93,22 +79,26 @@
   .nav.scrolled { background: rgba(11,10,9,0.92); border-bottom-color: var(--border); box-shadow: 0 12px 28px -20px rgba(0,0,0,0.7); }
   .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
   .wordmark { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--font-display); font-weight: 600; font-size: 17px; }
-  .wordmark .mark { width: 28px; height: 28px; border-radius: 7px; background: var(--seal); display: flex; align-items: center; justify-content: center; font-size: 15px; color: #F2ECE2; flex-shrink: 0; }
-  .nav-links { display: flex; gap: 28px; font-size: 14.5px; }
+  /* the seal: an original geometric mark (ring, center point, radial tick) --
+     not a letterform, not calligraphy -- reused at every size across every
+     page as the one constant brand anchor */
+  .mark {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--bg-3); color: var(--accent-1);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .mark svg { width: 16px; height: 16px; }
+  .nav-links { display: flex; gap: 26px; font-size: 14.5px; }
   .nav-links a {
     text-decoration: none; color: var(--text-dim); transition: color 0.15s; padding: 4px 0; position: relative;
   }
   .nav-links a::after {
-    content: ""; position: absolute; left: 0; right: 100%; bottom: -1px; height: 1.5px; background: var(--accent-grad);
+    content: ""; position: absolute; left: 0; right: 100%; bottom: -1px; height: 1.5px; background: var(--accent-1);
     transition: right 0.25s ease;
   }
   .nav-links a:hover { color: var(--text); }
   .nav-links a.active { color: var(--text); }
   .nav-links a.active::after { right: 0; }
-  .nav-links a .jp, .mobile-menu a .jp, .footer-links a .jp {
-    font-size: 11px; color: var(--text-faint); margin-left: 6px; letter-spacing: 0.04em;
-  }
-  @media (max-width: 1060px) { .nav-links a .jp { display: none; } }
+  .nav-links a .nav-cat { color: var(--text-faint); font-size: 11px; }
   .nav-right { display: flex; align-items: center; gap: 18px; }
   .nav-toggle {
     display: none; background: transparent; border: 1px solid var(--border); border-radius: 7px; color: var(--text);
@@ -126,7 +116,7 @@
   .mobile-menu a:hover { color: var(--text); }
 
   @media (max-width: 760px) {
-    .nav-links, .nav-right .btn-primary.nav-cta { display: none; }
+    .nav-links { display: none; }
     .nav-toggle { display: flex; }
   }
 
@@ -149,19 +139,47 @@
     outline: 2px solid var(--accent-2); outline-offset: 2px; border-radius: 6px;
   }
 
-  /* ---------- hero ---------- */
-  .hero { padding: 64px 0 88px; position: relative; overflow: hidden; }
-  .hero-grid { display: grid; grid-template-columns: 0.85fr 1.25fr; gap: 56px; align-items: center; position: relative; }
-  @media (max-width: 920px) { .hero-grid { grid-template-columns: 1fr; gap: 40px; } }
-
-  #heroText { position: relative; }
-  .hero-ghost {
-    position: absolute; top: -14px; left: -6px; z-index: 0; pointer-events: none; user-select: none;
-    font-family: var(--font-display); font-weight: 700; font-size: clamp(64px, 11vw, 140px); line-height: 1;
-    max-height: 140px; overflow: hidden; color: transparent; -webkit-text-stroke: 1px var(--border);
-    letter-spacing: -0.03em; white-space: nowrap;
+  /* ---------- hero: one layered field, not two columns in a card ----------
+     the 3D viewport is a full-bleed background layer (.hero-field); the
+     copy sits in normal flow on top of it at a higher z-index. Because the
+     copy block is only ever as wide as its own words/lines (nothing here
+     stretches to fill its container), the field shows through in whatever
+     space the type doesn't occupy -- a real overlap produced by layout,
+     not a trick applied after the fact. */
+  .hero {
+    position: relative; overflow: hidden; display: flex; align-items: center;
+    padding: clamp(84px, 13vh, 150px) 0 clamp(56px, 8vh, 88px); min-height: 100vh;
   }
-  @media (max-width: 920px) { .hero-ghost { display: none; } }
+  @media (max-width: 920px) { .hero { min-height: 0; display: block; padding: 40px 0 0; } }
+
+  /* centered via flexbox, not top:50% + transform:translateY(-50%) -- that
+     trick collided with .reveal.in's own `transform: none` reset below
+     (same property, tied specificity, .reveal.in wins because it comes
+     later in the stylesheet), which silently cancelled the centering and
+     left the mesh rendering about half its own height too low -- spilling
+     past the fold and landing underneath the CTA button. Flexbox needs no
+     transform at all, so the entrance animation stays free to do only its
+     own job. */
+  .hero-field {
+    position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: flex-end;
+    /* biases the centered mesh up slightly so its bottom-right stats tag
+       clears the CTA button's row at shorter viewport heights instead of
+       grazing it */
+    padding-bottom: 40px;
+  }
+  .hero-field .hero-visual { width: min(54vw, 740px); }
+  @media (max-width: 920px) {
+    .hero-field {
+      position: relative; inset: auto; margin-top: 36px; display: block;
+      /* match .hero-copy's own inset so the viewport's edges line up with
+         the text column above it, instead of running flush to the raw
+         screen edge */
+      padding-inline: clamp(20px, 6vw, 84px); padding-bottom: 0;
+    }
+    .hero-field .hero-visual { width: 100%; }
+  }
+
+  .hero-copy { position: relative; z-index: 2; width: 100%; padding-inline: clamp(20px, 6vw, 84px); }
 
   .eyebrow {
     display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 12px;
@@ -176,36 +194,43 @@
   .status-dot.live { background: var(--accent-1); box-shadow: 0 0 0 3px var(--accent-glow); animation: statusPulse 1.6s ease-in-out infinite; }
   @keyframes statusPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
-  .hero h1 {
-    font-family: var(--font-display); font-weight: 700; text-transform: uppercase;
-    font-size: clamp(42px, 6.4vw, 84px); line-height: 0.98; letter-spacing: -0.015em;
-    margin: 24px 0 22px; position: relative; z-index: 1;
+  /* the brand name itself IS the headline now -- solid, in front, with the
+     live render visible behind it (via .hero-field's lower z-index) --
+     rather than hidden as a faint outline while something else takes the
+     foreground. One word, one huge deliberate size, nothing competing. */
+  .hero h1 { margin: 18px 0 0; position: relative; z-index: 1; }
+  .m-mitsuhub {
+    display: block; font-family: var(--font-display); font-weight: 700; text-transform: uppercase;
+    font-size: clamp(2.6rem, 12vw, 9.5rem); line-height: 0.88; letter-spacing: -0.03em; color: var(--text);
   }
-  .hero h1 .lavender { color: var(--lavender); }
-  .hero .lede { font-size: 17px; color: var(--text-dim); max-width: 42ch; line-height: 1.6; position: relative; z-index: 1; }
-  .hero .jp-tagline {
-    font-family: var(--font-jp-serif); font-size: 14px; color: var(--text-faint); margin: 10px 0 20px;
-    letter-spacing: 0.03em; position: relative; z-index: 1;
+  /* the sentence that used to be the headline is now its caption --
+     smaller, lighter, closing the thought under the monumental wordmark */
+  .hero-statement {
+    font-family: var(--font-body); font-weight: 500; color: var(--text-dim);
+    font-size: clamp(1.1rem, 2.6vw, 1.7rem); letter-spacing: 0; line-height: 1.3;
+    margin: clamp(10px, 1.6vw, 18px) 0 0; max-width: 26ch; position: relative; z-index: 1;
   }
-  .hero .ctas { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; position: relative; z-index: 1; }
+  .hero-statement::before { content: ''; display: inline-block; width: 22px; height: 2px; background: var(--accent-1); margin-right: 10px; vertical-align: middle; }
 
-  /* a quiet vertical line of Japanese running down the hero's edge -- a
-     common minimalist motif on Japanese product sites, kept decorative
-     and out of the tab order */
-  .hero-vertical-jp {
-    position: absolute; top: 50%; right: 18px; transform: translateY(-50%);
-    writing-mode: vertical-rl; font-family: var(--font-jp-serif); font-size: 13px;
-    letter-spacing: 0.3em; color: var(--text-faint); opacity: 0.55; pointer-events: none; z-index: 0;
+  .hero-foot {
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 32px; flex-wrap: wrap;
+    margin-top: clamp(32px, 6vw, 64px); position: relative; z-index: 1;
   }
-  @media (max-width: 1240px) { .hero-vertical-jp { display: none; } }
+  .hero .hero-tags {
+    font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; color: var(--text-faint);
+    text-transform: uppercase; margin: 0 0 10px;
+  }
+  .hero .hero-sub { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--text); margin: 0; max-width: 34ch; }
+  .hero .ctas { flex-shrink: 0; }
 
-  /* a stamped corner seal on the live viewport, like an artist's hanko on a print */
-  .hanko-stamp {
-    position: absolute; top: 14px; right: 16px; z-index: 4; width: 34px; height: 34px; border-radius: 50%;
-    border: 1.5px solid var(--seal); color: var(--seal); display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-jp-serif); font-weight: 700; font-size: 15px; transform: rotate(-6deg);
-    opacity: 0.8; pointer-events: none; background: rgba(11,10,9,0.35);
+  /* a stamped corner seal on the live viewport -- the same geometric mark
+     used everywhere else, not a one-off */
+  .corner-seal {
+    position: absolute; top: 14px; right: 16px; z-index: 4; width: 30px; height: 30px; border-radius: 50%;
+    border: 1.5px solid var(--accent-1); color: var(--accent-1); display: flex; align-items: center; justify-content: center;
+    opacity: 0.85; pointer-events: none; background: rgba(9,10,9,0.4);
   }
+  .corner-seal svg { width: 15px; height: 15px; }
 
   /* ---------- tech-frame: the recurring corner-bracket + coordinate-tag signature ---------- */
   .tech-frame { position: relative; }
@@ -221,17 +246,12 @@
   .tech-frame .frame-tag.tl { top: 10px; left: 16px; }
   .tech-frame .frame-tag.br { bottom: 10px; right: 16px; text-align: right; }
 
-  .hero-visual {
-    position: relative; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-2);
-    padding: 20px; overflow: hidden;
-  }
-  .hero-visual::before {
-    content: ""; position: absolute; inset: 0;
-    background-image:
-      repeating-linear-gradient(to right, var(--border-soft) 0 1px, transparent 1px 28px),
-      repeating-linear-gradient(to bottom, var(--border-soft) 0 1px, transparent 1px 28px);
-    opacity: 0.6;
-  }
+  /* no border, no background panel: the live mesh floats directly in the
+     hero's own space rather than sitting in a bordered image box -- only
+     the tiny corner marks and coordinate tags (from .tech-frame) remain,
+     reading as technical annotation rather than a UI card */
+  .hero-visual { position: relative; padding: 20px; }
+  .hero-field .tech-frame::before, .hero-field .tech-frame::after { opacity: 0.6; }
   .hero-visual svg#heroFallback { position: relative; width: 100%; height: auto; display: none; }
   .hero-visual.fallback svg#heroFallback { display: block; }
   .hero-visual .tag {
@@ -244,24 +264,55 @@
   .hero-3d canvas { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity 0.5s ease; }
   .hero-3d.ready canvas { opacity: 1; }
   .hero-3d-status {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px;
-    font-family: var(--font-mono); font-size: 12px; color: var(--text-faint); text-align: center; padding: 0 20px;
-    transition: opacity 0.2s ease; z-index: 2;
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.2s ease; z-index: 2; padding: 0 20px;
   }
   .hero-3d.ready:not(.loading) .hero-3d-status { display: none; }
-  .hero-3d.ready.loading .hero-3d-status { background: rgba(11, 10, 9, 0.6); color: var(--text); }
+  /* a real pill, not the full-box backdrop the .ready.loading state below
+     uses -- the initial build (the F1 car's default ~16-20s included)
+     sits in the same spot as the hero's own MITSUHUB headline, so plain
+     text here read as crossed out by the headline's letters in front of it. */
+  .hero-3d-status .status-pill {
+    display: inline-flex; align-items: center; gap: 8px; max-width: 100%;
+    background: rgba(9, 10, 9, 0.6); border: 1px solid var(--border-soft); border-radius: 999px;
+    padding: 9px 16px; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); text-align: center;
+  }
+  .hero-3d.ready.loading .hero-3d-status .status-pill { color: var(--text); }
   .hero-3d .spinner {
     width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border);
     border-top-color: var(--accent-1); display: inline-block; animation: heroSpin 0.7s linear infinite;
   }
   @keyframes heroSpin { to { transform: rotate(360deg); } }
 
+  /* the bottom-right vert/face-count tag shared the bottom row with the
+     left-anchored status tag below, AND shared its right-aligned column
+     with the CTA button above -- both collided with it depending on
+     viewport size. Pairing it with the top-left tag instead (its one
+     fixed corner, not competing with anything else in the hero) clears
+     both at every size, not just a guessed breakpoint. */
+  #heroVisual .frame-tag.br { top: 28px; left: 16px; right: auto; bottom: auto; text-align: left; }
+  @media (max-width: 640px) {
+    #heroVisual .tag { right: 16px; }
+  }
+
   /* ---------- section shell ---------- */
   section { padding: 88px 0; border-top: 1px solid var(--border-soft); }
-  .section-head { max-width: 56ch; margin-bottom: 44px; }
-  .section-head .eyebrow { margin-bottom: 14px; }
+  /* a thin vermilion rule beside every section heading -- the one recurring
+     graphic motif, used consistently rather than scattered decoration */
+  .section-head { max-width: 56ch; margin-bottom: 44px; border-left: 2px solid var(--accent-1); padding-left: 20px; }
+  .section-head .eyebrow { margin-bottom: 14px; border-left: none; padding-left: 0; }
   .section-head h2 { font-size: 32px; line-height: 1.2; }
   .section-head p { margin-top: 14px; color: var(--text-dim); font-size: 15.5px; line-height: 1.6; }
+
+  /* an oversized, pale section number set beside the heading -- used on the
+     two centerpiece sections for scale contrast and editorial asymmetry */
+  .section-head-row { display: flex; gap: 28px; align-items: flex-start; margin-bottom: 48px; }
+  .section-head-row .section-head { margin-bottom: 0; }
+  .section-num {
+    font-family: var(--font-mono); font-size: 68px; font-weight: 600; line-height: 0.85;
+    color: var(--border); flex-shrink: 0; user-select: none; letter-spacing: -0.02em;
+  }
+  @media (max-width: 640px) { .section-head-row { gap: 14px; } .section-num { font-size: 36px; } }
 
   /* ---------- who it's for ---------- */
   .value-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-bottom: 52px; }
@@ -290,6 +341,57 @@
   .flagship-copy p { color: var(--text-dim); font-size: 14.5px; line-height: 1.65; }
   .flagship-copy .formula { font-family: var(--font-mono); color: var(--text); background: var(--bg-3); padding: 1px 6px; border-radius: 4px; font-size: 13px; white-space: nowrap; }
   .flagship-copy .btn-primary { margin-top: 22px; }
+
+  /* ---------- two ways to create: the product exhibits ----------
+     each exhibit is a full-width editorial row, not a card in a grid of
+     cards -- no border, no shared background, no identical layout. The
+     two exhibits mirror which side the object sits on (image/text order
+     flips via the grid's own `order`), so the page reads as two distinct
+     compositions from the same system rather than one template reused
+     twice with different words dropped in. */
+  .exhibit-grid { display: flex; flex-direction: column; }
+  .exhibit {
+    display: grid; grid-template-columns: 1.15fr 1fr; align-items: center; gap: clamp(28px, 5vw, 72px);
+    text-decoration: none; color: inherit; padding: clamp(40px, 7vw, 88px) 0; border-top: 1px solid var(--border-soft);
+    position: relative;
+  }
+  .exhibit:last-child { border-bottom: 1px solid var(--border-soft); }
+  @media (max-width: 760px) { .exhibit { grid-template-columns: 1fr; gap: 32px; padding: 40px 0; } }
+
+  .exhibit-print { --exhibit-accent: var(--accent-2); grid-template-columns: 1fr 1.15fr; }
+  @media (max-width: 760px) { .exhibit-print { grid-template-columns: 1fr; } }
+  .exhibit-cad .exhibit-body { order: 1; }
+  .exhibit-cad .exhibit-visual { order: 2; }
+  .exhibit-print .exhibit-body { order: 2; text-align: right; }
+  .exhibit-print .exhibit-visual { order: 1; }
+  @media (max-width: 760px) {
+    .exhibit-print .exhibit-body, .exhibit-cad .exhibit-body { order: 2; text-align: left; margin-left: 0; }
+    .exhibit-print .exhibit-visual, .exhibit-cad .exhibit-visual { order: 1; }
+  }
+  .exhibit-print .exhibit-cta, .exhibit-print .exhibit-desc { margin-left: auto; }
+
+  .exhibit-visual {
+    aspect-ratio: 16 / 11; display: flex; align-items: center; justify-content: center;
+    color: var(--exhibit-accent, var(--accent-1)); transition: transform 0.4s ease;
+  }
+  .exhibit-visual svg { width: 100%; height: 100%; }
+  .exhibit:hover .exhibit-visual { transform: scale(1.03); }
+  .exhibit-body { display: flex; flex-direction: column; gap: 10px; position: relative; z-index: 1; }
+  .exhibit-cat { color: var(--exhibit-accent, var(--accent-1)); font-size: 12px; letter-spacing: 0.1em; font-family: var(--font-mono); }
+  /* the monumental title leads -- large editorial scale, same family of
+     sizing as the hero, one tier down -- the product name is its own
+     small lockup underneath, never the loudest thing in the row */
+  .exhibit-head {
+    font-family: var(--font-display); font-weight: 700; text-transform: uppercase;
+    letter-spacing: -0.03em; line-height: 0.92; font-size: clamp(3rem, 8vw, 7.5rem); margin: 6px 0 2px;
+  }
+  .exhibit-body h3 { font-size: 15px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+  .exhibit-desc { color: var(--text-dim); font-size: 15px; line-height: 1.6; max-width: 36ch; }
+  .exhibit-print .exhibit-desc { margin-left: auto; }
+  .exhibit-cta { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 13.5px; font-weight: 600; color: var(--text); }
+  .exhibit-print .exhibit-cta { justify-content: flex-end; }
+  .exhibit-cta .arrow { display: inline-block; transition: transform 0.2s ease; }
+  .exhibit:hover .exhibit-cta .arrow { transform: translate(2px, -2px); }
 
   /* ---------- product gallery ---------- */
   .gallery-grid {
@@ -355,7 +457,11 @@
   .preview-cta p { font-size: 13px; color: var(--text-faint); }
 
   /* ---------- how it works ---------- */
-  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--border); }
+  /* this is a real <ol> (for the real step order, semantically), but the
+     browser's own decimal markers were never suppressed -- so "1. 2. 3."
+     floated to the left of each grid cell, duplicating the "01/02/03"
+     already styled inside each .step card. */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--border); list-style: none; margin: 0; padding: 0; }
   @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
   .step { padding: 28px 26px 0; border-right: 1px solid var(--border); position: relative; }
   .step:last-child { border-right: none; }
@@ -412,24 +518,90 @@
     animation: cubeSpin 18s linear infinite; opacity: 0.6;
   }
   @keyframes cubeSpin { from { transform: rotateX(-20deg) rotateY(0deg); } to { transform: rotateX(-20deg) rotateY(360deg); } }
-  .cube3d .face { position: absolute; inset: 0; border: 1px solid var(--accent-1); background: rgba(139, 92, 246, 0.05); }
-  .cube3d .face.back   { transform: rotateY(180deg) translateZ(36px); border-color: var(--accent-2); background: rgba(59, 130, 246, 0.05); }
-  .cube3d .face.left   { transform: rotateY(-90deg) translateZ(36px); border-color: var(--accent-2); background: rgba(59, 130, 246, 0.05); }
+  .cube3d .face { position: absolute; inset: 0; border: 1px solid var(--accent-1); background: rgba(217, 67, 50, 0.07); }
+  .cube3d .face.back   { transform: rotateY(180deg) translateZ(36px); border-color: var(--accent-2); background: rgba(85, 90, 135, 0.07); }
+  .cube3d .face.left   { transform: rotateY(-90deg) translateZ(36px); border-color: var(--accent-2); background: rgba(85, 90, 135, 0.07); }
   .cube3d .face.front  { transform: translateZ(36px); }
   .cube3d .face.right  { transform: rotateY(90deg) translateZ(36px); }
   .cube3d .face.top    { transform: rotateX(90deg) translateZ(36px); }
   .cube3d .face.bottom { transform: rotateX(-90deg) translateZ(36px); }
 
+  /* ---------- brand statement: the one warm-paper, light-surface section ---------- */
+  .section-paper { background: var(--paper-bg); border-top: 1px solid var(--paper-border); }
+  .statement-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+  @media (max-width: 860px) { .statement-grid { grid-template-columns: 1fr; gap: 36px; } }
+  .section-paper .eyebrow { color: var(--paper-text-dim); border-left-color: var(--accent-1); }
+  .statement-h {
+    font-family: var(--font-display); font-weight: 700; text-transform: uppercase;
+    font-size: clamp(34px, 5vw, 56px); line-height: 1.04; letter-spacing: -0.01em; color: var(--paper-text);
+    margin-top: 18px;
+  }
+  .statement-copy p { color: var(--paper-text-dim); font-size: 16px; line-height: 1.7; max-width: 46ch; }
+  .statement-visual { margin-top: 28px; color: var(--paper-text); opacity: 0.8; }
+  .statement-visual svg { width: 100%; max-width: 280px; height: auto; display: block; }
+
   /* ---------- footer ---------- */
-  footer { border-top: 1px solid var(--border); padding: 40px 0 48px; }
+  footer { border-top: 1px solid var(--border); padding: 56px 0 48px; }
   .footer-grid { display: flex; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
   .footer-brand .wordmark { margin-bottom: 10px; }
   .footer-brand p { color: var(--text-faint); font-size: 13px; max-width: 36ch; line-height: 1.6; }
-  .footer-links { display: flex; gap: 32px; flex-wrap: wrap; }
-  .footer-links div { display: flex; flex-direction: column; gap: 9px; }
-  .footer-links a { color: var(--text-dim); text-decoration: none; font-size: 13.5px; }
-  .footer-links a:hover { color: var(--text); }
-  .footer-note { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border-soft); font-size: 12px; color: var(--text-faint); font-family: var(--font-mono); }
+  .footer-signature { margin-top: 10px; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.06em; color: var(--text-faint); text-transform: uppercase; }
+  .footer-links { display: flex; gap: 40px; flex-wrap: wrap; }
+  .footer-links-col { display: flex; flex-direction: column; gap: 9px; }
+  .footer-links-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 4px; }
+  .footer-links-col a { color: var(--text-dim); text-decoration: none; font-size: 13.5px; }
+  .footer-links-col a:hover { color: var(--text); }
+  .footer-cat { color: var(--text-faint); }
+
+  /* an editorial signature: the full wordmark spanning almost the entire
+     footer width, at any viewport -- sized in container-query units
+     against its own box (not vw against the viewport), so "almost the
+     entire available width" holds true at a phone's width exactly as
+     well as a 4K monitor's, with no per-breakpoint guessing. The plain
+     vw-based clamp above it is a fallback for browsers without cqw
+     support -- an invalid value is dropped entirely by the cascade, so
+     it only ever takes effect there. */
+  .footer-wordmark {
+    margin-top: 48px; padding-top: 28px; border-top: 2px solid var(--accent-1);
+    container-type: inline-size;
+  }
+  .footer-wordmark span {
+    display: block; font-family: var(--font-display); font-weight: 700; text-transform: uppercase;
+    line-height: 0.92; letter-spacing: -0.03em; color: var(--text); white-space: nowrap; overflow: hidden;
+    font-size: clamp(44px, 15vw, 200px);
+    font-size: clamp(2.75rem, 20cqw, 14rem);
+  }
+  .footer-note { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-soft); font-size: 12px; color: var(--text-faint); font-family: var(--font-mono); }
+
+  /* a second, solid brand-moment: MITSUHUB dead centre -- a confident full
+     stop between the hero and the product showcase. Sized against the
+     wrap's own width via cqw (vw clamp as a fallback for browsers without
+     container-query-unit support) so it keeps spanning nearly the full
+     available width at any viewport, not a fixed guess. A thin outlined
+     duplicate sits a few pixels behind the solid word -- a second,
+     standalone typographic statement after the hero's own solid wordmark. */
+  .brand-moment { text-align: center; }
+  .brand-moment .wrap { container-type: inline-size; overflow: hidden; }
+  .brand-moment .rule { width: 56px; height: 2px; background: var(--accent-1); margin: 0 auto 28px; }
+  .brand-moment .word-stack { position: relative; display: inline-block; }
+  .brand-moment .word {
+    display: block; font-family: var(--font-display); font-weight: 700; text-transform: uppercase;
+    line-height: 0.92; letter-spacing: -0.03em; white-space: nowrap;
+    /* 26cqw/16rem (and the 19vw/230px fallback) rendered this 8-letter
+       word wider than its own .wrap at every viewport tested -- the
+       percentage assumed roughly one character's width per cqw unit,
+       not eight -- so the right edge was getting sliced off by the
+       page's overflow-x:hidden instead of staying inside the section.
+       19cqw/13.5rem keeps it at a consistent ~90% fill with margin to
+       spare, same ratio the footer's own wordmark already uses safely. */
+    font-size: clamp(44px, 14vw, 196px);
+    font-size: clamp(2.75rem, 19cqw, 13.5rem);
+  }
+  .brand-moment .word-solid { position: relative; z-index: 1; color: var(--text); }
+  .brand-moment .word-outline {
+    position: absolute; inset: 0; z-index: 0; color: transparent; -webkit-text-stroke: 1px var(--border);
+    transform: translate(10px, 8px); pointer-events: none;
+  }
 
   /* ---------- one orchestrated entrance (hero, on load) ---------- */
   .reveal { opacity: 0; transform: translateY(10px); }
@@ -463,138 +635,220 @@
 <body>
 
 <div class="bg-grid" aria-hidden="true"></div>
-<div class="bg-waves" aria-hidden="true"></div>
 
 <header class="nav" id="top">
   <div class="wrap nav-inner">
-    <a class="wordmark" href="#top"><span class="mark hanko">光</span>Mitsuhub</a>
+    <a class="wordmark" href="#top"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></span>Mitsuhub</a>
     <nav class="nav-links" aria-label="Primary">
-      <a href="#who-its-for">Who it's for</a>
-      <a href="#product">Product</a>
-      <a href="#how-it-works">How it works</a>
-      <a href="#capabilities">Capabilities</a>
-      <a href="/workspace">3di-men — CAD<span class="jp">図面</span></a>
-      <a href="/print-lab">Print Lab<span class="jp">工房</span></a>
-      <a href="/mitsugen">Mitsugen — 3D Printing<span class="jp">光源</span></a>
+      <a href="/workspace">3di-men <span class="nav-cat mono">— CAD</span></a>
+      <a href="/mitsugen">Mitsugen <span class="nav-cat mono">— 3D Printing</span></a>
     </nav>
     <div class="nav-right">
-      <a class="btn-primary nav-cta" href="/workspace">Open Workspace</a>
       <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mobileMenu" aria-label="Toggle menu">
         <span></span><span></span><span></span>
       </button>
     </div>
   </div>
   <div class="mobile-menu" id="mobileMenu">
+    <a href="/workspace">3di-men — CAD</a>
+    <a href="/mitsugen">Mitsugen — 3D Printing</a>
+    <a href="/print-lab">Print Lab</a>
+    <a href="#showcase">Products</a>
     <a href="#who-its-for">Who it's for</a>
-    <a href="#product">Product</a>
     <a href="#how-it-works">How it works</a>
     <a href="#capabilities">Capabilities</a>
-    <a href="/workspace">3di-men — CAD<span class="jp">図面</span></a>
-    <a href="/print-lab">Print Lab<span class="jp">工房</span></a>
-    <a href="/mitsugen">Mitsugen — 3D Printing<span class="jp">光源</span></a>
   </div>
 </header>
 
 <main>
 
-  <section class="hero">
-    <span class="hero-vertical-jp" aria-hidden="true">光より、かたちを生む 〇 ことばから立体へ</span>
-    <div class="wrap hero-grid">
-      <div class="reveal" id="heroText">
-        <span class="hero-ghost" aria-hidden="true">3DM</span>
-        <span class="eyebrow"><span class="status-dot" id="heroStatusDot"></span>TEXT → GEOMETRY</span>
-        <h1>Describe it.<br><span class="lavender">Watch it build.</span></h1>
-        <p class="lede">A sentence in, a real dimensioned mesh out — rendered live, on the right, right now.</p>
-        <p class="jp-tagline">図面 — ことばが、かたちになる。<span class="mono" style="color:var(--text-faint); font-size:11px; margin-left:8px;">zumen — words become form</span></p>
+  <section class="hero hero-grid">
+    <div class="hero-copy reveal" id="heroText">
+      <span class="eyebrow"><span class="status-dot" id="heroStatusDot"></span>MITSUHUB® / SPATIAL DESIGN LAB</span>
+      <h1 aria-label="Mitsuhub.">
+        <span class="m-mitsuhub" aria-hidden="true">Mitsuhub</span>
+      </h1>
+      <p class="hero-statement">Form meets the third dimension.</p>
+      <div class="hero-foot">
+        <div class="hero-foot-left">
+          <p class="hero-tags">CAD / Computational Geometry / 3D Printing</p>
+          <p class="hero-sub">From dimensional precision to printable reality.</p>
+        </div>
         <div class="ctas">
-          <a class="btn-primary" href="/workspace">Enter the Workspace</a>
-          <a class="btn-secondary" href="#how-it-works">Explore the System</a>
+          <a class="btn-primary" href="#showcase">Explore the Lab ↗</a>
         </div>
       </div>
+    </div>
 
+    <div class="hero-field">
       <div class="hero-visual tech-frame reveal" id="heroVisual">
-        <span class="hanko-stamp" aria-hidden="true">光</span>
-        <span class="frame-tag tl">REAL-TIME RENDER · DRAG TO ORBIT</span>
+        <span class="corner-seal" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></span>
+        <span class="frame-tag tl">SPATIAL SYSTEM 001 · DRAG TO ORBIT</span>
         <span class="frame-tag br" id="heroStatsTag">VERTS — · FACES —</span>
         <div class="hero-3d" id="hero3d">
-          <div class="hero-3d-status" id="hero3dStatus" aria-live="polite"><span class="spinner"></span><span class="status-text">Building a live sample mesh…</span></div>
+          <div class="hero-3d-status" id="hero3dStatus" aria-live="polite"><span class="status-pill"><span class="spinner"></span><span class="status-text">Building a live sample mesh…</span></span></div>
         </div>
         <svg id="heroFallback" viewBox="0 0 560 420" role="img" aria-label="Two-view technical drawing of a shaft and spur gear assembly: a front elevation with dimensions, and a gear-profile end view with 16 teeth">
           <defs>
             <linearGradient id="edgeGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#C1402C" />
-              <stop offset="1" stop-color="#4C6B8A" />
+              <stop offset="0" stop-color="#D94332" />
+              <stop offset="1" stop-color="#555A87" />
             </linearGradient>
           </defs>
 
           <!-- centerline through the shaft/gear axis -->
-          <line x1="50" y1="187.5" x2="400" y2="187.5" stroke="#6E6356" stroke-width="1" stroke-dasharray="16 4 3 4" />
+          <line x1="50" y1="187.5" x2="400" y2="187.5" stroke="#63695A" stroke-width="1" stroke-dasharray="16 4 3 4" />
 
           <!-- shaft: front elevation -->
-          <line x1="70" y1="170" x2="280" y2="170" stroke="#A89D8C" stroke-width="1.3" />
-          <line x1="70" y1="205" x2="280" y2="205" stroke="#A89D8C" stroke-width="1.3" />
-          <line x1="70" y1="170" x2="70" y2="205" stroke="#A89D8C" stroke-width="1.3" />
-          <line x1="280" y1="170" x2="280" y2="120" stroke="#A89D8C" stroke-width="1" stroke-dasharray="2 3" />
-          <line x1="280" y1="205" x2="280" y2="255" stroke="#A89D8C" stroke-width="1" stroke-dasharray="2 3" />
+          <line x1="70" y1="170" x2="280" y2="170" stroke="#A7AAA2" stroke-width="1.3" />
+          <line x1="70" y1="205" x2="280" y2="205" stroke="#A7AAA2" stroke-width="1.3" />
+          <line x1="70" y1="170" x2="70" y2="205" stroke="#A7AAA2" stroke-width="1.3" />
+          <line x1="280" y1="170" x2="280" y2="120" stroke="#A7AAA2" stroke-width="1" stroke-dasharray="2 3" />
+          <line x1="280" y1="205" x2="280" y2="255" stroke="#A7AAA2" stroke-width="1" stroke-dasharray="2 3" />
 
           <!-- gear: front elevation (silhouette + tooth ticks) -->
           <path d="M 280 120 L 360 120 L 360 255 L 280 255" fill="none" stroke="url(#edgeGrad)" stroke-width="2" />
-          <line x1="285" y1="120" x2="285" y2="113" stroke="#A89D8C" stroke-width="1" />
-          <line x1="295" y1="120" x2="295" y2="113" stroke="#A89D8C" stroke-width="1" />
-          <line x1="305" y1="120" x2="305" y2="113" stroke="#A89D8C" stroke-width="1" />
-          <line x1="315" y1="120" x2="315" y2="113" stroke="#A89D8C" stroke-width="1" />
-          <line x1="325" y1="120" x2="325" y2="113" stroke="#A89D8C" stroke-width="1" />
-          <line x1="335" y1="120" x2="335" y2="113" stroke="#A89D8C" stroke-width="1" />
-          <line x1="345" y1="120" x2="345" y2="113" stroke="#A89D8C" stroke-width="1" />
-          <line x1="355" y1="120" x2="355" y2="113" stroke="#A89D8C" stroke-width="1" />
-          <line x1="285" y1="255" x2="285" y2="262" stroke="#A89D8C" stroke-width="1" />
-          <line x1="295" y1="255" x2="295" y2="262" stroke="#A89D8C" stroke-width="1" />
-          <line x1="305" y1="255" x2="305" y2="262" stroke="#A89D8C" stroke-width="1" />
-          <line x1="315" y1="255" x2="315" y2="262" stroke="#A89D8C" stroke-width="1" />
-          <line x1="325" y1="255" x2="325" y2="262" stroke="#A89D8C" stroke-width="1" />
-          <line x1="335" y1="255" x2="335" y2="262" stroke="#A89D8C" stroke-width="1" />
-          <line x1="345" y1="255" x2="345" y2="262" stroke="#A89D8C" stroke-width="1" />
-          <line x1="355" y1="255" x2="355" y2="262" stroke="#A89D8C" stroke-width="1" />
+          <line x1="285" y1="120" x2="285" y2="113" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="295" y1="120" x2="295" y2="113" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="305" y1="120" x2="305" y2="113" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="315" y1="120" x2="315" y2="113" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="325" y1="120" x2="325" y2="113" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="335" y1="120" x2="335" y2="113" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="345" y1="120" x2="345" y2="113" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="355" y1="120" x2="355" y2="113" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="285" y1="255" x2="285" y2="262" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="295" y1="255" x2="295" y2="262" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="305" y1="255" x2="305" y2="262" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="315" y1="255" x2="315" y2="262" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="325" y1="255" x2="325" y2="262" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="335" y1="255" x2="335" y2="262" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="345" y1="255" x2="345" y2="262" stroke="#A7AAA2" stroke-width="1" />
+          <line x1="355" y1="255" x2="355" y2="262" stroke="#A7AAA2" stroke-width="1" />
 
           <!-- shaft length + diameter dimensions -->
-          <g font-family="JetBrains Mono, monospace" font-size="11" fill="#A89D8C">
-            <line x1="70" y1="205" x2="70" y2="300" stroke="#332D27" stroke-width="1" />
-            <line x1="280" y1="255" x2="280" y2="300" stroke="#332D27" stroke-width="1" />
-            <line x1="70" y1="292" x2="280" y2="292" stroke="#332D27" stroke-width="1" />
-            <line x1="70" y1="286" x2="70" y2="298" stroke="#332D27" stroke-width="1" />
-            <line x1="280" y1="286" x2="280" y2="298" stroke="#332D27" stroke-width="1" />
-            <text x="140" y="310" fill="#A89D8C">100 mm</text>
+          <g font-family="JetBrains Mono, monospace" font-size="11" fill="#A7AAA2">
+            <line x1="70" y1="205" x2="70" y2="300" stroke="#2B2E29" stroke-width="1" />
+            <line x1="280" y1="255" x2="280" y2="300" stroke="#2B2E29" stroke-width="1" />
+            <line x1="70" y1="292" x2="280" y2="292" stroke="#2B2E29" stroke-width="1" />
+            <line x1="70" y1="286" x2="70" y2="298" stroke="#2B2E29" stroke-width="1" />
+            <line x1="280" y1="286" x2="280" y2="298" stroke="#2B2E29" stroke-width="1" />
+            <text x="140" y="310" fill="#A7AAA2">100 mm</text>
 
-            <line x1="46" y1="170" x2="46" y2="205" stroke="#332D27" stroke-width="1" />
-            <line x1="40" y1="170" x2="52" y2="170" stroke="#332D27" stroke-width="1" />
-            <line x1="40" y1="205" x2="52" y2="205" stroke="#332D27" stroke-width="1" />
-            <text x="2" y="191" fill="#A89D8C">⌀20</text>
+            <line x1="46" y1="170" x2="46" y2="205" stroke="#2B2E29" stroke-width="1" />
+            <line x1="40" y1="170" x2="52" y2="170" stroke="#2B2E29" stroke-width="1" />
+            <line x1="40" y1="205" x2="52" y2="205" stroke="#2B2E29" stroke-width="1" />
+            <text x="2" y="191" fill="#A7AAA2">⌀20</text>
           </g>
 
           <!-- gear end view: true tooth profile + bore -->
           <path d="M 506.0 188.2 L 515.7 193.2 L 513.7 203.5 L 502.8 204.5 L 502.2 205.8 L 509.3 214.1 L 503.4 222.9 L 493.0 219.5 L 492.0 220.5 L 495.4 230.9 L 486.6 236.8 L 478.3 229.7 L 477.0 230.3 L 476.0 241.2 L 465.7 243.2 L 460.7 233.5 L 459.3 233.5 L 454.3 243.2 L 444.0 241.2 L 443.0 230.3 L 441.7 229.7 L 433.4 236.8 L 424.6 230.9 L 428.0 220.5 L 427.0 219.5 L 416.6 222.9 L 410.7 214.1 L 417.8 205.8 L 417.2 204.5 L 406.3 203.5 L 404.3 193.2 L 414.0 188.2 L 414.0 186.8 L 404.3 181.8 L 406.3 171.5 L 417.2 170.5 L 417.8 169.2 L 410.7 160.9 L 416.6 152.1 L 427.0 155.5 L 428.0 154.5 L 424.6 144.1 L 433.4 138.2 L 441.7 145.3 L 443.0 144.7 L 444.0 133.8 L 454.3 131.8 L 459.3 141.5 L 460.7 141.5 L 465.7 131.8 L 476.0 133.8 L 477.0 144.7 L 478.3 145.3 L 486.6 138.2 L 495.4 144.1 L 492.0 154.5 L 493.0 155.5 L 503.4 152.1 L 509.3 160.9 L 502.2 169.2 L 502.8 170.5 L 513.7 171.5 L 515.7 181.8 L 506.0 186.8 Z"
-                fill="#1E1A16" stroke="#A89D8C" stroke-width="1.2" />
+                fill="#181A17" stroke="#A7AAA2" stroke-width="1.2" />
           <circle cx="460" cy="187.5" r="18" fill="none" stroke="url(#edgeGrad)" stroke-width="2" />
-          <line x1="404" y1="187.5" x2="516" y2="187.5" stroke="#6E6356" stroke-width="1" stroke-dasharray="10 3 2 3" />
-          <line x1="460" y1="131.5" x2="460" y2="243.5" stroke="#6E6356" stroke-width="1" stroke-dasharray="10 3 2 3" />
+          <line x1="404" y1="187.5" x2="516" y2="187.5" stroke="#63695A" stroke-width="1" stroke-dasharray="10 3 2 3" />
+          <line x1="460" y1="131.5" x2="460" y2="243.5" stroke="#63695A" stroke-width="1" stroke-dasharray="10 3 2 3" />
 
           <!-- labels -->
-          <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#6E6356">
-            <text x="70" y="104" fill="#A89D8C">FRONT ELEVATION</text>
-            <text x="416" y="268" fill="#A89D8C" text-anchor="middle">GEAR PROFILE — m2 · 16T</text>
+          <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#63695A">
+            <text x="70" y="104" fill="#A7AAA2">FRONT ELEVATION</text>
+            <text x="416" y="268" fill="#A7AAA2" text-anchor="middle">GEAR PROFILE — m2 · 16T</text>
           </g>
 
           <!-- axis gizmo -->
           <g transform="translate(60,368)" font-family="JetBrains Mono, monospace" font-size="11">
-            <line x1="0" y1="0" x2="34" y2="0" stroke="#4C6B8A" stroke-width="1.5" />
-            <text x="40" y="4" fill="#4C6B8A">X</text>
-            <line x1="0" y1="0" x2="-20" y2="-20" stroke="#C1402C" stroke-width="1.5" />
-            <text x="-32" y="-24" fill="#C1402C">Y</text>
-            <line x1="0" y1="0" x2="0" y2="-34" stroke="#A89D8C" stroke-width="1.5" />
-            <text x="4" y="-38" fill="#A89D8C">Z</text>
+            <line x1="0" y1="0" x2="34" y2="0" stroke="#555A87" stroke-width="1.5" />
+            <text x="40" y="4" fill="#555A87">X</text>
+            <line x1="0" y1="0" x2="-20" y2="-20" stroke="#D94332" stroke-width="1.5" />
+            <text x="-32" y="-24" fill="#D94332">Y</text>
+            <line x1="0" y1="0" x2="0" y2="-34" stroke="#A7AAA2" stroke-width="1.5" />
+            <text x="4" y="-38" fill="#A7AAA2">Z</text>
           </g>
         </svg>
         <span class="tag" id="heroTag">rendering a live mesh from the real backend…</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="brand-moment" aria-hidden="true">
+    <div class="wrap">
+      <div class="rule"></div>
+      <span class="word-stack">
+        <span class="word word-outline">Mitsuhub</span>
+        <span class="word word-solid">Mitsuhub</span>
+      </span>
+    </div>
+  </section>
+
+  <section id="showcase">
+    <div class="wrap">
+      <div class="section-head-row">
+        <span class="section-num mono" aria-hidden="true">00</span>
+        <div class="section-head">
+          <span class="eyebrow">THE ECOSYSTEM</span>
+          <h2>Two ways to create.</h2>
+          <p>One ecosystem. Two distinct approaches to three-dimensional creation.</p>
+        </div>
+      </div>
+
+      <div class="exhibit-grid">
+        <a class="exhibit exhibit-cad" href="/workspace">
+          <div class="exhibit-visual">
+            <svg viewBox="0 0 200 140" role="img" aria-label="A dashed wireframe cube resolving into a solid, shaded mechanical form">
+              <g fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.55" stroke-dasharray="3 3">
+                <path d="M20 70 L55 52 L90 70 L55 88 Z" />
+                <path d="M20 70 L20 40 L55 22 L55 52" />
+                <path d="M90 70 L90 40 L55 22" />
+                <path d="M20 40 L55 22 L90 40" />
+              </g>
+              <g fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M118 70 L153 52 L188 70 L153 88 Z" />
+                <path d="M118 70 L118 40 L153 22 L153 52" />
+                <path d="M188 70 L188 40 L153 22" />
+                <circle cx="153" cy="55" r="9" />
+              </g>
+              <line x1="96" y1="68" x2="112" y2="68" stroke="currentColor" stroke-width="1.2" />
+              <g font-family="JetBrains Mono, monospace" font-size="9" fill="currentColor" opacity="0.7">
+                <text x="20" y="112">X / Y / Z</text>
+                <text x="118" y="112">MESH GENERATION</text>
+              </g>
+            </svg>
+          </div>
+          <div class="exhibit-body">
+            <span class="exhibit-cat mono">01 / CAD SYSTEM</span>
+            <p class="exhibit-head">Engineer.</p>
+            <h3>3di-men</h3>
+            <p class="exhibit-desc">Dimensional precision. Structured geometry.</p>
+            <span class="exhibit-cta">Enter CAD <span class="arrow" aria-hidden="true">↗</span></span>
+          </div>
+        </a>
+
+        <a class="exhibit exhibit-print" href="/mitsugen">
+          <div class="exhibit-visual">
+            <svg viewBox="0 0 200 140" role="img" aria-label="A tapered vessel silhouette built from stacked additive-manufacturing layer lines">
+              <path d="M90 14 C70 34 64 48 64 64 C64 92 72 112 82 124 L118 124 C128 112 136 92 136 64 C136 48 130 34 110 14 Z"
+                    fill="none" stroke="currentColor" stroke-width="1.6" />
+              <g stroke="currentColor" stroke-width="1" opacity="0.6">
+                <ellipse cx="100" cy="30" rx="9" ry="3" fill="none" />
+                <ellipse cx="100" cy="44" rx="15" ry="3.4" fill="none" stroke-dasharray="2 3" />
+                <ellipse cx="100" cy="58" rx="23" ry="4" fill="none" stroke-dasharray="2 3" />
+                <ellipse cx="100" cy="74" rx="28" ry="4.4" fill="none" stroke-dasharray="2 3" />
+                <ellipse cx="100" cy="90" rx="31" ry="4.6" fill="none" stroke-dasharray="2 3" />
+                <ellipse cx="100" cy="106" rx="30" ry="4.6" fill="none" stroke-dasharray="2 3" />
+                <ellipse cx="100" cy="121" rx="25" ry="4.2" fill="none" />
+              </g>
+              <g font-family="JetBrains Mono, monospace" font-size="9" fill="currentColor" opacity="0.7">
+                <text x="18" y="112">LAYER STACK</text>
+                <text x="100" y="34">FORM / STRUCTURE</text>
+              </g>
+            </svg>
+          </div>
+          <div class="exhibit-body">
+            <span class="exhibit-cat mono">02 / 3D PRINTING</span>
+            <p class="exhibit-head">Make.</p>
+            <h3>Mitsugen</h3>
+            <p class="exhibit-desc">Digital forms. Physical possibility.</p>
+            <span class="exhibit-cta">Enter Mitsugen <span class="arrow" aria-hidden="true">↗</span></span>
+          </div>
+        </a>
       </div>
     </div>
   </section>
@@ -654,15 +908,15 @@
           <svg viewBox="0 0 300 220" role="img" aria-label="Schematic of a sun gear with three planet gears, each placed at the correct meshing center distance of 32 millimeters">
             <defs>
               <linearGradient id="flagGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#C1402C" />
-                <stop offset="1" stop-color="#4C6B8A" />
+                <stop offset="0" stop-color="#D94332" />
+                <stop offset="1" stop-color="#555A87" />
               </linearGradient>
             </defs>
-            <circle cx="150" cy="110" r="70" fill="none" stroke="#332D27" stroke-width="1" stroke-dasharray="4 4" />
+            <circle cx="150" cy="110" r="70" fill="none" stroke="#2B2E29" stroke-width="1" stroke-dasharray="4 4" />
             <line x1="150" y1="110" x2="220" y2="110" stroke="url(#flagGrad)" stroke-width="1.6" />
-            <text x="172" y="103" font-family="JetBrains Mono, monospace" font-size="11" fill="#A89D8C">32 mm</text>
+            <text x="172" y="103" font-family="JetBrains Mono, monospace" font-size="11" fill="#A7AAA2">32 mm</text>
 
-            <g fill="none" stroke="#A89D8C" stroke-width="1.3">
+            <g fill="none" stroke="#A7AAA2" stroke-width="1.3">
               <circle cx="150" cy="110" r="24" stroke-dasharray="2.6 3.2" />
               <circle cx="150" cy="110" r="20" />
               <circle cx="150" cy="110" r="6" />
@@ -680,8 +934,8 @@
               <circle cx="115" cy="49.4" r="6" />
             </g>
 
-            <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#6E6356">
-              <text x="150" y="20" text-anchor="middle" fill="#A89D8C">m2 · 16T — SUN + 3 PLANETS</text>
+            <g font-family="JetBrains Mono, monospace" font-size="10.5" fill="#63695A">
+              <text x="150" y="20" text-anchor="middle" fill="#A7AAA2">m2 · 16T — SUN + 3 PLANETS</text>
             </g>
           </svg>
         </div>
@@ -843,16 +1097,16 @@
               <svg viewBox="0 0 200 160" role="presentation">
                 <defs>
                   <linearGradient id="edgeGrad2" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#C1402C" />
-                    <stop offset="1" stop-color="#4C6B8A" />
+                    <stop offset="0" stop-color="#D94332" />
+                    <stop offset="1" stop-color="#555A87" />
                   </linearGradient>
                 </defs>
-                <path d="M 100 30 L 160 60 L 100 90 L 40 60 Z" fill="#171824" stroke="#A89D8C" stroke-width="1" />
-                <path d="M 40 60 L 100 90 L 100 140 L 40 110 Z" fill="#101119" stroke="#A89D8C" stroke-width="1" />
-                <path d="M 100 90 L 160 60 L 160 110 L 100 140 Z" fill="#1E1A16" stroke="url(#edgeGrad2)" stroke-width="1.6" />
+                <path d="M 100 30 L 160 60 L 100 90 L 40 60 Z" fill="#171824" stroke="#A7AAA2" stroke-width="1" />
+                <path d="M 40 60 L 100 90 L 100 140 L 40 110 Z" fill="#101119" stroke="#A7AAA2" stroke-width="1" />
+                <path d="M 100 90 L 160 60 L 160 110 L 100 140 Z" fill="#181A17" stroke="url(#edgeGrad2)" stroke-width="1.6" />
 
                 <!-- four corner bosses, one per corner, per the prompt text beside this preview -->
-                <g stroke="#A89D8C" stroke-width="0.9" fill="#171824">
+                <g stroke="#A7AAA2" stroke-width="0.9" fill="#171824">
                   <line x1="94" y1="39.6" x2="94" y2="33.6" />
                   <line x1="106" y1="39.6" x2="106" y2="33.6" />
                   <ellipse cx="100" cy="33.6" rx="6" ry="3" />
@@ -970,6 +1224,33 @@
     </div>
   </section>
 
+  <section id="statement" class="section-paper">
+    <div class="wrap statement-grid">
+      <div>
+        <span class="eyebrow">THE IDEA</span>
+        <h2 class="statement-h">Form follows<br>imagination.</h2>
+      </div>
+      <div class="statement-copy">
+        <p>We are building tools that help turn ideas into geometry — from engineered structures to objects ready to enter the physical world.</p>
+        <div class="statement-visual">
+          <svg viewBox="0 0 200 120" role="img" aria-label="A dashed wireframe cube beside a solid, filled cube, joined by a single connecting line">
+            <g fill="none" stroke="currentColor" stroke-width="1.1" stroke-dasharray="3 3" opacity="0.6">
+              <path d="M14 70 L48 54 L82 70 L48 86 Z" />
+              <path d="M14 70 L14 36 L48 20 L48 54" />
+              <path d="M82 70 L82 36 L48 20" />
+            </g>
+            <line x1="90" y1="55" x2="112" y2="55" stroke="currentColor" stroke-width="1.1" />
+            <g stroke="currentColor" stroke-width="1.3">
+              <path d="M120 70 L154 54 L188 70 L154 86 Z" fill="currentColor" fill-opacity="0.08" />
+              <path d="M120 70 L120 36 L154 20 L154 54" fill="currentColor" fill-opacity="0.05" />
+              <path d="M188 70 L188 36 L154 20" fill="currentColor" fill-opacity="0.12" />
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="closing">
     <div class="wrap">
       <div class="closing-inner">
@@ -995,25 +1276,28 @@
   <div class="wrap">
     <div class="footer-grid">
       <div class="footer-brand">
-        <a class="wordmark" href="#top"><span class="mark hanko">光</span>Mitsuhub</a>
+        <a class="wordmark" href="#top"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></span>Mitsuhub</a>
         <p>3di-men, Print Lab, and Mitsugen — real 3D geometry, real printability, built locally, nothing faked.</p>
-        <p class="jp" style="font-family: var(--font-jp-serif); color: var(--text-faint); font-size: 12.5px; margin-top: 10px; letter-spacing: 0.02em;">光より、かたちを。 — from light, form.</p>
+        <p class="footer-signature">Built for the third dimension.</p>
       </div>
       <div class="footer-links">
-        <div>
+        <div class="footer-links-col">
+          <span class="footer-links-label mono">PAGES</span>
+          <a href="#showcase">Products</a>
           <a href="#who-its-for">Who it's for</a>
-          <a href="#product">Product</a>
           <a href="#how-it-works">How it works</a>
           <a href="#capabilities">Capabilities</a>
         </div>
-        <div>
-          <a href="/workspace">3di-men — CAD<span class="jp">図面</span></a>
-          <a href="/print-lab">Print Lab<span class="jp">工房</span></a>
-          <a href="/mitsugen">Mitsugen — 3D Printing<span class="jp">光源</span></a>
+        <div class="footer-links-col">
+          <span class="footer-links-label mono">PRODUCTS</span>
+          <a href="/workspace">3di-men <span class="footer-cat">— CAD</span></a>
+          <a href="/mitsugen">Mitsugen <span class="footer-cat">— 3D Printing</span></a>
+          <a href="/print-lab">Print Lab</a>
         </div>
       </div>
     </div>
-    <div class="footer-note">Runs on your own machine — no account needed, nothing sent to the cloud.</div>
+    <div class="footer-wordmark" aria-hidden="true"><span>Mitsuhub</span></div>
+    <div class="footer-note">© Mitsuhub. Runs on your own machine — no account needed, nothing sent to the cloud.</div>
   </div>
 </footer>
 
@@ -1398,42 +1682,54 @@
           { op: 'add_tube', args: { outer_radius: 14, inner_radius: 9, path_kind: 'straight', path_param_a: 260, path_param_b: 0, path_param_c: 0, sections: 10, path_segments: 6 } },
           { op: 'finalize', args: { target: 0 } },
         ] },
-        { name: 'FrontUpperArmL', position_mm: { x: -585, y: 390, z: 1185 }, program: [
+        // a straight add_tube rod has only ONE fixed (y, z) for its entire
+        // length -- these 8 arms' outboard ends were given a y/z meant to
+        // suggest a wishbone's angle (390/1185 vs the wheel hub's actual
+        // 300/1225, etc.), but a straight rod can't bend to actually reach
+        // that angled point AND the hub -- it just runs past the hub,
+        // through the wheel's hollow center, missing by 25-58mm (verified
+        // against the live backend: distance from each arm's fixed y/z to
+        // its hub's center vs. hub_radius + rod outer_radius). Re-aimed
+        // each arm's y/z to land inside its hub cylinder instead (+-20mm
+        // of the hub's own center, so upper and lower still read as two
+        // separate arms, not one fused rod) -- x and length are untouched,
+        // they already reached the correct x all along.
+        { name: 'FrontUpperArmL', position_mm: { x: -585, y: 320, z: 1225 }, program: [
           { op: 'add_tube', args: { outer_radius: 16, inner_radius: 11, path_kind: 'straight', path_param_a: 330, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
           { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'FrontUpperArmR', position_mm: { x: 585, y: 390, z: 1185 }, program: [
+        { name: 'FrontUpperArmR', position_mm: { x: 585, y: 320, z: 1225 }, program: [
           { op: 'add_tube', args: { outer_radius: 16, inner_radius: 11, path_kind: 'straight', path_param_a: 330, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
           { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'FrontLowerArmL', position_mm: { x: -585, y: 210, z: 1265 }, program: [
+        { name: 'FrontLowerArmL', position_mm: { x: -585, y: 280, z: 1225 }, program: [
           { op: 'add_tube', args: { outer_radius: 20, inner_radius: 14, path_kind: 'straight', path_param_a: 330, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
           { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'FrontLowerArmR', position_mm: { x: 585, y: 210, z: 1265 }, program: [
+        { name: 'FrontLowerArmR', position_mm: { x: 585, y: 280, z: 1225 }, program: [
           { op: 'add_tube', args: { outer_radius: 20, inner_radius: 14, path_kind: 'straight', path_param_a: 330, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
           { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'RearUpperArmL', position_mm: { x: -572.5, y: 425, z: -1150 }, program: [
+        { name: 'RearUpperArmL', position_mm: { x: -572.5, y: 345, z: -1225 }, program: [
           { op: 'add_tube', args: { outer_radius: 17, inner_radius: 11, path_kind: 'straight', path_param_a: 305, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
           { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'RearUpperArmR', position_mm: { x: 572.5, y: 425, z: -1150 }, program: [
+        { name: 'RearUpperArmR', position_mm: { x: 572.5, y: 345, z: -1225 }, program: [
           { op: 'add_tube', args: { outer_radius: 17, inner_radius: 11, path_kind: 'straight', path_param_a: 305, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
           { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'RearLowerArmL', position_mm: { x: -572.5, y: 225, z: -1150 }, program: [
+        { name: 'RearLowerArmL', position_mm: { x: -572.5, y: 305, z: -1225 }, program: [
           { op: 'add_tube', args: { outer_radius: 22, inner_radius: 15, path_kind: 'straight', path_param_a: 305, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
           { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
         ] },
-        { name: 'RearLowerArmR', position_mm: { x: 572.5, y: 225, z: -1150 }, program: [
+        { name: 'RearLowerArmR', position_mm: { x: 572.5, y: 305, z: -1225 }, program: [
           { op: 'add_tube', args: { outer_radius: 22, inner_radius: 15, path_kind: 'straight', path_param_a: 305, path_param_b: 0, path_param_c: 0, sections: 12, path_segments: 6 } },
           { op: 'rotate', args: { target: 0, axis: 'y', angle_deg: 90 } },
           { op: 'finalize', args: { target: 1 } },
@@ -1571,17 +1867,17 @@
     keyLight.shadow.mapSize.set(1024, 1024);
     keyLight.shadow.bias = -0.0015;
     scene.add(keyLight);
-    const rim = new THREE.DirectionalLight(0xc1402c, 0.6);
+    const rim = new THREE.DirectionalLight(0xd94332, 0.6);
     rim.position.set(-1.2, -0.3, -0.8);
     scene.add(rim);
-    const fill = new THREE.DirectionalLight(0x4c6b8a, 0.32);
+    const fill = new THREE.DirectionalLight(0x555a87, 0.32);
     fill.position.set(0, -1, 1);
     scene.add(fill);
 
     // a faint technical grid (the same visual language as the page's own
     // 2D grid backdrops) doubling as the ground the shadow falls onto --
     // both repositioned/rescaled per-object in showMesh below.
-    groundGrid = new THREE.GridHelper(1, 1, 0xc1402c, 0x332d27);
+    groundGrid = new THREE.GridHelper(1, 1, 0xd94332, 0x2b2e29);
     groundGrid.rotation.x = Math.PI / 2; // GridHelper defaults to the Y-normal (XZ) plane -- rotate onto the Z-normal (XY) plane to match this scene's Z-up models
     groundGrid.material.transparent = true;
     groundGrid.material.opacity = 0.35;
@@ -1645,14 +1941,14 @@
     // some angles," not a stale or wrong model. DoubleSide renders both
     // faces regardless of winding, same fix already applied in print_lab.html's
     // own viewer material.
-    const material = new THREE.MeshStandardMaterial({ color: 0xb9c2dc, metalness: 0.5, roughness: 0.3, side: THREE.DoubleSide });
+    const material = new THREE.MeshStandardMaterial({ color: 0xa7aaa2, metalness: 0.5, roughness: 0.3, side: THREE.DoubleSide });
     currentMesh = new THREE.Mesh(geometry, material);
     currentMesh.castShadow = true;
     currentMesh.receiveShadow = true;
     scene.add(currentMesh);
 
     const wireGeo = new THREE.WireframeGeometry(geometry);
-    currentWire = new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0xc1402c, transparent: true, opacity: 0.12 }));
+    currentWire = new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0xd94332, transparent: true, opacity: 0.12 }));
     scene.add(currentWire);
 
     const size = new THREE.Vector3();
@@ -1723,7 +2019,15 @@
 
     container.classList.add('loading');
     if (statusDot) statusDot.classList.add('live');
-    if (heroStatusText) heroStatusText.textContent = `Building "${spec.label}"…`;
+    if (heroStatusText) {
+      // the F1 car (34 entities) takes ~16-20s to build, long enough that a
+      // bare "Building…" with no explanation reads as stuck rather than
+      // working -- name the part count so the wait makes sense.
+      const partCount = spec.entities ? spec.entities.length : 1;
+      heroStatusText.textContent = partCount > 10
+        ? `Building "${spec.label}" — ${partCount} parts, worth the wait…`
+        : `Building "${spec.label}"…`;
+    }
 
     try {
       const endpoint = spec.program ? '/api/execute_program' : '/api/execute_programs';
@@ -1787,6 +2091,12 @@
     document.getElementById('heroVisual').scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 
+  // the flagship default: the retro F1 car, not one of the generic
+  // part-pair showcases -- it's the actual proof piece (34 verified
+  // entities, watertight), so it should be the first thing a visitor sees,
+  // not something they have to find in the gallery below. It takes
+  // ~16-20s to build; the status text above names the part count so that
+  // reads as "big model," not "stuck."
   buildShowcase('f1car');
 </script>
 

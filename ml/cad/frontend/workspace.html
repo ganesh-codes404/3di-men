@@ -4,35 +4,32 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Mitsuhub | 3di-men — CAD workspace</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cdefs%3E%3ClinearGradient id=%27g%27 x1=%270%27 y1=%270%27 x2=%271%27 y2=%271%27%3E%3Cstop offset=%270%27 stop-color=%27%23C1402C%27/%3E%3Cstop offset=%271%27 stop-color=%27%234C6B8A%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27url(%23g)%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2717%27 font-weight=%27700%27 fill=%27%230B0A09%27 text-anchor=%27middle%27%3E%E5%9B%B3%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23090A09%27/%3E%3Ccircle cx=%2716%27 cy=%2717%27 r=%278.2%27 fill=%27none%27 stroke=%27%23D94332%27 stroke-width=%272%27/%3E%3Ccircle cx=%2716%27 cy=%2717%27 r=%272.1%27 fill=%27%23D94332%27/%3E%3Cline x1=%2716%27 y1=%277.3%27 x2=%2716%27 y2=%274%27 stroke=%27%23D94332%27 stroke-width=%272%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Shippori+Mincho:wght@500;600;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     color-scheme: dark;
     --font-display: "Space Grotesk", "Inter", -apple-system, sans-serif;
     --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-    --font-jp-serif: "Shippori Mincho", "Hiragino Mincho ProN", serif;
-    --font-jp-sans: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", sans-serif;
-    --seal: #B23A28;
-    --bg: #0B0A09;
-    --bg-panel: #15120F;
-    --bg-raised: #1E1A16;
+    --bg: #090A09;
+    --bg-panel: #111310;
+    --bg-raised: #181A17;
     --bg-input: #1A1613;
-    --border: #332D27;
-    --border-soft: #241F1A;
-    --text: #F2ECE2;
-    --text-dim: #A89D8C;
-    --text-faint: #6E6356;
-    --accent-1: #C1402C;
-    --accent-2: #4C6B8A;
-    --accent: #D85940;
+    --border: #2B2E29;
+    --border-soft: #1C1E1A;
+    --text: #F0EDE4;
+    --text-dim: #A7AAA2;
+    --text-faint: #63695A;
+    --accent-1: #D94332;
+    --accent-2: #555A87;
+    --accent: #E35A48;
     --accent-dim: #4A2E24;
-    --accent-grad: linear-gradient(135deg, #C1402C, #4C6B8A);
-    --accent-grad-hover: linear-gradient(135deg, #D85940, #5E7FA0);
-    --accent-glow: rgba(193, 64, 44, 0.14);
+    --accent-grad: linear-gradient(135deg, #D94332, #555A87);
+    --accent-grad-hover: linear-gradient(135deg, #E35A48, #6B70A0);
+    --accent-glow: rgba(217, 67, 50, 0.16);
     --ok: #3ddc84;
     --ok-bg: #122a1e;
     --warn: #f2b84b;
@@ -62,14 +59,13 @@
     font-family: var(--font-display); font-weight: 600; font-size: 14px; letter-spacing: 0.01em;
   }
   #topbar .wordmark:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; border-radius: 6px; }
-  #topbar .wordmark .mark {
-    width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; background: var(--seal);
-    display: flex; align-items: center; justify-content: center; font-size: 13px; color: #F2ECE2;
-    font-family: var(--font-jp-serif); font-weight: 700; transform: rotate(-3deg);
-    box-shadow: inset 0 0 0 1.5px rgba(242,236,226,0.4);
+  #topbar .wordmark .mark, .brand .mark {
+    border-radius: 50%; background: var(--bg-raised); color: var(--accent-1);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
+  #topbar .wordmark .mark { width: 24px; height: 24px; }
+  #topbar .wordmark .mark svg { width: 14px; height: 14px; }
   #topbar .wordmark .sep { color: var(--text-faint); font-weight: 400; }
-  #topbar .wordmark .jp { font-family: var(--font-jp-sans); font-size: 11px; color: var(--text-faint); margin-left: 2px; }
   #topbar .back, #topbar .print-lab-link { font-size: 12px; color: var(--text-dim); text-decoration: none; padding: 6px 10px; border-radius: 7px; transition: color 0.15s, background 0.15s; }
   #topbar .back:hover, #topbar .print-lab-link:hover { color: var(--text); background: var(--bg-input); }
   #topbar .back:focus-visible, #topbar .print-lab-link:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
@@ -85,12 +81,8 @@
   #panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
 
   .brand { display: flex; align-items: center; gap: 10px; }
-  .brand .mark {
-    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
-    background: var(--accent-grad); font-family: var(--font-jp-serif);
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 15px; color: #0B0A09; transform: rotate(-3deg);
-  }
+  .brand .mark { width: 30px; height: 30px; }
+  .brand .mark svg { width: 18px; height: 18px; }
   .brand h1 { font-family: var(--font-display); font-size: 15px; margin: 0; letter-spacing: 0.01em; font-weight: 650; }
   .brand .sub { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
   p.hint { font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.55; }
@@ -421,7 +413,7 @@
 <body>
 
 <div id="topbar">
-  <a class="wordmark" href="/"><span class="mark">光</span>Mitsuhub <span class="sep">/</span> 3di-men — CAD<span class="jp">図面</span> <span class="sep">/</span> workspace</a>
+  <a class="wordmark" href="/"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></span>Mitsuhub <span class="sep">/</span> 3di-men — CAD <span class="sep">/</span> workspace</a>
   <div class="right">
     <a class="print-lab-link" id="topbarPrintLabLink" href="/print-lab" target="_blank" title="Analyze printability, or upload a model directly">Print Lab &#9654;</a>
     <a class="back" href="/">&larr; Back to overview</a>
@@ -430,7 +422,7 @@
 <div id="body-row">
 <div id="panel">
   <div class="brand">
-    <div class="mark">図</div>
+    <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></div>
     <div>
       <h1>3di-men</h1>
       <div class="sub">builder</div>
@@ -604,11 +596,11 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 const dir1 = new THREE.DirectionalLight(0xffffff, 0.95);
 dir1.position.set(1, 1.5, 1);
 scene.add(dir1);
-const dir2 = new THREE.DirectionalLight(0xc1402c, 0.35);
+const dir2 = new THREE.DirectionalLight(0xd94332, 0.35);
 dir2.position.set(-1, -0.5, -1);
 scene.add(dir2);
 
-const grid = new THREE.GridHelper(300, 20, 0x332d27, 0x18140f);
+const grid = new THREE.GridHelper(300, 20, 0x2b2e29, 0x18140f);
 scene.add(grid);
 
 // SolidWorks-style reference planes: Front (XY, normal Z), Top (XZ, normal
@@ -624,7 +616,7 @@ function makeReferencePlane(colorHex) {
   });
   return new THREE.Mesh(geo, mat);
 }
-const refPlaneFront = makeReferencePlane(0x4c6b8a);   // XY plane (PlaneGeometry's own default orientation, normal +Z) -- blue, matches +Z
+const refPlaneFront = makeReferencePlane(0x555a87);   // XY plane (PlaneGeometry's own default orientation, normal +Z) -- blue, matches +Z
 const refPlaneTop = makeReferencePlane(0x3ddc84);     // rotate into the XZ plane, normal +Y -- green, matches +Y
 refPlaneTop.rotation.x = Math.PI / 2;
 refPlaneTop.position.y = 0.01;
@@ -660,7 +652,7 @@ function vcMat(colorHex) { return new THREE.MeshStandardMaterial({ color: colorH
 const viewCubeMaterials = [
   vcMat(0xf2566e), vcMat(0x7a3540), // +x, -x
   vcMat(0x3ddc84), vcMat(0x2a6b4a), // +y, -y
-  vcMat(0x4c6b8a), vcMat(0x2f4556), // +z, -z
+  vcMat(0x555a87), vcMat(0x2f4556), // +z, -z
 ];
 const viewCube = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 1.4), viewCubeMaterials);
 viewCubeScene.add(viewCube);
@@ -768,7 +760,7 @@ async function loadSTL(url, opts) {
   scene.add(currentMesh);
 
   const wireGeo = new THREE.WireframeGeometry(geometry);
-  wireframeMesh = new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0xc1402c, transparent: true, opacity: 0.25 }));
+  wireframeMesh = new THREE.LineSegments(wireGeo, new THREE.LineBasicMaterial({ color: 0xd94332, transparent: true, opacity: 0.25 }));
   wireframeMesh.visible = showWireframe;
   scene.add(wireframeMesh);
 
@@ -2383,7 +2375,7 @@ function startFaceDrag(hit) {
   planeSize[axisIdx] = Math.max(planeSize[(axisIdx + 1) % 3], planeSize[(axisIdx + 2) % 3]) * 0.01;  // thin along the normal
 
   const geo = new THREE.BoxGeometry(Math.max(planeSize[0], 1), Math.max(planeSize[1], 1), Math.max(planeSize[2], 1));
-  const mat = new THREE.MeshBasicMaterial({ color: 0xc1402c, transparent: true, opacity: 0.35, depthWrite: false });
+  const mat = new THREE.MeshBasicMaterial({ color: 0xd94332, transparent: true, opacity: 0.35, depthWrite: false });
   ghostMesh = new THREE.Mesh(geo, mat);
   ghostMesh.position.copy(hit.point);
   scene.add(ghostMesh);
