@@ -2,7 +2,7 @@
   "id": "B05",
   "mode": "deterministic",
   "completed": true,
-  "elapsed_seconds": 6.183098898000026,
+  "elapsed_seconds": 10.091523615999904,
   "overall_status": "INCOMPLETE",
   "collision_warnings": [],
   "envelope_warnings": [],
@@ -69,26 +69,26 @@
         -90.0
       ],
       "status": "suspect",
-      "error": "built geometry doesn't match the description's own stated dimensions (12.2mm); description claims 1 hole(s), detector found 0 (hole detection recognizes cylindrical features running along any of the 3 world axes (x/y/z) on largely axis-aligned, watertight parts, but not an arbitrarily tilted hole axis -- a mismatch may reflect that scope, not necessarily a wrong build); description claims a hole/bore diameter of 12.2mm that no detected hole matches within tolerance (hole diameter is measured by fitting a circle to each detected axis-aligned cylindrical feature (any of the 3 world axes) -- the same scope limitation as detected_hole_count (evaluation/geometry_eval.py); a mismatch may reflect that scope, not necessarily a wrong build)",
-      "resolution_method": "statistical",
+      "error": "built geometry doesn't match the description's own stated dimensions (12.2mm)",
+      "resolution_method": "compositional",
       "program_ops": [
         "add_box",
-        "drill_slot",
+        "drill_hole",
         "finalize"
       ],
       "mesh": {
         "watertight": true,
-        "volume_mm3": 48052.268190625204,
+        "volume_mm3": 47677.02060900468,
         "bounds_mm": [
           [
-            -24.620582580566406,
-            -25.029569625854492,
-            -10.195757865905762
+            -25.0,
+            -25.0,
+            -10.0
           ],
           [
-            25.379417419433594,
-            24.970430374145508,
-            9.804242134094238
+            25.0,
+            25.0,
+            10.0
           ]
         ],
         "extents_mm": [
@@ -97,9 +97,9 @@
           20.0
         ],
         "center_mm": [
-          0.37941741943359375,
-          -0.029569625854492188,
-          -0.19575786590576172
+          0.0,
+          0.0,
+          0.0
         ]
       },
       "dimension_match_rate": 0.75,
@@ -107,15 +107,19 @@
         12.2
       ],
       "claimed_hole_count": 1,
-      "detected_hole_count": 0,
-      "unmatched_hole_diameters_mm": [
-        12.2
-      ],
+      "detected_hole_count": 1,
+      "unmatched_hole_diameters_mm": [],
       "excluded_from_assembly": false,
-      "detected_hole_diameters_mm": [],
-      "detected_hole_axes": [],
-      "detected_hole_through": [],
-      "detected_cylindrical_patch_count": 1
+      "detected_hole_diameters_mm": [
+        12.147794826557094
+      ],
+      "detected_hole_axes": [
+        "z"
+      ],
+      "detected_hole_through": [
+        true
+      ],
+      "detected_cylindrical_patch_count": 2
     },
     {
       "id": "housing_b",
@@ -126,26 +130,26 @@
         90.0
       ],
       "status": "suspect",
-      "error": "built geometry doesn't match the description's own stated dimensions (12.2mm); description claims 1 hole(s), detector found 0 (hole detection recognizes cylindrical features running along any of the 3 world axes (x/y/z) on largely axis-aligned, watertight parts, but not an arbitrarily tilted hole axis -- a mismatch may reflect that scope, not necessarily a wrong build); description claims a hole/bore diameter of 12.2mm that no detected hole matches within tolerance (hole diameter is measured by fitting a circle to each detected axis-aligned cylindrical feature (any of the 3 world axes) -- the same scope limitation as detected_hole_count (evaluation/geometry_eval.py); a mismatch may reflect that scope, not necessarily a wrong build)",
-      "resolution_method": "statistical",
+      "error": "built geometry doesn't match the description's own stated dimensions (12.2mm)",
+      "resolution_method": "compositional",
       "program_ops": [
         "add_box",
-        "drill_slot",
+        "drill_hole",
         "finalize"
       ],
       "mesh": {
         "watertight": true,
-        "volume_mm3": 48052.268190625204,
+        "volume_mm3": 47677.02060900468,
         "bounds_mm": [
           [
-            -24.620582580566406,
-            -25.029569625854492,
-            -10.195757865905762
+            -25.0,
+            -25.0,
+            -10.0
           ],
           [
-            25.379417419433594,
-            24.970430374145508,
-            9.804242134094238
+            25.0,
+            25.0,
+            10.0
           ]
         ],
         "extents_mm": [
@@ -154,9 +158,9 @@
           20.0
         ],
         "center_mm": [
-          0.37941741943359375,
-          -0.029569625854492188,
-          -0.19575786590576172
+          0.0,
+          0.0,
+          0.0
         ]
       },
       "dimension_match_rate": 0.75,
@@ -164,41 +168,45 @@
         12.2
       ],
       "claimed_hole_count": 1,
-      "detected_hole_count": 0,
-      "unmatched_hole_diameters_mm": [
-        12.2
-      ],
+      "detected_hole_count": 1,
+      "unmatched_hole_diameters_mm": [],
       "excluded_from_assembly": false,
-      "detected_hole_diameters_mm": [],
-      "detected_hole_axes": [],
-      "detected_hole_through": [],
-      "detected_cylindrical_patch_count": 1
+      "detected_hole_diameters_mm": [
+        12.147794826557094
+      ],
+      "detected_hole_axes": [
+        "z"
+      ],
+      "detected_hole_through": [
+        true
+      ],
+      "detected_cylindrical_patch_count": 2
     }
   ],
   "combined_mesh": {
     "watertight": true,
-    "volume_mm3": 118578.94147750839,
+    "volume_mm3": 117828.44631426733,
     "bounds_mm": [
       [
-        -24.620582580566406,
-        -25.029569625854492,
-        -100.19575786590576
+        -25.0,
+        -25.0,
+        -100.0
       ],
       [
-        25.379417419433594,
-        24.970430374145508,
+        25.0,
+        25.0,
         100.0
       ]
     ],
     "extents_mm": [
       50.0,
       50.0,
-      200.19575786590576
+      200.0
     ],
     "center_mm": [
-      0.37941741943359375,
-      -0.029569625854492188,
-      -0.09787893295288086
+      0.0,
+      0.0,
+      0.0
     ]
   }
 }

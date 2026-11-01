@@ -2,7 +2,7 @@
   "id": "B06",
   "mode": "deterministic",
   "completed": true,
-  "elapsed_seconds": 3.513264819000142,
+  "elapsed_seconds": 5.8236785170001895,
   "overall_status": "INCOMPLETE",
   "collision_warnings": [],
   "envelope_warnings": [],
@@ -69,7 +69,7 @@
         0.0
       ],
       "status": "suspect",
-      "error": "built geometry doesn't match the description's own stated dimensions (15mm)",
+      "error": "built geometry doesn't match the description's own stated dimensions (15mm); description claims a hole/bore diameter of 10mm that no detected hole matches within tolerance (hole diameter is measured by fitting a circle to each detected axis-aligned cylindrical feature (any of the 3 world axes) -- the same scope limitation as detected_hole_count (evaluation/geometry_eval.py); a mismatch may reflect that scope, not necessarily a wrong build)",
       "resolution_method": "statistical",
       "program_ops": [
         "add_cylinder",
@@ -103,13 +103,15 @@
           -4.7039971351623535
         ]
       },
-      "dimension_match_rate": 0.6666666666666666,
+      "dimension_match_rate": 0.5,
       "unmatched_dimensions_mm": [
         15.0
       ],
       "claimed_hole_count": null,
       "detected_hole_count": 0,
-      "unmatched_hole_diameters_mm": [],
+      "unmatched_hole_diameters_mm": [
+        10.0
+      ],
       "excluded_from_assembly": false,
       "detected_hole_diameters_mm": [],
       "detected_hole_axes": [],

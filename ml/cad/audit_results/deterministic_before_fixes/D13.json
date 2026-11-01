@@ -1,0 +1,310 @@
+{
+  "id": "D13",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 8.712201758999981,
+  "overall_status": "PASS",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 5,
+  "points": [
+    {
+      "id": "housing",
+      "description": "a box 120mm x 80mm x 60mm",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 576000.0,
+        "bounds_mm": [
+          [
+            -60.0,
+            -40.0,
+            -30.0
+          ],
+          [
+            60.0,
+            40.0,
+            30.0
+          ]
+        ],
+        "extents_mm": [
+          120.0,
+          80.0,
+          60.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 0
+    },
+    {
+      "id": "shaft_a",
+      "description": "a cylinder 10mm diameter, 70mm long",
+      "position_mm": [
+        0.0,
+        75.0,
+        0.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 5462.529016451593,
+        "bounds_mm": [
+          [
+            -5.0,
+            -5.0,
+            -35.0
+          ],
+          [
+            5.0,
+            5.0,
+            35.0
+          ]
+        ],
+        "extents_mm": [
+          10.0,
+          10.0,
+          70.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "gear_a",
+      "description": "a gear profile, module 2.5, 16 teeth",
+      "position_mm": [
+        0.0,
+        75.0,
+        0.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "statistical",
+      "program_ops": [
+        "add_gear_profile",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 13103.522361272087,
+        "bounds_mm": [
+          [
+            -22.4846134185791,
+            -22.4846134185791,
+            -5.643121719360352
+          ],
+          [
+            22.4846134185791,
+            22.4846134185791,
+            5.643121719360352
+          ]
+        ],
+        "extents_mm": [
+          44.9692268371582,
+          44.9692268371582,
+          11.286243438720703
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": null,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 1,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        8.215728225900184
+      ],
+      "detected_hole_axes": [
+        "z"
+      ],
+      "detected_hole_through": [
+        true
+      ],
+      "detected_cylindrical_patch_count": 2
+    },
+    {
+      "id": "shaft_b",
+      "description": "a cylinder 10mm diameter, 70mm long",
+      "position_mm": [
+        55.0,
+        75.0,
+        0.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 5462.529016451593,
+        "bounds_mm": [
+          [
+            -5.0,
+            -5.0,
+            -35.0
+          ],
+          [
+            5.0,
+            5.0,
+            35.0
+          ]
+        ],
+        "extents_mm": [
+          10.0,
+          10.0,
+          70.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "gear_b",
+      "description": "a gear profile, module 2.5, 28 teeth",
+      "position_mm": [
+        55.0,
+        75.0,
+        0.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "statistical",
+      "program_ops": [
+        "add_gear_profile",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 35091.49174641883,
+        "bounds_mm": [
+          [
+            -37.488868713378906,
+            -37.488868713378906,
+            -4.685581684112549
+          ],
+          [
+            37.488868713378906,
+            37.488868713378906,
+            4.685581684112549
+          ]
+        ],
+        "extents_mm": [
+          74.97773742675781,
+          74.97773742675781,
+          9.371163368225098
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": null,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 1,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        7.481944166545025
+      ],
+      "detected_hole_axes": [
+        "z"
+      ],
+      "detected_hole_through": [
+        true
+      ],
+      "detected_cylindrical_patch_count": 2
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 635120.0721405942,
+    "bounds_mm": [
+      [
+        -60.0,
+        -40.0,
+        -37.488868713378906
+      ],
+      [
+        92.4888687133789,
+        110.0,
+        37.488868713378906
+      ]
+    ],
+    "extents_mm": [
+      152.4888687133789,
+      150.0,
+      74.97773742675781
+    ],
+    "center_mm": [
+      16.244434356689453,
+      35.0,
+      0.0
+    ]
+  }
+}

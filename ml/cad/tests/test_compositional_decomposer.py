@@ -312,3 +312,95 @@ def test_every_composed_program_is_a_valid_sandbox_program():
         result = Sandbox().execute(program)
         assert result.status == "ok", f"{text!r} -> {result.status} ({result.error})"
         assert result.mesh is not None and result.mesh.is_watertight
+
+
+# ---------------- Targeted fix 1: through-hole phrase recognition -- confirmed real gap
+# (20-prompt assembly audit): "through the center"/"through its center"/"a central ... through-
+# hole" are at least as common as the already-recognized "through it"/"the middle"/"the post",
+# but previously fell through to the statistical path, which picked a DIFFERENT wrong tool for
+# each one tested (drill_slot, add_wireframe_from_edges, drill_hole_pattern) -- never the correct
+# plain round hole. ----
+
+@pytest.mark.parametrize("phrase", ["through the center", "through its center", "through the middle", "through it"])
+def test_through_hole_recognizes_every_centering_phrase(phrase):
+    text = f"a box 50mm x 50mm x 20mm with a 12.2mm diameter hole {phrase}"
+    program = compose_program_from_description(text)
+    assert program is not None, text
+    assert _ops(program) == ["add_box", "drill_hole", "finalize"]
+    hole = _args(program, "drill_hole")
+    assert hole["radius"] == 6.1
+
+
+def test_through_hole_recognizes_the_central_adjective_phrasing():
+    text = "a box 50mm x 50mm x 20mm with a central 12.2mm diameter through-hole"
+    program = compose_program_from_description(text)
+    assert program is not None
+    assert _ops(program) == ["add_box", "drill_hole", "finalize"]
+    assert _args(program, "drill_hole")["radius"] == 6.1
+
+
+def test_through_hole_fix_does_not_hijack_a_legitimate_hole_pattern():
+    """The fix must not make _feature_through_hole greedily match text that
+    a DIFFERENT, already-correct feature resolver (the corner-array
+    pattern) is supposed to handle -- drill_hole_pattern, not a single
+    drill_hole, must still be chosen."""
+    text = "a box 120mm x 80mm x 8mm with a corner array of four 6mm diameter holes, each 15mm from a corner"
+    program = compose_program_from_description(text)
+    assert program is not None
+    assert _ops(program) == ["add_box", "drill_hole_pattern", "finalize"]
+
+
+def test_through_hole_still_falls_back_for_an_off_center_placement():
+    """Unchanged scope: an explicitly off-center hole still correctly
+    falls back to None (see _feature_through_hole's own docstring) --
+    this fix only widens which CENTERED phrasings are recognized, it
+    does not start guessing at off-center placement."""
+    text = "a box 50mm x 8mm x 60mm with a 24mm diameter hole centered on its face at z=35mm"
+    assert compose_program_from_description(text) is None
+
+
+# ---------------- Targeted fix 2: stepped-shaft operation-selection precedence -- confirmed
+# real gap (20-prompt assembly audit): "stepping down to"/"a shoulder down to" phrasing matched
+# only _resolve_cylinder's own simpler prefix pattern, silently building ONLY the first section
+# with no error, mislabeled as a confident "compositional" result instead of falling back. ----
+
+@pytest.mark.parametrize("connector", ["stepping down to", "steps down to", "with a shoulder down to"])
+def test_stepped_cylinder_recognizes_natural_phrasing_variants(connector):
+    text = f"a cylinder 24mm diameter, 130mm long, {connector} a 18mm diameter, 20mm length section"
+    program = compose_program_from_description(text)
+    assert program is not None, text
+    assert _ops(program) == ["add_shouldered_cylinder", "finalize"]
+    args = _args(program, "add_shouldered_cylinder")
+    assert args["bottom_radius"] == 12.0
+    assert args["top_radius"] == 9.0
+    assert args["top_height"] == 20.0
+    assert args["bottom_height"] == 110.0  # 130 - 20, same as the already-working "stepped section of" syntax
+
+
+def test_stepped_cylinder_old_syntax_still_works_unchanged():
+    """Regression guard: the already-working exact phrasing must still
+    resolve identically after widening the pattern."""
+    text = "a cylinder 24mm diameter, 130mm long with a concentric stepped section of 18mm diameter and 20mm length at one end"
+    program = compose_program_from_description(text)
+    assert program is not None
+    assert _ops(program) == ["add_shouldered_cylinder", "finalize"]
+    assert _args(program, "add_shouldered_cylinder")["bottom_height"] == 110.0
+
+
+def test_plain_cylinder_resolver_refuses_a_request_with_unrecognized_stepped_language():
+    """The core of fix 2: when stepped/shoulder language is present but
+    doesn't fully match ANY stepped-cylinder pattern (here: no numbers
+    given for the second section at all), _resolve_cylinder must NOT
+    silently claim the first section alone as a complete, confident
+    result -- it must return None so the statistical fallback (which at
+    least discloses in_distribution/similarity) handles it instead."""
+    text = "a cylinder 24mm diameter, 130mm long, stepping down to a smaller section near one end"
+    assert compose_program_from_description(text) is None
+
+
+def test_plain_cylinder_without_any_stepped_language_is_unaffected():
+    text = "a cylinder 20mm diameter, 100mm tall"
+    program = compose_program_from_description(text)
+    assert program is not None
+    assert _ops(program) == ["add_cylinder", "finalize"]
+    assert _args(program, "add_cylinder")["radius"] == 10.0

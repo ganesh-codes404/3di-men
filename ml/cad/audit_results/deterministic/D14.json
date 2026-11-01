@@ -2,8 +2,8 @@
   "id": "D14",
   "mode": "deterministic",
   "completed": true,
-  "elapsed_seconds": 4.356692880999617,
-  "overall_status": "INCOMPLETE",
+  "elapsed_seconds": 7.67902737499935,
+  "overall_status": "PASS",
   "collision_warnings": [],
   "envelope_warnings": [],
   "n_points": 4,
@@ -172,8 +172,8 @@
         0.0,
         107.5
       ],
-      "status": "suspect",
-      "error": "built geometry doesn't match the description's own stated dimensions (5mm)",
+      "status": "ok",
+      "error": null,
       "resolution_method": "statistical",
       "program_ops": [
         "add_ring",
@@ -205,10 +205,8 @@
           0.0
         ]
       },
-      "dimension_match_rate": 0.6666666666666666,
-      "unmatched_dimensions_mm": [
-        5.0
-      ],
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
       "claimed_hole_count": null,
       "detected_hole_count": 1,
       "unmatched_hole_diameters_mm": [],

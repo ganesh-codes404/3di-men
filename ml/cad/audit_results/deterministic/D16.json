@@ -2,7 +2,7 @@
   "id": "D16",
   "mode": "deterministic",
   "completed": true,
-  "elapsed_seconds": 7.88550596999994,
+  "elapsed_seconds": 20.51410468999984,
   "overall_status": "INCOMPLETE",
   "collision_warnings": [
     "'side' and 'gusset_left' overlapped by 67% of the smaller part's bounding box with no relationship explaining it -- 'gusset_left' excluded from the combined assembly to resolve it, rather than leaving colliding geometry in place or failing the whole build",

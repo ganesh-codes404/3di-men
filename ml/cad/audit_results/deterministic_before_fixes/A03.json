@@ -1,0 +1,174 @@
+{
+  "id": "A03",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 3.926131148999957,
+  "overall_status": "PASS",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 2,
+  "points": [
+    {
+      "id": "plate_a",
+      "description": "a box 80mm x 50mm x 4mm with a corner array of four 4.5mm diameter holes, each 10mm from a corner",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "drill_hole_pattern",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 15747.162993548249,
+        "bounds_mm": [
+          [
+            -40.0,
+            -25.0,
+            -2.0
+          ],
+          [
+            40.0,
+            25.0,
+            2.0
+          ]
+        ],
+        "extents_mm": [
+          80.0,
+          50.0,
+          4.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": 4,
+      "detected_hole_count": 4,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        4.480743630616068,
+        4.480743630616081,
+        4.480743630616017,
+        4.48074363061622
+      ],
+      "detected_hole_axes": [
+        "z",
+        "z",
+        "z",
+        "z"
+      ],
+      "detected_hole_through": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "detected_cylindrical_patch_count": 4
+    },
+    {
+      "id": "plate_b",
+      "description": "a box 80mm x 50mm x 4mm with a corner array of four 4.5mm diameter holes, each 10mm from a corner",
+      "position_mm": [
+        0.0,
+        0.0,
+        4.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "drill_hole_pattern",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 15747.162993548249,
+        "bounds_mm": [
+          [
+            -40.0,
+            -25.0,
+            -2.0
+          ],
+          [
+            40.0,
+            25.0,
+            2.0
+          ]
+        ],
+        "extents_mm": [
+          80.0,
+          50.0,
+          4.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": 4,
+      "detected_hole_count": 4,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        4.480743630616068,
+        4.480743630616081,
+        4.480743630616017,
+        4.48074363061622
+      ],
+      "detected_hole_axes": [
+        "z",
+        "z",
+        "z",
+        "z"
+      ],
+      "detected_hole_through": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "detected_cylindrical_patch_count": 4
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 31494.325987096498,
+    "bounds_mm": [
+      [
+        -40.0,
+        -25.0,
+        -2.0
+      ],
+      [
+        40.0,
+        25.0,
+        6.0
+      ]
+    ],
+    "extents_mm": [
+      80.0,
+      50.0,
+      8.0
+    ],
+    "center_mm": [
+      0.0,
+      0.0,
+      2.0
+    ]
+  }
+}

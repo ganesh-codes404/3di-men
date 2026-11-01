@@ -1,0 +1,163 @@
+{
+  "id": "B07",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 4.280087000000094,
+  "overall_status": "INCOMPLETE",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 2,
+  "points": [
+    {
+      "id": "plate",
+      "description": "a box 60mm x 60mm x 5mm with a corner array of four 3.4mm diameter holes, each 15.5mm from a corner, and a 22mm diameter hole through the center",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "suspect",
+      "error": "built geometry doesn't match the description's own stated dimensions (3.4mm, 22mm); description claims 5 hole(s), detector found 4 (hole detection recognizes cylindrical features running along any of the 3 world axes (x/y/z) on largely axis-aligned, watertight parts, but not an arbitrarily tilted hole axis -- a mismatch may reflect that scope, not necessarily a wrong build); description claims a hole/bore diameter of 22mm that no detected hole matches within tolerance (hole diameter is measured by fitting a circle to each detected axis-aligned cylindrical feature (any of the 3 world axes) -- the same scope limitation as detected_hole_count (evaluation/geometry_eval.py); a mismatch may reflect that scope, not necessarily a wrong build)",
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "drill_hole_pattern",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 17819.58048147586,
+        "bounds_mm": [
+          [
+            -30.0,
+            -30.0,
+            -2.5
+          ],
+          [
+            30.0,
+            30.0,
+            2.5
+          ]
+        ],
+        "extents_mm": [
+          60.0,
+          60.0,
+          5.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 0.6,
+      "unmatched_dimensions_mm": [
+        3.4,
+        22.0
+      ],
+      "claimed_hole_count": 5,
+      "detected_hole_count": 4,
+      "unmatched_hole_diameters_mm": [
+        22.0
+      ],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        3.3854509779803776,
+        3.3854509779804784,
+        3.385450977980596,
+        3.3854509779805455
+      ],
+      "detected_hole_axes": [
+        "z",
+        "z",
+        "z",
+        "z"
+      ],
+      "detected_hole_through": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "detected_cylindrical_patch_count": 5
+    },
+    {
+      "id": "motor",
+      "description": "a box 42mm x 42mm x 40mm",
+      "position_mm": [
+        0.0,
+        0.0,
+        22.5
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 70560.0,
+        "bounds_mm": [
+          [
+            -21.0,
+            -21.0,
+            -20.0
+          ],
+          [
+            21.0,
+            21.0,
+            20.0
+          ]
+        ],
+        "extents_mm": [
+          42.0,
+          42.0,
+          40.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 88379.58048147586,
+    "bounds_mm": [
+      [
+        -30.0,
+        -30.0,
+        -2.5
+      ],
+      [
+        30.0,
+        30.0,
+        42.5
+      ]
+    ],
+    "extents_mm": [
+      60.0,
+      60.0,
+      45.0
+    ],
+    "center_mm": [
+      0.0,
+      0.0,
+      20.0
+    ]
+  }
+}

@@ -51,7 +51,15 @@ import trimesh
 # compositional_decomposer.py's corner-array pattern, has always had this
 # same false-positive, just never surfaced as confusingly before).
 _DIMENSION_CLAIM_RE = re.compile(
-    r"(\d+(?:\.\d+)?)\s*mm(?!\s*(?:wide|deep|long|tall|thick)?\s*from\s+(?:the\s+|an?\s+)?(?:\w+\s+)?(?:edges?|corners?|faces?)\b)",
+    r"(\d+(?:\.\d+)?)\s*mm(?!\s*(?:wide|deep|long|tall|thick)?\s*from\s+(?:the\s+|an?\s+)?(?:\w+\s+)?(?:edges?|corners?|faces?)\b)"
+    # Confirmed real gap this excludes (mission-brief audit): an annular/ring part's own claimed
+    # "Nmm inner diameter" was being checked against the mesh's OVERALL extents (outer
+    # diameter/height only) -- an inner diameter is never one of those, by definition, so this
+    # claim could never genuinely match, producing a false "unmatched" flag on correctly-built
+    # geometry every time. Excluded here and instead picked up by extract_claimed_hole_diameters_mm
+    # below, which checks it against the actual measured bore (evaluation/geometry_eval.py's own
+    # hole_diameters_mm) -- the real feature this claim is about, not an unrelated overall extent.
+    r"(?!\s*inner\s*diameter\b)",
     re.IGNORECASE,
 )
 
@@ -286,15 +294,24 @@ def validate_hole_count_against_description(
 # close to the claimed number) without ever checking the specific FEATURE
 # the claim was actually about.
 _HOLE_DIAMETER_RE = re.compile(r"(\d+(?:\.\d+)?)\s*mm\s*(?:diameter\s*)?(?:hole|bore)s?\b", re.IGNORECASE)
+# An annular/ring part's own "Nmm inner diameter" claim is the SAME kind of claim as a hole/bore
+# diameter -- a feature-level bore measurement, never an overall extent (see
+# _DIMENSION_CLAIM_RE's own exclusion of this exact phrasing, just above) -- so it's verified the
+# same way: against the mesh's own actually-measured bore (hole_diameters_mm), reusing the
+# existing hole-detection machinery rather than inventing a second one for rings specifically.
+_INNER_DIAMETER_RE = re.compile(r"(\d+(?:\.\d+)?)\s*mm\s*inner\s*diameter\b", re.IGNORECASE)
 
 
 def extract_claimed_hole_diameters_mm(description: str) -> list[float]:
-    """Every "NNmm [diameter] hole(s)/bore(s)" claim, in the order they
+    """Every "NNmm [diameter] hole(s)/bore(s)" OR "NNmm inner diameter" claim, in the order they
     appear. Deliberately permissive like extract_claimed_dimensions_mm --
     a false positive just means one extra claim checked, reported as
     unmatched if nothing detected lines up, never a silently wrong
     pass/fail."""
-    return [float(m.group(1)) for m in _HOLE_DIAMETER_RE.finditer(description)]
+    return (
+        [float(m.group(1)) for m in _HOLE_DIAMETER_RE.finditer(description)]
+        + [float(m.group(1)) for m in _INNER_DIAMETER_RE.finditer(description)]
+    )
 
 
 @dataclass

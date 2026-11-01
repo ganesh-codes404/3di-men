@@ -2,7 +2,7 @@
   "id": "E20",
   "mode": "deterministic",
   "completed": true,
-  "elapsed_seconds": 3.711872492999646,
+  "elapsed_seconds": 3.3081637199993565,
   "overall_status": "INCOMPLETE",
   "collision_warnings": [],
   "envelope_warnings": [],
@@ -18,10 +18,10 @@
       ],
       "status": "suspect",
       "error": "built geometry doesn't match the description's own stated dimensions (80mm); description claims 1 hole(s), detector found 0 (hole detection recognizes cylindrical features running along any of the 3 world axes (x/y/z) on largely axis-aligned, watertight parts, but not an arbitrarily tilted hole axis -- a mismatch may reflect that scope, not necessarily a wrong build); description claims a hole/bore diameter of 80mm that no detected hole matches within tolerance (hole diameter is measured by fitting a circle to each detected axis-aligned cylindrical feature (any of the 3 world axes) -- the same scope limitation as detected_hole_count (evaluation/geometry_eval.py); a mismatch may reflect that scope, not necessarily a wrong build)",
-      "resolution_method": "statistical",
+      "resolution_method": "compositional",
       "program_ops": [
         "add_cylinder",
-        "drill_hole_pattern",
+        "drill_hole",
         "finalize"
       ],
       "mesh": {
@@ -31,12 +31,12 @@
           [
             -30.0,
             -30.0,
-            -50.4148268180529
+            -50.0
           ],
           [
             30.0,
             30.0,
-            49.5851731819471
+            50.0
           ]
         ],
         "extents_mm": [
@@ -47,7 +47,7 @@
         "center_mm": [
           0.0,
           0.0,
-          -0.41482681805290156
+          0.0
         ]
       },
       "dimension_match_rate": 0.6666666666666666,
@@ -73,12 +73,12 @@
       [
         -30.0,
         -30.0,
-        -50.4148268180529
+        -50.0
       ],
       [
         30.0,
         30.0,
-        49.5851731819471
+        50.0
       ]
     ],
     "extents_mm": [
@@ -89,7 +89,7 @@
     "center_mm": [
       0.0,
       0.0,
-      -0.41482681805290156
+      0.0
     ]
   }
 }

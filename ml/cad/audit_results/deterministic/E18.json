@@ -2,8 +2,8 @@
   "id": "E18",
   "mode": "deterministic",
   "completed": true,
-  "elapsed_seconds": 7.1080217110002195,
-  "overall_status": "INCOMPLETE",
+  "elapsed_seconds": 10.469924786000774,
+  "overall_status": "PASS",
   "collision_warnings": [],
   "envelope_warnings": [],
   "n_points": 3,
@@ -68,8 +68,8 @@
         0.0,
         -40.0
       ],
-      "status": "suspect",
-      "error": "built geometry doesn't match the description's own stated dimensions (10mm)",
+      "status": "ok",
+      "error": null,
       "resolution_method": "statistical",
       "program_ops": [
         "add_ring",
@@ -101,10 +101,8 @@
           0.0
         ]
       },
-      "dimension_match_rate": 0.6666666666666666,
-      "unmatched_dimensions_mm": [
-        10.0
-      ],
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
       "claimed_hole_count": null,
       "detected_hole_count": 1,
       "unmatched_hole_diameters_mm": [],
@@ -128,8 +126,8 @@
         0.0,
         40.0
       ],
-      "status": "suspect",
-      "error": "built geometry doesn't match the description's own stated dimensions (10mm)",
+      "status": "ok",
+      "error": null,
       "resolution_method": "statistical",
       "program_ops": [
         "add_ring",
@@ -161,10 +159,8 @@
           0.0
         ]
       },
-      "dimension_match_rate": 0.6666666666666666,
-      "unmatched_dimensions_mm": [
-        10.0
-      ],
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
       "claimed_hole_count": null,
       "detected_hole_count": 1,
       "unmatched_hole_diameters_mm": [],

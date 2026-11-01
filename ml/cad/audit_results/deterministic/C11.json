@@ -2,8 +2,8 @@
   "id": "C11",
   "mode": "deterministic",
   "completed": true,
-  "elapsed_seconds": 3.6685647089998383,
-  "overall_status": "INCOMPLETE",
+  "elapsed_seconds": 5.292997516000469,
+  "overall_status": "PASS",
   "collision_warnings": [],
   "envelope_warnings": [],
   "n_points": 2,
@@ -68,8 +68,8 @@
         0.0,
         -20.0
       ],
-      "status": "suspect",
-      "error": "built geometry doesn't match the description's own stated dimensions (12mm)",
+      "status": "ok",
+      "error": null,
       "resolution_method": "statistical",
       "program_ops": [
         "add_ring",
@@ -101,10 +101,8 @@
           0.0
         ]
       },
-      "dimension_match_rate": 0.6666666666666666,
-      "unmatched_dimensions_mm": [
-        12.0
-      ],
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
       "claimed_hole_count": null,
       "detected_hole_count": 1,
       "unmatched_hole_diameters_mm": [],

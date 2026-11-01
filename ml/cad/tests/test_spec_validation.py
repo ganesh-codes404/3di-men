@@ -287,6 +287,59 @@ def test_validate_hole_diameters_is_vacuously_true_with_nothing_to_check():
     assert validate_hole_diameters_against_description("a 12mm diameter hole through it", None).all_matched is False
 
 
+# ---------------- Targeted fix 3: annular/ring inner-diameter validation -- confirmed real gap
+# (20-prompt assembly audit): a ring/bearing/pulley's own claimed "Nmm inner diameter" was being
+# checked against the mesh's OVERALL extents (which only ever reflect its outer diameter/height),
+# never matching by definition -- a false "unmatched" flag on correctly-built geometry every
+# single time this phrasing was used. ----
+
+def test_extract_claimed_dimensions_mm_excludes_inner_diameter():
+    """The generic overall-extent check must never see an inner-diameter
+    claim at all -- it can never genuinely match an overall extent."""
+    claims = extract_claimed_dimensions_mm("a flat ring 26mm outer diameter, 8mm inner diameter, 10mm tall")
+    assert claims == [26.0, 10.0]  # outer diameter and height/thickness still included; inner diameter excluded
+
+
+def test_extract_claimed_hole_diameters_mm_recognizes_inner_diameter():
+    """The feature-level (bore) check must pick up an inner-diameter claim
+    the same way it already picks up a hole/bore diameter claim."""
+    assert extract_claimed_hole_diameters_mm("a flat ring 26mm outer diameter, 8mm inner diameter, 10mm tall") == [8.0]
+
+
+def test_validate_dimensions_no_longer_false_flags_a_correctly_built_ring():
+    """The actual confirmed audit finding: a ring built EXACTLY to spec
+    (26mm OD, 10mm tall) used to still be reported as a dimension
+    mismatch, purely because its own stated 8mm inner diameter could
+    never match either of those overall extents."""
+    sb = Sandbox()
+    mesh = sb._get(sb.add_ring(outer_radius=13.0, inner_radius=4.0, height=10.0, center=(0, 0, 0)))
+    report = validate_dimensions_against_description("a flat ring 26mm outer diameter, 8mm inner diameter, 10mm tall", mesh)
+    assert report.match_rate == 1.0
+    assert report.unmatched_claims_mm == []
+
+
+def test_validate_hole_diameters_still_catches_a_genuinely_wrong_inner_diameter():
+    """Do not suppress a real failure: a ring whose CLAIMED inner
+    diameter disagrees with what was actually built must still be
+    flagged, routed through the same feature-level check now that it
+    recognizes 'inner diameter' phrasing at all."""
+    report = validate_hole_diameters_against_description(
+        "a flat ring 26mm outer diameter, 15mm inner diameter, 4mm tall",
+        {"hole_diameters_mm": [7.97]},  # the real built bore is ~8mm, not the claimed 15mm
+    )
+    assert report.all_matched is False
+    assert report.unmatched_claims_mm == [15.0]
+
+
+def test_outer_diameter_and_height_claims_are_unaffected_by_the_inner_diameter_exclusion():
+    """The exclusion must be scoped to the literal 'inner diameter'
+    phrase only -- 'outer diameter' and a plain height/thickness claim
+    must still be checked the same way they always were."""
+    claims = extract_claimed_dimensions_mm("a flat ring 35mm outer diameter, 15mm inner diameter, 10mm tall")
+    assert 35.0 in claims and 10.0 in claims
+    assert 15.0 not in claims
+
+
 # Semantic-name-vs-explicit-dimension conflict detection -- the project's
 # own non-negotiable principle: explicit dimensions override a semantic
 # default implied by a name like "NEMA 17". Scoped to NEMA stepper-motor

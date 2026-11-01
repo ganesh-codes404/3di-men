@@ -88,9 +88,17 @@ def _resolve_stepped_cylinder(text: str) -> _BaseShape | None:
     be built into the primitive itself. Must be tried BEFORE
     _resolve_cylinder, whose plain regex would otherwise also match this
     text's own leading clause as a (wrong, incomplete) prefix match."""
+    # Confirmed real gap (mission-brief audit): this originally only recognized the single exact
+    # phrase "a stepped section of Xmm diameter and Ymm length" -- any other natural way of
+    # describing the same shoulder/step (stepping down to, a shoulder [section] down to/of,
+    # necking down to) missed this resolver entirely and matched _resolve_cylinder's own simpler
+    # prefix pattern instead, which silently built ONLY the first section with no error, labeled
+    # "compositional" as if it were a confident, complete result.
     m = re.search(
-        rf"\bcylinder\b.{{0,30}}?{_NUM}\s*mm\s*diameter,?\s*{_NUM}\s*mm\s*long"
-        rf".{{0,60}}?stepped section of\s*{_NUM}\s*mm\s*diameter\s*(?:and)?\s*{_NUM}\s*mm\s*length",
+        rf"\bcylinder\b.{{0,30}}?{_NUM}\s*mm\s*diameter,?\s*{_NUM}\s*mm\s*(?:long|tall)"
+        rf".{{0,60}}?(?:stepped section of|stepping down to|steps?\s*down to|necking down to|"
+        rf"with an?\s*shoulder(?:\s*section)?(?:\s*(?:down to|of))?)\s*(?:an?\s*)?"
+        rf"{_NUM}\s*mm\s*diameter,?\s*(?:and\s*)?{_NUM}\s*mm\s*(?:length|long|tall)",
         text, re.IGNORECASE,
     )
     if not m:
@@ -110,6 +118,18 @@ def _resolve_stepped_cylinder(text: str) -> _BaseShape | None:
 def _resolve_cylinder(text: str) -> _BaseShape | None:
     m = re.search(rf"\bcylinder\b.{{0,30}}?{_NUM}\s*mm\s*diameter,?\s*{_NUM}\s*mm\s*(?:tall|long)", text, re.IGNORECASE)
     if not m:
+        return None
+    # Confirmed real gap this guards against (mission-brief audit): this pattern matches a
+    # PREFIX of the text alone, so a request describing a SECOND, stepped/shouldered section
+    # afterward (e.g. "...40mm tall, stepping down to a 14mm diameter, 60mm tall section") would
+    # otherwise match here too and silently drop that entire second section with no error --
+    # _resolve_stepped_cylinder (tried first) already attempted and failed to fully parse it, so
+    # if stepped/shoulder/necking language remains in the text after this simple prefix, this
+    # resolver must refuse the match too rather than claim a confident, actually-incomplete
+    # result; the statistical fallback -- which at least discloses in_distribution/similarity --
+    # handles it instead. Never a forced partial match, same discipline as the existing
+    # feature-clause fallback a few lines below in compose_program_from_description.
+    if re.search(r"\b(?:step(?:s|ped|ping)?|shoulder|neck(?:s|ing)?)\b", text[m.end():], re.IGNORECASE):
         return None
     diameter, length = float(m.group(1)), float(m.group(2))
     return _BaseShape(op="add_cylinder", args={"radius": diameter / 2.0, "height": length, "center": [0.0, 0.0, 0.0], "axis": "z"},
@@ -314,9 +334,22 @@ def _feature_through_hole(text: str, base: _BaseShape) -> list[dict] | None:
     silently falling through to the statistical path's own approximate
     per-argument regressor for a value (the bore diameter) that should
     never be approximate."""
-    m = re.search(rf"{_NUM}\s*mm\s*diameter\s*(?:hole|bore)\s*through\s*(?:it|the\s*middle|the\s*post)", text, re.IGNORECASE)
+    # Confirmed real gap (mission-brief audit): "through the center"/"through its center" are at
+    # least as common, natural ways to phrase a centered through-hole as "through it"/"the
+    # middle"/"the post", but were never recognized -- every one of them silently fell through to
+    # the unreliable statistical path, which picked a DIFFERENT wrong tool for each one tested
+    # (drill_slot, add_wireframe_from_edges, drill_hole_pattern -- none of them a plain round hole).
+    m = re.search(
+        rf"{_NUM}\s*mm\s*diameter\s*(?:hole|bore)\s*through\s*(?:it|its\s*center|the\s*middle|the\s*center|the\s*post)",
+        text, re.IGNORECASE,
+    )
     if not m:
         m = re.search(rf"circular through-opening of\s*{_NUM}\s*mm\s*diameter", text, re.IGNORECASE)
+    if not m:
+        # "a central {N}mm diameter through-hole" -- the centering word comes BEFORE the noun
+        # here, not after "through", so this needs its own alternative rather than another
+        # suffix on the "through X" alternation above.
+        m = re.search(rf"\bcentral\s*{_NUM}\s*mm\s*diameter\s*through[- ]hole\b", text, re.IGNORECASE)
     if not m:
         return None
     radius = float(m.group(1)) / 2.0

@@ -1,0 +1,108 @@
+{
+  "id": "E17",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 3.9602023269999336,
+  "overall_status": "INCOMPLETE",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 1,
+  "points": [
+    {
+      "id": "plate",
+      "description": "a box 50mm x 50mm x 5mm with a corner array of four 3.4mm diameter holes, each 10mm from a corner",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "suspect",
+      "error": "built geometry doesn't match the description's own stated dimensions (3.4mm)",
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "drill_hole_pattern",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 12319.58048147586,
+        "bounds_mm": [
+          [
+            -25.0,
+            -25.0,
+            -2.5
+          ],
+          [
+            25.0,
+            25.0,
+            2.5
+          ]
+        ],
+        "extents_mm": [
+          50.0,
+          50.0,
+          5.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 0.75,
+      "unmatched_dimensions_mm": [
+        3.4
+      ],
+      "claimed_hole_count": 4,
+      "detected_hole_count": 4,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        3.385450977980512,
+        3.3854509779804447,
+        3.385450977980596,
+        3.3854509779807134
+      ],
+      "detected_hole_axes": [
+        "z",
+        "z",
+        "z",
+        "z"
+      ],
+      "detected_hole_through": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "detected_cylindrical_patch_count": 5
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 12319.58048147586,
+    "bounds_mm": [
+      [
+        -25.0,
+        -25.0,
+        -2.5
+      ],
+      [
+        25.0,
+        25.0,
+        2.5
+      ]
+    ],
+    "extents_mm": [
+      50.0,
+      50.0,
+      5.0
+    ],
+    "center_mm": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "id": "B08",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 4.7880581640001765,
+  "overall_status": "INCOMPLETE",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 2,
+  "points": [
+    {
+      "id": "housing",
+      "description": "a box 60mm x 60mm x 25mm with a 35mm diameter hole through the center",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "suspect",
+      "error": "built geometry doesn't match the description's own stated dimensions (35mm); description claims 1 hole(s), detector found 0 (hole detection recognizes cylindrical features running along any of the 3 world axes (x/y/z) on largely axis-aligned, watertight parts, but not an arbitrarily tilted hole axis -- a mismatch may reflect that scope, not necessarily a wrong build); description claims a hole/bore diameter of 35mm that no detected hole matches within tolerance (hole diameter is measured by fitting a circle to each detected axis-aligned cylindrical feature (any of the 3 world axes) -- the same scope limitation as detected_hole_count (evaluation/geometry_eval.py); a mismatch may reflect that scope, not necessarily a wrong build)",
+      "resolution_method": "statistical",
+      "program_ops": [
+        "add_box",
+        "add_wireframe_from_edges",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 8589.76165014871,
+        "bounds_mm": [
+          [
+            -31.027099609375,
+            -31.828649520874023,
+            -14.396390914916992
+          ],
+          [
+            32.700340270996094,
+            31.39940643310547,
+            14.331047058105469
+          ]
+        ],
+        "extents_mm": [
+          63.727439880371094,
+          63.22805595397949,
+          28.72743797302246
+        ],
+        "center_mm": [
+          0.8366203308105469,
+          -0.21462154388427734,
+          -0.03267192840576172
+        ]
+      },
+      "dimension_match_rate": 0.75,
+      "unmatched_dimensions_mm": [
+        35.0
+      ],
+      "claimed_hole_count": 1,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [
+        35.0
+      ],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 5
+    },
+    {
+      "id": "bearing",
+      "description": "a flat ring 35mm outer diameter, 15mm inner diameter, 10mm tall",
+      "position_mm": [
+        0.8366203308105469,
+        -0.21462154388427734,
+        -0.03267192840576172
+      ],
+      "status": "suspect",
+      "error": "built geometry doesn't match the description's own stated dimensions (15mm)",
+      "resolution_method": "statistical",
+      "program_ops": [
+        "add_ring",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 7803.61288064513,
+        "bounds_mm": [
+          [
+            -17.5,
+            -17.5,
+            -5.0
+          ],
+          [
+            17.5,
+            17.5,
+            5.0
+          ]
+        ],
+        "extents_mm": [
+          35.0,
+          35.0,
+          10.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 0.6666666666666666,
+      "unmatched_dimensions_mm": [
+        15.0
+      ],
+      "claimed_hole_count": null,
+      "detected_hole_count": 1,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        14.935813604900243
+      ],
+      "detected_hole_axes": [
+        "z"
+      ],
+      "detected_hole_through": [
+        true
+      ],
+      "detected_cylindrical_patch_count": 2
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 16393.37453079384,
+    "bounds_mm": [
+      [
+        -31.027099609375,
+        -31.828649520874023,
+        -14.396390914916992
+      ],
+      [
+        32.700340270996094,
+        31.39940643310547,
+        14.331047058105469
+      ]
+    ],
+    "extents_mm": [
+      63.727439880371094,
+      63.22805595397949,
+      28.72743797302246
+    ],
+    "center_mm": [
+      0.8366203308105469,
+      -0.21462154388427734,
+      -0.03267192840576172
+    ]
+  }
+}
