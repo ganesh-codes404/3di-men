@@ -201,25 +201,17 @@ class ProgramModelConfig:
     # statistically rigorous threshold -- expect some misses in both
     # directions, not a guarantee.
     ood_similarity_threshold: float = 0.20
-    # HISTORICAL / NO LONGER CONSULTED by predict_program_hybrid -- kept
-    # only so an already-saved ProgramModelBundle (joblib pickle) with this
-    # field set still loads cleanly, and so the investigation documented
-    # below (which directly motivated replacing this whole mechanism)
-    # stays attached to the field it was originally about. As of the
-    # requirement-aware arbitration engine (op_arbitration.arbitrate(),
-    # wired into predict_program_hybrid), RAG no longer gets to override
-    # the classifier on disagreement by clearing ANY similarity floor --
-    # both candidates are checked against the text's own extracted
-    # requirements (op_requirements.extract_requirements) for hard
-    # contradictions first, and similarity/coverage only acts as a
-    # tiebreaker once both candidates already satisfy them. The
-    # investigation that proved a single global floor could never work --
-    # a real threshold sweep, not a guess -- is preserved below as the
-    # record of WHY a similarity-only mechanism was abandoned in favor of
-    # a requirement-aware one; scripts/sweep_rag_override_threshold.py
-    # itself is correspondingly now a historical/diagnostic script, not a
-    # live tuning tool (sweeping this field no longer changes
-    # predict_program_hybrid's output at all):
+    # A SEPARATE, independently-tunable floor for predict_program_hybrid's
+    # own arbitration decision (does RAG's retrieved op-sequence get to
+    # override the classifier's own independent one on disagreement) --
+    # kept as its OWN config field, not folded back into
+    # ood_similarity_threshold, even though this investigation ended up
+    # keeping the same 0.20 VALUE. The split exists because disclosure
+    # and override-authority are different risk profiles (disclosing low
+    # confidence is free; overriding an independently-plausible answer
+    # with a weak match can destroy a correct result) -- but a real,
+    # broader check (not just the one example that first motivated this)
+    # showed raising the number is NOT a clean fix:
     #   - "a cylinder, 40mm diameter, 30mm tall, with a 12mm diameter bore
     #     through it" -- classifier CORRECT (add_cylinder, drill_hole),
     #     RAG WRONG (add_box, add_cylinder, boolean_intersection) at 0.346
@@ -426,40 +418,141 @@ class _ConstantClassifier:
 
 import re
 
-# The base-shape and hole/bore dimension overrides that used to live here
-# (_override_primary_shape_dimensions, _override_bore_hole_dimensions)
-# are RETIRED, not kept alongside their replacement -- Problem 2's own
-# mission brief explicitly warns against "unnecessary competing
-# representations." Both were a flat, unlabeled list of literal "Nmm"
-# values, assigned to an op's own numeric fields either by REQUIRING the
-# text to supply at least as many numbers as the op has slots (the base-
-# shape version -- confirmed real failure: "a bracket with a 5mm thick
-# base and two 6mm mounting holes" has only 2 literals for add_extrusion's
-# 4 numeric fields, so the override never fired at all, even for the one
-# unambiguous number) or by proximity to the single word "bore"/"hole"
-# alone (the feature version -- confirmed real failure: "40mm outer
-# diameter, 12mm through-bore, and 30mm height" let the "12" intended for
-# the bore leak into the base cylinder's own height field, since literals
-# were zipped in document order against ARG_SCHEMA's field order with no
-# semantic check at all). See dimension_requirements.py's own module
-# docstring for the full live reproduction of both failures.
+_DIMENSION_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*mm\b", re.IGNORECASE)
 
-# The REPLACEMENT -- dimension_requirements.extract_dimension_requirements
-# + dimension_assignment.assign_requirements, applied once to the
-# COMPLETE predicted program at the end of predict_program() below --
-# labels every extracted number with the descriptive keyword that
-# justifies its own target parameter (never requiring the text to supply
-# a fixed count of numbers, never zipping by position), so a correctly
-# identified single dimension is assigned even when the op has unfilled
-# slots, and a feature's own number can never land on an unrelated op's
-# argument. _override_gear_dimensions below is UNCHANGED (gear-specific,
-# not one of this task's reproduced failures, kept as its own dedicated
-# per-field-label mechanism exactly as before).
+
+def _override_primary_shape_dimensions(op: str, args: dict, text: str) -> dict:
+    """When the text explicitly states the SHAPE-CREATING op's own primary
+    dimensions (the common case -- "a cylinder 20mm diameter, 15mm tall"),
+    use those literal numbers directly instead of the trained regressors'
+    approximation. Confirmed as a real, severe gap, not hypothetical: on
+    the exact text "a cylinder 20mm diameter, 15mm tall with a 6mm
+    diameter hole through it", the regressor predicted height=52.6mm for a
+    stated 15mm -- a >3x error -- because TF-IDF-driven regression has no
+    actual mechanism to read the digits out of the text, only to correlate
+    word patterns with typical training values. Literal numbers, when
+    present, are unambiguous ground truth and should always win.
+
+    Deliberately scoped to ONLY the first op (the one that creates the
+    base shape, i.e. one of sandbox.py's _CREATES set) and to its OWN
+    first len(numeric_fields) literal "Nmm" values in the text, in
+    ARG_SCHEMA's declared order -- not every op in a multi-step program.
+    Mapping a flat list of literal numbers to EVERY op's args across a
+    whole multi-op sequence (e.g. which number is a hole's margin vs its
+    depth) is a much harder, more error-prone problem; the base shape's
+    own overall size is both the most reliably extractable case (its
+    numbers are almost always stated first, before any feature detail)
+    and the most visible error to a user if wrong, so it is the one
+    handled here. If the text doesn't have enough explicit numbers to
+    cover this op's own dimensions, nothing is overridden -- never a
+    partial/guessed mapping.
+
+    A field whose name contains "radius" is halved from the literal
+    value: this project's own training-text convention (see
+    data/program_dataset.py's patterns) consistently states a DIAMETER in
+    text ("20mm diameter") while the matching tool argument is a radius
+    -- confirmed directly across _pattern_dome/_pattern_sphere/
+    _pattern_shouldered_cylinder/etc., not assumed."""
+    from sandbox import _CREATES
+
+    if op not in _CREATES:
+        return args
+    numeric_fields = [name for name, kind in ARG_SCHEMA[op] if kind == "numeric" and name not in ("center_x", "center_y", "center_z")]
+    if not numeric_fields:
+        return args
+    literals = [float(m) for m in _DIMENSION_RE.findall(text)]
+    if len(literals) < len(numeric_fields):
+        return args
+
+    overridden = dict(args)
+    for name, value in zip(numeric_fields, literals[: len(numeric_fields)]):
+        overridden[name] = value / 2.0 if "radius" in name else value
+    return overridden
+
+
+# Each op's own SINGLE field representing a through-hole/bore radius --
+# the one feature-level dimension most commonly stated explicitly in
+# text and most visibly wrong if only approximated (e.g. "a 12mm bore").
+# A small, deliberately narrow per-op map, not a generic "any numeric
+# field" rule -- see _override_bore_hole_dimensions's own docstring for
+# why position-based mapping (which works for the base shape above)
+# isn't safe for a feature op.
+_BORE_HOLE_RADIUS_FIELD: dict[str, str] = {
+    "drill_hole": "radius",
+    "add_boss_with_bore": "bore_radius",
+    "counterbore_hole": "hole_radius",
+    # Pattern variants -- the one stated diameter applies to every hole
+    # in the pattern alike (e.g. "four 8mm diameter through-holes").
+    "drill_hole_pattern": "radius",
+    "counterbore_hole_pattern": "hole_radius",
+}
+
+# Looks for a literal "Nmm" adjacent to the word "bore"/"hole" (either
+# order: "12mm diameter bore" or "a bore of 12mm") -- proximity to the
+# describing word, not position in the text, since a feature's own
+# dimension can appear anywhere relative to the base shape's own numbers
+# or an unrelated count ("four 8mm holes" has its count BEFORE its own
+# size, for instance). The middle descriptor-word group reuses
+# spec_validation.py's own small, explicit _HOLE_DESCRIPTOR_WORDS list
+# (through/mounting/pilot/clearance/...) rather than a generic "any
+# word" filler -- confirmed real misses without it: "8mm diameter
+# through-holes" and "6mm diameter mounting holes" both matched
+# NOTHING at all, since a descriptive word sat directly between
+# "diameter" and "hole". A GENERIC "\w+" filler was tried first and
+# rejected (same regression spec_validation.py's own hole-COUNT
+# extractor hit): it can swallow an unrelated word that happens to sit
+# there, so this deliberately reuses the same curated, non-generic list
+# both extractors rely on, kept in one place to avoid the two drifting
+# out of sync.
+from spec_validation import _HOLE_DESCRIPTOR_WORDS
+
+_BORE_HOLE_DIAMETER_RE = re.compile(
+    rf"(\d+(?:\.\d+)?)\s*mm\s*(?:diameter\s*)?(?:{_HOLE_DESCRIPTOR_WORDS}-?\s*){{0,2}}(?:bore|hole)"
+    rf"|(?:{_HOLE_DESCRIPTOR_WORDS}-?\s*){{0,2}}(?:bore|hole)(?:\s+(?:of|is|diameter))?\s*(\d+(?:\.\d+)?)\s*mm",
+    re.IGNORECASE,
+)
+
+
+def _override_bore_hole_dimensions(op: str, args: dict, text: str) -> dict:
+    """Feature-level analogue of _override_primary_shape_dimensions above,
+    for a hole/bore-creating op's own explicit diameter. Confirmed real
+    gap this closes (mission-brief audit, live-reproduced): the base-
+    shape override only ever applies to the FIRST (shape-creating) op in
+    a program -- a feature op's own explicit diameter (a bore, a plain
+    drilled hole) had NO equivalent mechanism and came entirely from the
+    trained regressor's approximation, silently, with only a post-hoc
+    "suspect" flag if wrong (parallel_builder.py's dimension_match_rate
+    check) -- never an actual correction. Reproduced directly: for "a
+    cylinder, 40mm diameter, 30mm tall, with a 12mm diameter bore through
+    it" built via add_boss_with_bore, the predicted bore_radius came from
+    the regressor alone with no way to know the request said exactly
+    12mm.
+
+    Deliberately scoped to the single field in _BORE_HOLE_RADIUS_FIELD
+    for whichever op is passed in, found by PROXIMITY to "bore"/"hole" in
+    the text, never by position -- unlike the base shape's own
+    dimensions (reliably the first few numbers stated), a feature's own
+    number can appear anywhere in the sentence relative to unrelated
+    numbers (the base shape's size, an unrelated count), so position
+    alone is not a safe signal here. If no such literal is found, nothing
+    is overridden -- never a guessed mapping."""
+    field = _BORE_HOLE_RADIUS_FIELD.get(op)
+    if field is None or field not in args:
+        return args
+    m = _BORE_HOLE_DIAMETER_RE.search(text)
+    if not m:
+        return args
+    literal = float(m.group(1) or m.group(2))
+    overridden = dict(args)
+    overridden[field] = literal / 2.0
+    return overridden
+
 
 # Each of add_gear_profile's own 4 stated dimensions, matched by the WORD
-# next to its own number, never by position -- clause order shuffles in
-# training data, so position cannot be trusted even where "mm" IS
-# present (see _override_gear_dimensions's own docstring below).
+# next to its own number, never by position -- see
+# _override_gear_dimensions's own docstring for why position (which
+# _override_primary_shape_dimensions relies on for every other base
+# shape) specifically fails for a gear.
 _GEAR_MODULE_RE = re.compile(r"module\s*(\d+(?:\.\d+)?)", re.IGNORECASE)
 _GEAR_TEETH_RE = re.compile(r"(\d+)\s*teeth", re.IGNORECASE)
 _GEAR_FACE_WIDTH_RE = re.compile(r"(\d+(?:\.\d+)?)\s*mm\s*face\s*width", re.IGNORECASE)
@@ -507,41 +600,6 @@ def _override_gear_dimensions(op: str, args: dict, text: str) -> dict:
     if m:
         overridden["bore_diameter_mm"] = float(m.group(1))
     return overridden
-
-
-def _apply_dimension_requirements(program: list, text: str) -> list:
-    """The explicit assignment stage (Problem 2's own Part 4), applied
-    ONCE to the complete predicted program rather than per-slot --
-    unlike the retired per-slot overrides, dimension_assignment.
-    assign_requirements needs the WHOLE op sequence up front to route a
-    feature-level requirement to the right op by INDEX (skipping the
-    base op, matching by that op's own declared parameter semantics),
-    not just whichever op happens to be mid-prediction. Never raises and
-    never changes the op sequence itself -- only ToolCall.args, and only
-    for a requirement that both (a) extraction could resolve to a
-    parameter and (b) the chosen program actually has a matching op for;
-    see dimension_assignment.AssignmentResult.log for exactly what
-    happened to every requirement, including the ones left untouched."""
-    from dimension_assignment import assign_requirements
-    from dimension_repair import repair_missing_stepped_section
-    from dimension_requirements import extract_dimension_requirements, extract_feature_count_requirements
-
-    dimension_reqs = extract_dimension_requirements(text)
-    count_reqs = extract_feature_count_requirements(text)
-    if not dimension_reqs and not count_reqs:
-        return program
-
-    # A planning-level (no mesh execution needed) repair, BEFORE
-    # assignment -- see repair_missing_stepped_section's own docstring
-    # for the confirmed Problem-1/Problem-2 boundary case this closes:
-    # the chosen op sequence can lack any op a stepped_section
-    # requirement could even be assigned to at all. A no-op whenever
-    # that specific situation doesn't apply.
-    step_repair = repair_missing_stepped_section(program, dimension_reqs)
-    program = step_repair.program
-
-    result = assign_requirements(dimension_reqs, count_reqs, program)
-    return result.program
 
 
 def predict_program(bundle: ProgramModelBundle, text: str, forced_ops: list[str] | None = None) -> list:
@@ -595,6 +653,8 @@ def predict_program(bundle: ProgramModelBundle, text: str, forced_ops: list[str]
                     args[name] = encoder.inverse_transform([idx])[0]
                 else:
                     args[name] = float(estimator.predict(X_arg)[0])
+            args = _override_primary_shape_dimensions(op, args, text)
+            args = _override_bore_hole_dimensions(op, args, text)
             args = _override_gear_dimensions(op, args, text)
 
         full_args = _unflatten_args(op, args, slot) if ARG_SCHEMA[op] else {}
@@ -603,7 +663,7 @@ def predict_program(bundle: ProgramModelBundle, text: str, forced_ops: list[str]
         if op == "finalize":
             break
 
-    return _apply_dimension_requirements(program, text)
+    return program
 
 
 def _nearest_neighbor_index_and_similarity(bundle: ProgramModelBundle, text: str) -> tuple[int, float]:
@@ -676,62 +736,6 @@ def retrieve_nearest_op_sequence(bundle: ProgramModelBundle, text: str, k: int =
     return winner, sims[0]
 
 
-def retrieve_nearest_op_sequence_requirement_aware(bundle: ProgramModelBundle, text: str, k: int = 5) -> tuple[tuple[str, ...], float]:
-    """retrieve_nearest_op_sequence(), but re-ranks the SAME top-k
-    neighbors by requirement compatibility (op_requirements.
-    extract_requirements + op_arbitration.evaluate_candidate) BEFORE
-    majority-voting, rather than voting over raw similarity alone --
-    making RAG's own retrieval feature-aware, not just correctable
-    after the fact at arbitration (op_arbitration.arbitrate() still
-    runs on whatever this returns, as the final hard-rejection check;
-    this is a BETTER proposal for it to arbitrate with, not a
-    replacement for it).
-
-    When the plain majority-vote winner (retrieve_nearest_op_sequence's
-    own result) already satisfies the text's own extracted
-    requirements, this returns the exact same thing -- zero behavior
-    change for the common case, including all 3 of this project's own
-    confirmed-good/bad arbitration cases (verified: re-ranking never
-    changes the winner for the cylinder-bore, plate, or bracket cases,
-    since each of those already has either an all-good or all-bad top-5
-    neighbor cluster -- see op_requirements.py's and op_arbitration.py's
-    own module docstrings). It matters when the top-k neighbors are a
-    MIX: if the raw majority is a requirement-violating sequence but a
-    different, still-genuinely-retrieved neighbor among the same top-k
-    satisfies the requirements, that neighbor's own similarity-weighted
-    vote (among itself and any other satisfying neighbors) wins instead
-    -- giving arbitrate() a real rescue candidate on a classifier
-    failure, instead of a single already-known-bad one it can only
-    reject into NO_VALID_PLAN. Falls back to the unchanged plain
-    majority vote when NONE of the top-k satisfy the requirements --
-    nothing better exists among these k neighbors to prefer, and this
-    is never meant to invent a sequence no real neighbor actually has."""
-    from op_arbitration import evaluate_candidate
-    from op_requirements import extract_requirements
-
-    if not bundle.train_op_sequences:
-        raise ValueError("bundle has no stored train_op_sequences -- retrain to enable retrieval")
-    idxs, sims = _top_k_neighbors(bundle, text, k)
-    if not idxs:
-        return (STOP,), 0.0
-
-    requirements = extract_requirements(text)
-    satisfying_ranks = [rank for rank, idx in enumerate(idxs) if evaluate_candidate(bundle.train_op_sequences[idx], requirements).valid]
-    ranks_to_vote = satisfying_ranks or range(len(idxs))
-
-    votes: dict[tuple[str, ...], float] = {}
-    for rank in ranks_to_vote:
-        seq = bundle.train_op_sequences[idxs[rank]]
-        votes[seq] = votes.get(seq, 0.0) + sims[rank] + (1e-6 * (len(idxs) - rank))
-    winner = max(votes, key=votes.get)
-    # The reported similarity is still the single best RAW match overall
-    # (sims[0]) -- the same honest "how close was the nearest real
-    # example" signal every other caller of this similarity value
-    # relies on, not an artifact of which candidate the re-ranking
-    # happened to prefer.
-    return winner, sims[0]
-
-
 def predict_program_rag(bundle: ProgramModelBundle, text: str) -> list:
     """predict_program(), but with the op-sequence SHAPE drawn from
     retrieval (retrieve_nearest_op_sequence()) rather than guessed
@@ -740,45 +744,10 @@ def predict_program_rag(bundle: ProgramModelBundle, text: str) -> list:
     return predict_program(bundle, text, forced_ops=list(ops))
 
 
-_NO_VALID_PLAN_RESCUE_K = 50  # how many training neighbors to search for a genuine alternative before conceding NO_VALID_PLAN -- bounded, never the whole training set, so a rescue is only ever a real, reasonably-nearby example, never an arbitrarily distant one dressed up as a match
-
-
-def _rescue_valid_alternative(bundle: ProgramModelBundle, text: str, k: int) -> "tuple[tuple[str, ...], float] | None":
-    """E47 fix's own search step: scans the `k` nearest training
-    neighbors for a genuinely requirement-SATISFYING op-sequence and
-    returns that SPECIFIC candidate's own best matching similarity --
-    deliberately NOT retrieve_nearest_op_sequence_requirement_aware's
-    reported similarity, which is always the single nearest neighbor
-    OVERALL (sims[0], see that function's own docstring) and could be a
-    high-confidence match to a completely different, INVALID neighbor
-    while the actual rescue candidate is only weakly supported. The
-    caller needs to know how confident THIS candidate specifically is,
-    not how confident the nearest neighbor of any kind was. Returns None
-    when nothing among the k neighbors satisfies the text's own
-    structured requirements at all."""
-    from op_arbitration import evaluate_candidate
-    from op_requirements import extract_requirements
-
-    idxs, sims = _top_k_neighbors(bundle, text, k)
-    if not idxs:
-        return None
-    requirements = extract_requirements(text)
-    best_sim_by_seq: dict[tuple[str, ...], float] = {}
-    for rank, idx in enumerate(idxs):
-        seq = bundle.train_op_sequences[idx]
-        if not evaluate_candidate(seq, requirements).valid:
-            continue
-        best_sim_by_seq[seq] = max(best_sim_by_seq.get(seq, 0.0), sims[rank])
-    if not best_sim_by_seq:
-        return None
-    best_seq = max(best_sim_by_seq, key=best_sim_by_seq.get)
-    return best_seq, best_sim_by_seq[best_seq]
-
-
-def predict_program_hybrid(bundle: ProgramModelBundle, text: str) -> tuple[list, bool, "ArbitrationResult"]:
+def predict_program_hybrid(bundle: ProgramModelBundle, text: str) -> tuple[list, bool]:
     """Arbitrates between the classifier's own independent op-sequence and
     RAG's retrieved one, rather than trusting either unconditionally.
-    Returns (program, used_rag, arbitration_result).
+    Returns (program, used_rag).
 
     Measured (this project's own honest 3-bucket eval, retrained bundle):
     pure RAG (k=5) beats the classifier-only path on hand_written (+12.5
@@ -792,97 +761,47 @@ def predict_program_hybrid(bundle: ProgramModelBundle, text: str) -> tuple[list,
     The two methods AGREEING is itself a strong, free confidence signal:
     when they land on the same op-sequence, there is no tradeoff to
     arbitrate, so either result is equally trustworthy (this returns the
-    already-computed classifier program rather than recomputing).
+    already-computed classifier program rather than recomputing). When
+    they DISAGREE, that disagreement is exactly the classifier's known
+    failure signature -- it chose an op combination that doesn't
+    correspond to any single real training example -- so RAG wins,
+    PROVIDED the winning neighbor's own similarity to `text` clears
+    bundle.config.rag_override_similarity_threshold.
 
-    When they DISAGREE, this used to force RAG's sequence whenever its own
-    retrieved-neighbor similarity cleared a single global
-    rag_override_similarity_threshold -- confirmed BROKEN by a live mission-
-    brief audit against the real trained bundle: for "a cylinder... with a
-    12mm diameter bore through it," the classifier's own prediction
-    (add_cylinder -> drill_hole) is CORRECT, but 4 of RAG's own top-5
-    retrieved neighbors are a genuine, consistent training-data cluster of
-    the WRONG (add_box, add_cylinder, boolean_intersection) pattern at
-    similarity ~0.346 -- comfortably above the 0.20 floor, and above even
-    the bracket case's own genuinely-good RAG cluster (similarity
-    ~0.217-0.257, see below). Raising the floor to block this exact case
-    was tried and confirmed net-harmful (costs 16.6 points on hand_written,
-    1-1.9 on generic_composition -- see this function's own git history /
-    the field's old docstring) precisely because similarity MAGNITUDE
-    cannot discriminate "this retrieved example is geometrically wrong"
-    from "this retrieved example is geometrically right but merely
-    textually distant": the plate's hole-pattern rescue and the bracket's
-    base-geometry rescue are BOTH genuine, consistent RAG clusters, and the
-    bracket's is at LOWER similarity than the bad cylinder case's.
+    Confirmed real gap this closes (a mission-brief audit, not
+    hypothetical): disagreement alone used to force RAG's sequence
+    unconditionally, with no floor on how similar that "winning" neighbor
+    actually was. For a text with no genuinely close training neighbor at
+    all, the winner is only the LEAST-dissimilar of five already-poor
+    matches -- forcing its op-sequence onto an unrelated text is exactly
+    how an unrequested cylinder or rounded block (an op present in some
+    training pattern that happens to share surface vocabulary with the
+    query -- e.g. "round"/"block"/"smooth" -- not the shape actually
+    requested) could reach a built model. Traced to real training
+    patterns that can do this: data/program_dataset.py's
+    _pattern_round_box_edges, its boss-with-bore patterns, and its
+    "smoothed... into a softer, more organic form" wording.
 
-    The fix (op_arbitration.arbitrate(), see that module's own docstring)
-    is requirement-aware instead of similarity-aware: both the classifier's
-    and RAG's op-sequences are checked against the SAME structured
-    requirements extracted from `text` itself (op_requirements.
-    extract_requirements) for hard contradictions (wrong base geometry,
-    a required feature with no compatible op in the sequence) before
-    either is trusted at all; only when both pass does similarity/coverage
-    get to act as a tiebreaker. This is what correctly keeps the cylinder
-    case on the classifier's own (requirement-satisfying) answer while
-    still letting RAG rescue the plate and bracket cases, whose own
-    classifier predictions genuinely violate an explicit requirement
-    (wrong op count / wrong base geometry) that RAG's retrieved sequence
-    satisfies.
-
+    Below that floor, the classifier's own (unforced) sequence is used
+    instead -- not because it's guaranteed correct, but because it's at
+    least derived from THIS text's own per-slot read, not a forced
+    transplant from an unrelated training example. Either way,
     in_distribution (predict_program_checked) is computed from the
     SEPARATE ood_similarity_threshold, so a low-confidence result is still
     honestly disclosed regardless of which program this function returns
     -- disclosure and override-authority are deliberately different
-    signals (one a similarity floor, the other a requirement check)."""
-    from op_arbitration import ArbitrationOutcome, arbitrate
-
+    floors now (see ProgramModelConfig.rag_override_similarity_threshold's
+    own docstring for the confirmed regression that made reusing one
+    number for both wrong: a correct classifier answer overridden by a
+    merely-above-the-disclosure-floor RAG match)."""
     classifier_program = predict_program(bundle, text)
     classifier_ops = tuple(c.op for c in classifier_program)
-    rag_ops, rag_sim = retrieve_nearest_op_sequence_requirement_aware(bundle, text)
-    result = arbitrate(classifier_ops, tuple(rag_ops), rag_sim, text)
-
-    # E47 fix: NO_VALID_PLAN must never be the end of the story just
-    # because arbitrate()'s own default top-5 RAG window had nothing
-    # valid in it -- a genuinely valid, real training example can exist
-    # just outside that window (confirmed, live: "a bearing housing...
-    # with a 12.2mm bore"'s classifier candidate is a rectangular pocket,
-    # not a round bore, and its own default-5 RAG neighbors are all
-    # equally invalid, but a real (add_box, counterbore_hole, finalize)
-    # example exists at rank ~34). Widen the search before conceding.
-    # The rescue is gated by the SAME ood_similarity_threshold every
-    # other confidence check in this module already uses, applied to
-    # the RESCUE CANDIDATE'S OWN similarity (never the blanket nearest-
-    # neighbor-of-any-kind number) -- a technically-valid but barely-
-    # related sequence is not a rescue, it's just a different wrong
-    # answer, and arbitrate() itself is left to return NO_VALID_PLAN
-    # honestly when that's genuinely the most trustworthy answer
-    # available (never forced to prefer a confident-sounding guess over
-    # an honest "cannot currently generate this").
-    if result.outcome is ArbitrationOutcome.NO_VALID_PLAN and bundle.train_op_sequences:
-        k = min(_NO_VALID_PLAN_RESCUE_K, len(bundle.train_op_sequences))
-        rescue = _rescue_valid_alternative(bundle, text, k)
-        if rescue is not None and rescue[1] >= bundle.config.ood_similarity_threshold:
-            rescue_ops, rescue_sim = rescue
-            widened = arbitrate(classifier_ops, tuple(rescue_ops), rescue_sim, text)
-            if widened.outcome is not ArbitrationOutcome.NO_VALID_PLAN:
-                widened.reasoning.insert(
-                    0,
-                    f"initial arbitration returned NO_VALID_PLAN; widened retrieval to k={k} found a valid "
-                    f"alternative at similarity {rescue_sim:.3f} (>= the {bundle.config.ood_similarity_threshold:.2f} floor)",
-                )
-                result = widened
-            else:
-                result.reasoning.append(f"widened retrieval (k={k}) still found no valid alternative -- confirmed NO_VALID_PLAN")
-        elif rescue is not None:
-            result.reasoning.append(
-                f"widened retrieval (k={k}) found a valid alternative at similarity {rescue[1]:.3f}, "
-                f"below the {bundle.config.ood_similarity_threshold:.2f} floor -- too weakly supported to trust; confirmed NO_VALID_PLAN"
-            )
-        else:
-            result.reasoning.append(f"widened retrieval (k={k}) found no valid alternative at all -- confirmed NO_VALID_PLAN")
-
-    if result.chosen_ops == classifier_ops:
-        return classifier_program, False, result
-    return predict_program(bundle, text, forced_ops=list(result.chosen_ops)), True, result
+    rag_ops, rag_sim = retrieve_nearest_op_sequence(bundle, text)
+    if classifier_ops == tuple(rag_ops):
+        return classifier_program, False
+    if rag_sim < bundle.config.rag_override_similarity_threshold:
+        return classifier_program, False
+    return predict_program(bundle, text, forced_ops=list(rag_ops)), True
 
 
 def nearest_neighbor_similarity(bundle: ProgramModelBundle, text: str) -> float:
@@ -914,7 +833,6 @@ class ProgramPrediction:
     program: list  # list[sandbox.ToolCall]
     nearest_neighbor_similarity: float
     in_distribution: bool  # nearest_neighbor_similarity >= bundle.config.ood_similarity_threshold
-    arbitration: "ArbitrationResult | None" = None  # None for the program_override/compositional/no-RAG-bundle paths, which never go through predict_program_hybrid
 
 
 def predict_program_checked(bundle: ProgramModelBundle, text: str) -> ProgramPrediction:
@@ -934,9 +852,8 @@ def predict_program_checked(bundle: ProgramModelBundle, text: str) -> ProgramPre
     thin-density prompts while recovering the classifier's own strength on
     the 6 deeply-trained part families, rather than trading one off
     against the other unconditionally."""
-    arbitration = None
     if bundle.train_op_sequences:
-        program, _used_rag, arbitration = predict_program_hybrid(bundle, text)
+        program, _used_rag = predict_program_hybrid(bundle, text)
         sim = nearest_neighbor_similarity(bundle, text)
     else:
         # older bundle saved before retrieval existed -- fall back to the
@@ -947,5 +864,4 @@ def predict_program_checked(bundle: ProgramModelBundle, text: str) -> ProgramPre
         program=program,
         nearest_neighbor_similarity=sim,
         in_distribution=sim >= bundle.config.ood_similarity_threshold,
-        arbitration=arbitration,
     )

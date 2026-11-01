@@ -22,11 +22,8 @@ import trimesh
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
 from build_logger import log_build
-from build_validation import build_validation_report
-from clarification import assess_build
-from llm_decompose import ActionablePoint, _parse_relationship, ask_clarifying_questions_isolated, decompose_prompt_isolated, fold_answers_into_prompt
-from parallel_builder import build_assembly_from_points, build_assembly_from_programs
-from spec_validation import extract_claimed_envelope_mm
+from llm_decompose import ActionablePoint, _parse_relationship, ask_clarifying_questions, fold_answers_into_prompt
+from parallel_builder import build_assembly_from_points, build_assembly_from_programs, build_assembly_from_prompt
 from sandbox import Sandbox, ToolCall, tool_schema
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "webapp_output"
@@ -79,7 +76,7 @@ def api_clarify():
         return jsonify({"error": "prompt is empty"}), 400
 
     try:
-        result = ask_clarifying_questions_isolated(prompt)
+        result = ask_clarifying_questions(prompt)
     except Exception as exc:
         return jsonify({"error": f"{type(exc).__name__}: {exc}"}), 500
 
@@ -198,26 +195,7 @@ def api_build():
             answers = body.get("answers") or []
             qa_pairs = [(a.get("question", ""), a.get("answer", "")) for a in answers if isinstance(a, dict)]
             enriched_prompt = fold_answers_into_prompt(prompt, qa_pairs)
-
-            # Replicates parallel_builder.build_assembly_from_prompt's own
-            # logic (decompose, then build) rather than calling it
-            # directly -- the one difference is decompose_prompt_isolated
-            # below, which runs the actual native LLM call in a separate
-            # worker process so a native crash there can never take this
-            # whole server down (see llm_decompose.py's own module note).
-            # Decomposition always fully completes (or degrades to its own
-            # disclosed fallback) BEFORE build_assembly_from_points creates
-            # its own, separate geometry worker pool -- the two pools are
-            # never nested.
-            decomposition = decompose_prompt_isolated(enriched_prompt)
-            claimed_envelope_mm = extract_claimed_envelope_mm(enriched_prompt)
-            result = build_assembly_from_points(
-                decomposition.points, DEFAULT_BUNDLE_PATH,
-                claimed_envelope_mm=claimed_envelope_mm, original_prompt=enriched_prompt,
-            )
-            result.fell_back_to_single_point = decomposition.fell_back
-            result.raw_llm_output = decomposition.raw_llm_output
-            result.knowledge_context = decomposition.knowledge_context
+            result = build_assembly_from_prompt(enriched_prompt, DEFAULT_BUNDLE_PATH)
     except Exception as exc:  # surfaced to the UI rather than a bare 500 page
         return jsonify({"error": f"{type(exc).__name__}: {exc}"}), 500
     elapsed = time.perf_counter() - t0
@@ -306,9 +284,6 @@ def api_build():
         elapsed_seconds=elapsed,
     )
 
-    _validation_report = build_validation_report(result)
-    _clarification = assess_build(result, validation_report=_validation_report)
-
     return jsonify({
         "mesh_url": mesh_url,
         "fell_back_to_single_point": result.fell_back_to_single_point,
@@ -340,37 +315,8 @@ def api_build():
         # never computed anywhere -- see AssemblyBuildResult.overall_status's
         # own docstring. A caller that only checks mesh_url/assembly_topology
         # (which can look perfectly clean even when a required part failed)
-        # should check this field first. Kept exactly as-is (same 3 values,
-        # same meaning) for backward compatibility -- validation_report
-        # below is the new, richer, ADDITIONAL report (build_validation.py),
-        # never a replacement.
+        # should check this field first.
         "overall_status": result.overall_status,
-        # Phase 6's own unified Build Validation Report -- confirmed real
-        # gap this closes: feature_verification.py's per-feature ledger,
-        # component_inventory.py's per-component reconciliation, and
-        # assembly_compatibility.py's per-relationship evaluations all
-        # already run on every build, but none of their DETAIL (which
-        # specific requirement failed, and why) previously reached this
-        # response -- only the single terse overall_status string above
-        # did. A new top-level key, additive only; no existing key above
-        # was changed, so an existing consumer that ignores unknown keys
-        # is unaffected.
-        "validation_report": _validation_report.as_dict(),
-        # Phase 8 Part B's own Intelligent Clarification System --
-        # confirmed real gap this closes: validation_report above already
-        # discloses EVERY individual failure/ambiguity this build hit,
-        # but still left it to the caller to work out, per build, which
-        # of those are genuine engineering ambiguities worth asking the
-        # user about, which are safe to proceed past with a disclosed
-        # assumption, and which reflect an actual capability this engine
-        # does not currently have (never silently built as if it did --
-        # see op_arbitration.py's own E47 fix). A new top-level key,
-        # additive only; every key above is unchanged.
-        "clarification_requests": [c.as_dict() for c in _clarification.clarification_requests],
-        "build_decision": _clarification.build_decision.value,
-        "assumptions": _clarification.assumptions,
-        "unresolved_requirements": _clarification.unresolved_requirements,
-        "unsupported_requirements": _clarification.unsupported_requirements,
     })
 
 
@@ -854,16 +800,7 @@ def main():
         print(f"WARNING: binding to {args.host} -- reachable from any device that can route to this "
               "address. This is a Flask development server with no authentication.")
     print(f"3di-men builder UI: http://{args.host}:{args.port}")
-    # threaded=True: confirmed real gap this closes -- Flask's dev server
-    # defaults to handling ONE request at a time. A single long-running
-    # build (the LLM decompose path especially, tens of seconds on CPU)
-    # blocked every other request -- including a plain health check --
-    # until it finished, which a browser can surface as "failed to
-    # fetch" even though the server process itself was never actually
-    # down. Safe here: every route already treats a request as
-    # independent (no shared mutable per-request state outside what
-    # each call constructs for itself).
-    app.run(host=args.host, port=args.port, debug=False, threaded=True)
+    app.run(host=args.host, port=args.port, debug=False)
 
 
 if __name__ == "__main__":

@@ -371,36 +371,6 @@ def _cutter_height(mesh: trimesh.Trimesh, axis: Axis, depth: float) -> float:
     return max(depth, target_extent) + 10.0
 
 
-def blind_hole_center_offset(target_extent: float, depth: float) -> float:
-    """The offset (along the drill axis, added to the hole's own center
-    coordinate on that axis) needed for drill_hole/drill_hole_pattern's
-    own `depth` argument to actually produce a BLIND hole stopping
-    `depth` into the target from its +axis face, instead of a through-
-    hole regardless of `depth` -- confirmed real gap (mission-brief
-    audit, live-reproduced): _cutter_height above always floors the
-    cutter's own length at the target's FULL extent along the drill
-    axis (for CSG robustness -- a too-short cutter can leave a
-    degenerate/non-manifold boolean result), so a cutter centered at
-    the target's own center (the natural, unoffset default) always
-    reaches both the target's own +axis AND -axis faces regardless of
-    how small `depth` is -- "depth" alone, with no matching center
-    offset, can never produce a genuinely blind hole.
-
-    Derived directly from _cutter_height's own formula (cutter height =
-    max(depth, target_extent) + 10, centered at the target's local
-    origin plus this offset) so the two stay consistent by construction
-    -- not two independently-maintained numbers that could silently
-    drift apart if either one's padding constant ever changes. Returns
-    0.0 (no offset -- a plain through-hole, correctly) when `depth` is
-    not shallower than the target's own extent, since there is no blind
-    stopping point to compute at all. Callers choosing WHICH face a
-    blind hole enters from (text rarely says) apply this offset with a
-    positive sign for the +axis face, negative for the -axis face."""
-    if depth >= target_extent:
-        return 0.0
-    return target_extent - depth + 5.0
-
-
 def _frustum_mesh(bottom_radius: float, top_radius: float, height: float, sections: int = 32) -> trimesh.Trimesh:
     """A straight-sided tapered cylinder, Z-axis, centered at its own
     origin (bottom at -height/2, top at +height/2) -- the general (both

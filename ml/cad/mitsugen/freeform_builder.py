@@ -73,96 +73,6 @@ def _build_primitive_mesh(p: PrimitiveSpec) -> "trimesh.Trimesh | None":
     return mesh
 
 
-def _aabb_overlap(a: "trimesh.Trimesh", b: "trimesh.Trimesh") -> bool:
-    a_min, a_max = a.bounds
-    b_min, b_max = b.bounds
-    return bool(np.all(a_min <= b_max) and np.all(b_min <= a_max))
-
-
-def _overlaps_anchor(moving: "trimesh.Trimesh", anchor: "trimesh.Trimesh") -> bool:
-    """True if `moving` genuinely shares volume with `anchor` --
-    resolved with a real boolean intersection, not an AABB-only check,
-    since AABB has two distinct, confirmed-real blind spots here: (1) a
-    coarse primitive's own bounding box can overlap another's while
-    neither actual VERTEX lies inside the other (two 10mm boxes
-    overlapping by half their width share no vertex, only the
-    intersection region itself -- so a per-vertex containment/distance
-    check alone also misses this), and (2) once `anchor` is a compound
-    of several already-unioned pieces (e.g. a car body with two wheels
-    already attached), its own OVERALL bounding box balloons to cover
-    empty space between them, which a THIRD, still-separate piece can
-    fall inside of without touching any real material at all (confirmed
-    live: exactly this made a toy car's 3rd/4th wheel wrongly read as
-    "already touching" under an earlier, AABB-only version of this
-    check, leaving them genuinely disconnected).
-
-    The cheap AABB check is kept as a fast, always-CORRECT reject when
-    the boxes don't even overlap (true non-overlap there guarantees true
-    non-overlap in reality) -- only when AABBs DO overlap does this fall
-    through to the unambiguous, if costlier, real intersection-volume
-    test, which has no blind spot for compound or non-convex shapes."""
-    if not _aabb_overlap(moving, anchor):
-        return False
-    try:
-        intersection = moving.intersection(anchor, engine="manifold")
-    except Exception:
-        return False
-    return bool(intersection is not None and not intersection.is_empty and intersection.volume > 1e-9)
-
-
-def _nudge_into_contact(moving: "trimesh.Trimesh", anchor: "trimesh.Trimesh") -> "trimesh.Trimesh":
-    """Translates `moving` the minimum distance needed to genuinely
-    overlap `anchor` by a small margin, preserving `moving`'s own size,
-    shape, and orientation -- a bounded correction for a position that's
-    close but not QUITE touching, never a reshaping.
-
-    Confirmed real root cause this exists to fix (live-reproduced): a
-    local LLM's own numeric position estimate for a secondary primitive
-    (a wheel, a handle, a leg) is close to right but not precise enough
-    to guarantee actual geometric contact with the main body -- the
-    resulting boolean "union" is still a perfectly valid, individually
-    watertight mesh, just left as several DISCONNECTED bodies (confirmed
-    live: a real "toy car" decomposition produced body_count=4, not 1 --
-    trimesh's own `is_watertight` is a per-component property and does
-    not catch this at all). No amount of prompt wording can guarantee a
-    small quantized model's arithmetic is exact every time, so this is a
-    deterministic, bounded geometric repair applied to every union/
-    difference/intersection/pattern target in build_freeform_solid below,
-    not a prompt-only fix.
-
-    Refuses (returns `moving` unchanged) when the gap exceeds a bound
-    scaled to `moving`'s own size (twice its largest extent) -- nudging
-    a primitive across an large, open-ended distance would silently
-    invent a position the LLM never intended, rather than correct a near
-    miss; the existing watertight/body_count check downstream still
-    catches and discloses that case rather than this function papering
-    over it."""
-    if _overlaps_anchor(moving, anchor):
-        return moving
-
-    closest_on_anchor, dist, _ = anchor.nearest.on_surface(moving.vertices)
-    idx = int(np.argmin(dist))
-    gap = float(dist[idx])
-    if gap <= 0:
-        return moving
-
-    max_extent = float(np.max(moving.extents)) if len(moving.vertices) else 0.0
-    max_gap_mm = max(max_extent * 2.0, 5.0)  # a floor for degenerate/near-zero-size primitives
-    if gap > max_gap_mm:
-        return moving
-
-    direction = closest_on_anchor[idx] - moving.vertices[idx]
-    norm = float(np.linalg.norm(direction))
-    if norm < 1e-9:
-        return moving
-    direction = direction / norm
-
-    overlap_margin_mm = max(1.0, 0.05 * max_extent)  # guarantees real volume overlap, not mere tangency
-    moved = moving.copy()
-    moved.apply_translation(direction * (gap + overlap_margin_mm))
-    return moved
-
-
 def _pattern_mesh(target_mesh: "trimesh.Trimesh", step: BooleanStep) -> "trimesh.Trimesh":
     """Builds the single, already-unioned mesh of every copy a pattern
     operation describes, offset from the target's own already-
@@ -221,14 +131,7 @@ def build_freeform_solid(spec: FreeformSpec) -> BuildResult:
     base_id = spec.primitives[0].id
     result = meshes_by_id[base_id]
     for step in spec.operations:
-        # Every target gets a bounded nudge toward actual contact with the
-        # running result FIRST (see _nudge_into_contact's own docstring) --
-        # for a pattern op this corrects the single declared primitive
-        # BEFORE it gets copied around the pattern's axis/circle, so every
-        # copy inherits the same correction (the touching problem is
-        # almost always "slightly off along one consistent direction,"
-        # which a pre-pattern nudge fixes for all copies at once).
-        target = _nudge_into_contact(meshes_by_id[step.target_id], result)
+        target = meshes_by_id[step.target_id]
         try:
             if step.op in ("linear_pattern", "circular_pattern"):
                 result = result.union(_pattern_mesh(target, step), engine="manifold")

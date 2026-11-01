@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-"""HISTORICAL / DIAGNOSTIC ONLY as of op_arbitration.py's requirement-aware
-arbitration engine: predict_program_hybrid no longer consults
-ProgramModelConfig.rag_override_similarity_threshold at all (see that
-field's own now-updated docstring), so sweeping it here will print 5
-IDENTICAL result blocks -- that is itself the confirmation that similarity-
-threshold tuning is dead, not a bug in this script. Kept because it's the
-real measurement that originally proved a single global similarity floor
-could never cleanly separate a harmful RAG override from a helpful RAG
-rescue (see ProgramModelConfig.rag_override_similarity_threshold's
-docstring for the actual numbers), which is exactly the finding that
-motivated building a requirement-aware arbitration engine instead.
-
-Sweeps ProgramModelConfig.rag_override_similarity_threshold over a few
+"""Sweeps ProgramModelConfig.rag_override_similarity_threshold over a few
 candidate values against the SAME 3-bucket honest eval (classifier/RAG/
 hybrid, never averaged), on the ALREADY-TRAINED program_model.joblib
-bundle -- no retraining needed.
+bundle -- no retraining needed, since the threshold only affects
+predict_program_hybrid's own arbitration, computed at inference time.
+
+This is how rag_override_similarity_threshold's default (see
+ProgramModelConfig's own docstring) was actually chosen: a real
+measurement against this project's own held-out test samples, not a
+guess -- same empirical standard as ood_similarity_threshold's own
+0.20 (a smaller, hand-labeled probe) and every other tuned constant in
+this file's module.
 
 python scripts/sweep_rag_override_threshold.py [--bundle ...] [--seed 0]
 """
@@ -58,7 +54,7 @@ def main() -> None:
         bundle = dataclasses.replace(base_bundle, config=dataclasses.replace(base_bundle.config, rag_override_similarity_threshold=threshold))
 
         def predict_fn_hybrid(text: str, _bundle=bundle):
-            program, _used_rag, _arbitration = predict_program_hybrid(_bundle, text)
+            program, _used_rag = predict_program_hybrid(_bundle, text)
             return program
 
         print(f"\n=== rag_override_similarity_threshold = {threshold:.2f} ===")
