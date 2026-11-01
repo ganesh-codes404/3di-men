@@ -1,0 +1,154 @@
+{
+  "id": "C10",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 3.3989207790000364,
+  "overall_status": "INCOMPLETE",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 2,
+  "points": [
+    {
+      "id": "shaft",
+      "description": "a cylinder 20mm diameter, 40mm tall, stepping down to a 14mm diameter, 60mm tall section",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "suspect",
+      "error": "built geometry doesn't match the description's own stated dimensions (14mm, 60mm)",
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 12485.780609032206,
+        "bounds_mm": [
+          [
+            -10.0,
+            -10.0,
+            -20.0
+          ],
+          [
+            10.0,
+            10.0,
+            20.0
+          ]
+        ],
+        "extents_mm": [
+          20.0,
+          20.0,
+          40.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 0.5,
+      "unmatched_dimensions_mm": [
+        14.0,
+        60.0
+      ],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "bearing",
+      "description": "a flat ring 32mm outer diameter, 14mm inner diameter, 10mm tall",
+      "position_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "suspect",
+      "error": "built geometry doesn't match the description's own stated dimensions (14mm, 10mm)",
+      "resolution_method": "statistical",
+      "program_ops": [
+        "add_tube",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 20152.81607688885,
+        "bounds_mm": [
+          [
+            -12.947042446199642,
+            -12.947042446199642,
+            -46.92324181649811
+          ],
+          [
+            12.947042446199642,
+            12.947042446199642,
+            46.92324181649811
+          ]
+        ],
+        "extents_mm": [
+          25.894084892399285,
+          25.894084892399285,
+          93.84648363299623
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 0.3333333333333333,
+      "unmatched_dimensions_mm": [
+        14.0,
+        10.0
+      ],
+      "claimed_hole_count": null,
+      "detected_hole_count": 1,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        19.69697674559124
+      ],
+      "detected_hole_axes": [
+        "z"
+      ],
+      "detected_hole_through": [
+        true
+      ],
+      "detected_cylindrical_patch_count": 2
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 32638.596685921057,
+    "bounds_mm": [
+      [
+        -12.947042446199642,
+        -12.947042446199642,
+        -46.92324181649811
+      ],
+      [
+        12.947042446199642,
+        12.947042446199642,
+        46.92324181649811
+      ]
+    ],
+    "extents_mm": [
+      25.894084892399285,
+      25.894084892399285,
+      93.84648363299623
+    ],
+    "center_mm": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+}

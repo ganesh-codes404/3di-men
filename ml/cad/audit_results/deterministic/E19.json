@@ -1,0 +1,96 @@
+{
+  "id": "E19",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 5.734571708999283,
+  "overall_status": "PASS",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 1,
+  "points": [
+    {
+      "id": "gear_a",
+      "description": "a gear profile, module 2, 20 teeth",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "statistical",
+      "program_ops": [
+        "add_gear_profile",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 16039.02940038046,
+        "bounds_mm": [
+          [
+            -21.98902702331543,
+            -21.98902702331543,
+            -6.884203910827637
+          ],
+          [
+            21.98902702331543,
+            21.98902702331543,
+            6.884203910827637
+          ]
+        ],
+        "extents_mm": [
+          43.97805404663086,
+          43.97805404663086,
+          13.768407821655273
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": null,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 1,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        8.7232982541665
+      ],
+      "detected_hole_axes": [
+        "z"
+      ],
+      "detected_hole_through": [
+        true
+      ],
+      "detected_cylindrical_patch_count": 2
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 16039.02940038046,
+    "bounds_mm": [
+      [
+        -21.98902702331543,
+        -21.98902702331543,
+        -6.884203910827637
+      ],
+      [
+        21.98902702331543,
+        21.98902702331543,
+        6.884203910827637
+      ]
+    ],
+    "extents_mm": [
+      43.97805404663086,
+      43.97805404663086,
+      13.768407821655273
+    ],
+    "center_mm": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  }
+}

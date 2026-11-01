@@ -1,0 +1,254 @@
+{
+  "id": "D14",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 4.356692880999617,
+  "overall_status": "INCOMPLETE",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 4,
+  "points": [
+    {
+      "id": "motor",
+      "description": "a box 42mm x 42mm x 40mm",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 70560.0,
+        "bounds_mm": [
+          [
+            -21.0,
+            -21.0,
+            -20.0
+          ],
+          [
+            21.0,
+            21.0,
+            20.0
+          ]
+        ],
+        "extents_mm": [
+          42.0,
+          42.0,
+          40.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "coupling",
+      "description": "a cylinder 20mm diameter, 25mm long",
+      "position_mm": [
+        0.0,
+        0.0,
+        32.5
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 7803.612880645131,
+        "bounds_mm": [
+          [
+            -10.0,
+            -10.0,
+            -12.5
+          ],
+          [
+            10.0,
+            10.0,
+            12.5
+          ]
+        ],
+        "extents_mm": [
+          20.0,
+          20.0,
+          25.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "shaft",
+      "description": "a cylinder 5mm diameter, 60mm long",
+      "position_mm": [
+        0.0,
+        0.0,
+        52.5
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 1170.5419320967696,
+        "bounds_mm": [
+          [
+            -2.5,
+            -2.5,
+            -30.0
+          ],
+          [
+            2.5,
+            2.5,
+            30.0
+          ]
+        ],
+        "extents_mm": [
+          5.0,
+          5.0,
+          60.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "bearing",
+      "description": "a flat ring 16mm outer diameter, 5mm inner diameter, 8mm tall",
+      "position_mm": [
+        0.0,
+        0.0,
+        107.5
+      ],
+      "status": "suspect",
+      "error": "built geometry doesn't match the description's own stated dimensions (5mm)",
+      "resolution_method": "statistical",
+      "program_ops": [
+        "add_ring",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 1442.10766034322,
+        "bounds_mm": [
+          [
+            -8.0,
+            -8.0,
+            -4.0
+          ],
+          [
+            8.0,
+            8.0,
+            4.0
+          ]
+        ],
+        "extents_mm": [
+          16.0,
+          16.0,
+          8.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 0.6666666666666666,
+      "unmatched_dimensions_mm": [
+        5.0
+      ],
+      "claimed_hole_count": null,
+      "detected_hole_count": 1,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        4.978604534966746
+      ],
+      "detected_hole_axes": [
+        "z"
+      ],
+      "detected_hole_through": [
+        true
+      ],
+      "detected_cylindrical_patch_count": 2
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 80976.26247308512,
+    "bounds_mm": [
+      [
+        -21.0,
+        -21.0,
+        -20.0
+      ],
+      [
+        21.0,
+        21.0,
+        111.5
+      ]
+    ],
+    "extents_mm": [
+      42.0,
+      42.0,
+      131.5
+    ],
+    "center_mm": [
+      0.0,
+      0.0,
+      45.75
+    ]
+  }
+}

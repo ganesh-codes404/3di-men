@@ -1,0 +1,249 @@
+{
+  "id": "D16",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 7.88550596999994,
+  "overall_status": "INCOMPLETE",
+  "collision_warnings": [
+    "'side' and 'gusset_left' overlapped by 67% of the smaller part's bounding box with no relationship explaining it -- 'gusset_left' excluded from the combined assembly to resolve it, rather than leaving colliding geometry in place or failing the whole build",
+    "'side' and 'gusset_right' overlapped by 67% of the smaller part's bounding box with no relationship explaining it -- 'gusset_right' excluded from the combined assembly to resolve it, rather than leaving colliding geometry in place or failing the whole build"
+  ],
+  "envelope_warnings": [],
+  "n_points": 4,
+  "points": [
+    {
+      "id": "base",
+      "description": "a box 100mm x 40mm x 6mm",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 24000.0,
+        "bounds_mm": [
+          [
+            -50.0,
+            -20.0,
+            -3.0
+          ],
+          [
+            50.0,
+            20.0,
+            3.0
+          ]
+        ],
+        "extents_mm": [
+          100.0,
+          40.0,
+          6.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 0
+    },
+    {
+      "id": "side",
+      "description": "a box 60mm x 40mm x 6mm",
+      "position_mm": [
+        0.0,
+        23.0,
+        0.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 14400.0,
+        "bounds_mm": [
+          [
+            -30.0,
+            -20.0,
+            -3.0
+          ],
+          [
+            30.0,
+            20.0,
+            3.0
+          ]
+        ],
+        "extents_mm": [
+          60.0,
+          40.0,
+          6.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 0
+    },
+    {
+      "id": "gusset_left",
+      "description": "a triangular gusset, 30mm x 30mm, 4mm thick",
+      "position_mm": [
+        25.0,
+        22.0,
+        0.0
+      ],
+      "status": "suspect",
+      "error": "excluded from the combined assembly: collided with another part with no relationship explaining the overlap -- the rest of the assembly still completes without it, rather than leaving colliding geometry in place or failing outright",
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_extrusion",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 1800.0,
+        "bounds_mm": [
+          [
+            -15.0,
+            -15.0,
+            -2.0
+          ],
+          [
+            15.0,
+            15.0,
+            2.0
+          ]
+        ],
+        "extents_mm": [
+          30.0,
+          30.0,
+          4.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": true,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 0
+    },
+    {
+      "id": "gusset_right",
+      "description": "a triangular gusset, 30mm x 30mm, 4mm thick",
+      "position_mm": [
+        -25.0,
+        22.0,
+        0.0
+      ],
+      "status": "suspect",
+      "error": "excluded from the combined assembly: collided with another part with no relationship explaining the overlap -- the rest of the assembly still completes without it, rather than leaving colliding geometry in place or failing outright",
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_extrusion",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 1800.0,
+        "bounds_mm": [
+          [
+            -15.0,
+            -15.0,
+            -2.0
+          ],
+          [
+            15.0,
+            15.0,
+            2.0
+          ]
+        ],
+        "extents_mm": [
+          30.0,
+          30.0,
+          4.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": true,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 0
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 38400.0,
+    "bounds_mm": [
+      [
+        -50.0,
+        -20.0,
+        -20.0
+      ],
+      [
+        50.0,
+        26.0,
+        20.0
+      ]
+    ],
+    "extents_mm": [
+      100.0,
+      46.0,
+      40.0
+    ],
+    "center_mm": [
+      0.0,
+      3.0,
+      0.0
+    ]
+  }
+}

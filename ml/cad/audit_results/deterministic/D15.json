@@ -1,0 +1,259 @@
+{
+  "id": "D15",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 10.250661400999888,
+  "overall_status": "INCOMPLETE",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 4,
+  "points": [
+    {
+      "id": "shaft_a",
+      "description": "a cylinder 10mm diameter, 60mm long",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 4682.167728387079,
+        "bounds_mm": [
+          [
+            -5.0,
+            -5.0,
+            -30.0
+          ],
+          [
+            5.0,
+            5.0,
+            30.0
+          ]
+        ],
+        "extents_mm": [
+          10.0,
+          10.0,
+          60.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "pulley_a",
+      "description": "a flat ring 40mm outer diameter, 10mm inner diameter, 15mm tall",
+      "position_mm": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "status": "suspect",
+      "error": "built geometry doesn't match the description's own stated dimensions (10mm)",
+      "resolution_method": "statistical",
+      "program_ops": [
+        "add_ring",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 17558.128981451548,
+        "bounds_mm": [
+          [
+            -20.0,
+            -20.0,
+            -7.5
+          ],
+          [
+            20.0,
+            20.0,
+            7.5
+          ]
+        ],
+        "extents_mm": [
+          40.0,
+          40.0,
+          15.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 0.6666666666666666,
+      "unmatched_dimensions_mm": [
+        10.0
+      ],
+      "claimed_hole_count": null,
+      "detected_hole_count": 1,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [
+        9.957209069933493
+      ],
+      "detected_hole_axes": [
+        "z"
+      ],
+      "detected_hole_through": [
+        true
+      ],
+      "detected_cylindrical_patch_count": 2
+    },
+    {
+      "id": "shaft_b",
+      "description": "a cylinder 10mm diameter, 60mm long",
+      "position_mm": [
+        150.0,
+        0.0,
+        0.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 4682.167728387079,
+        "bounds_mm": [
+          [
+            -5.0,
+            -5.0,
+            -30.0
+          ],
+          [
+            5.0,
+            5.0,
+            30.0
+          ]
+        ],
+        "extents_mm": [
+          10.0,
+          10.0,
+          60.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "pulley_b",
+      "description": "a flat ring 80mm outer diameter, 10mm inner diameter, 15mm tall",
+      "position_mm": [
+        150.0,
+        0.0,
+        0.0
+      ],
+      "status": "suspect",
+      "error": "built geometry doesn't match the description's own stated dimensions (10mm, 15mm)",
+      "resolution_method": "statistical",
+      "program_ops": [
+        "add_cylinder",
+        "add_cylinder",
+        "boolean_difference",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 1626.9608865420225,
+        "bounds_mm": [
+          [
+            -40.0,
+            -40.0,
+            -4.905815601348877
+          ],
+          [
+            40.0,
+            40.0,
+            -4.580052852630615
+          ]
+        ],
+        "extents_mm": [
+          80.0,
+          80.0,
+          0.3257627487182617
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          -4.742934226989746
+        ]
+      },
+      "dimension_match_rate": 0.3333333333333333,
+      "unmatched_dimensions_mm": [
+        10.0,
+        15.0
+      ],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 28549.42532476773,
+    "bounds_mm": [
+      [
+        -20.0,
+        -40.0,
+        -30.0
+      ],
+      [
+        190.0,
+        40.0,
+        30.0
+      ]
+    ],
+    "extents_mm": [
+      210.0,
+      80.0,
+      60.0
+    ],
+    "center_mm": [
+      85.0,
+      0.0,
+      0.0
+    ]
+  }
+}

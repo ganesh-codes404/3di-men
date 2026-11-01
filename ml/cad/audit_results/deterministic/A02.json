@@ -1,0 +1,298 @@
+{
+  "id": "A02",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 8.949188698000398,
+  "overall_status": "PASS",
+  "collision_warnings": [],
+  "envelope_warnings": [],
+  "n_points": 5,
+  "points": [
+    {
+      "id": "plate",
+      "description": "a box 100mm x 100mm x 6mm",
+      "position_mm": [
+        0,
+        0,
+        0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_box",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 60000.0,
+        "bounds_mm": [
+          [
+            -50.0,
+            -50.0,
+            -3.0
+          ],
+          [
+            50.0,
+            50.0,
+            3.0
+          ]
+        ],
+        "extents_mm": [
+          100.0,
+          100.0,
+          6.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "standoff_0",
+      "description": "a cylinder 8mm diameter, 20mm tall",
+      "position_mm": [
+        -40.0,
+        40.0,
+        13.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 998.8624487225767,
+        "bounds_mm": [
+          [
+            -4.0,
+            -4.0,
+            -10.0
+          ],
+          [
+            4.0,
+            4.0,
+            10.0
+          ]
+        ],
+        "extents_mm": [
+          8.0,
+          8.0,
+          20.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "standoff_1",
+      "description": "a cylinder 8mm diameter, 20mm tall",
+      "position_mm": [
+        -40.0,
+        -40.0,
+        13.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 998.8624487225767,
+        "bounds_mm": [
+          [
+            -4.0,
+            -4.0,
+            -10.0
+          ],
+          [
+            4.0,
+            4.0,
+            10.0
+          ]
+        ],
+        "extents_mm": [
+          8.0,
+          8.0,
+          20.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "standoff_2",
+      "description": "a cylinder 8mm diameter, 20mm tall",
+      "position_mm": [
+        40.0,
+        40.0,
+        13.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 998.8624487225767,
+        "bounds_mm": [
+          [
+            -4.0,
+            -4.0,
+            -10.0
+          ],
+          [
+            4.0,
+            4.0,
+            10.0
+          ]
+        ],
+        "extents_mm": [
+          8.0,
+          8.0,
+          20.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    },
+    {
+      "id": "standoff_3",
+      "description": "a cylinder 8mm diameter, 20mm tall",
+      "position_mm": [
+        40.0,
+        -40.0,
+        13.0
+      ],
+      "status": "ok",
+      "error": null,
+      "resolution_method": "compositional",
+      "program_ops": [
+        "add_cylinder",
+        "finalize"
+      ],
+      "mesh": {
+        "watertight": true,
+        "volume_mm3": 998.8624487225767,
+        "bounds_mm": [
+          [
+            -4.0,
+            -4.0,
+            -10.0
+          ],
+          [
+            4.0,
+            4.0,
+            10.0
+          ]
+        ],
+        "extents_mm": [
+          8.0,
+          8.0,
+          20.0
+        ],
+        "center_mm": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "dimension_match_rate": 1.0,
+      "unmatched_dimensions_mm": [],
+      "claimed_hole_count": null,
+      "detected_hole_count": 0,
+      "unmatched_hole_diameters_mm": [],
+      "excluded_from_assembly": false,
+      "detected_hole_diameters_mm": [],
+      "detected_hole_axes": [],
+      "detected_hole_through": [],
+      "detected_cylindrical_patch_count": 1
+    }
+  ],
+  "combined_mesh": {
+    "watertight": true,
+    "volume_mm3": 63995.44979489032,
+    "bounds_mm": [
+      [
+        -50.0,
+        -50.0,
+        -3.0
+      ],
+      [
+        50.0,
+        50.0,
+        23.0
+      ]
+    ],
+    "extents_mm": [
+      100.0,
+      100.0,
+      26.0
+    ],
+    "center_mm": [
+      0.0,
+      0.0,
+      10.0
+    ]
+  }
+}
