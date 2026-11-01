@@ -12,6 +12,14 @@ numpy>=1.24
 scipy>=1.10
 pyyaml>=6.0
 flask>=3.0  # only needed for server.py (the web UI); inference.py/evaluate.py/benchmark.py don't need it
+matplotlib>=3.7  # scripts/preview_mesh.py's own static 3-quarter-view PNG renderer (unconditional
+                  # top-level import there -- confirmed missing from this file, not actually optional)
+
+# Test-only. Confirmed missing from this file -- tests/test_llm_decompose.py locks in the points-
+# schema grammar fix using the SAME jsonschema package llama_cpp's own LlamaGrammar.from_json_schema
+# does NOT need at runtime (that's an internal llama.cpp conversion, not this pip package) -- this
+# is purely a test-suite dependency.
+jsonschema>=4.17
 
 # CPU-only, unrelated to the GPU-only block below -- only needed for the learned
 # prompt-parser model (parser_model.py, nlp/learned_parser.py). The default
@@ -72,3 +80,30 @@ lxml>=5.0  # beautifulsoup4's HTML parser backend
 # bitsandbytes>=0.44  # 4-bit quantization for QLoRA
 # accelerate>=0.34
 # datasets>=3.0
+
+# --- GPU-only, Mitsugen's own "Route B" (mitsugen/neural_adapter.py) -- local
+# --- text-to-image (sd-turbo) + TripoSR image-to-3D, for genuinely organic
+# --- objects (animals/figurines/sculptures) that primitive composition can
+# --- only approximate. Confirmed missing from this file entirely (not even
+# --- documented as optional, unlike the training block above) -- every one of
+# --- these imports is already LAZY/locally-scoped in neural_adapter.py (see
+# --- check_neural_generation_available's own staged ImportError checks), so
+# --- Route A (primitive composition/radial sweep) keeps working untouched
+# --- with none of this installed; only Route B itself needs it. Full,
+# --- step-by-step setup (matching CUDA versions, the TripoSR checkout, env
+# --- vars, verification command) is in mitsugen/RTX4060_NEURAL_SETUP.md --
+# --- follow that, don't just uncomment these blindly:
+# torch        (CUDA build matching THIS machine's CUDA toolkit version -- see setup doc step 0/3,
+#               e.g. `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121`)
+# torchvision
+# diffusers
+# transformers  # also listed, commented, in the training block above -- Route B needs its own copy too
+# accelerate    # same -- shared package name, independently needed by both blocks
+# rembg         # TripoSR's own documented background-removal preprocessing step
+# xatlas        # one of TripoSR's own requirements (UV unwrapping for its exported mesh)
+#
+# NOT pip-installable -- a research-repo checkout, not a package (setup doc step 4):
+#   git clone https://github.com/VAST-AI-Research/TripoSR.git models/TripoSR
+#   pip install -r models/TripoSR/requirements.txt   # includes torchmcubes, which compiles
+#                                                       # against CUDA -- see the setup doc's own
+#                                                       # troubleshooting section if this fails
