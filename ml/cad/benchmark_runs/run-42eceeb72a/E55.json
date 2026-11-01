@@ -1,0 +1,215 @@
+{
+  "id": "E55",
+  "category": "E",
+  "prompt": "A simple gearbox with two gears, two shafts, and a housing.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 13.819534268928692,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "PARTIAL",
+    "component_status": "PASS",
+    "compatibility_status": "FAIL",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'a gearbox housing, 120mm x 80mm x 60mm, with a corner array of four 6.6mm diameter holes, each 15mm from a corner': claimed hole/bore diameter 6.6mm has no matching detected hole",
+      "p2/p1: p2's own built geometry runs along 'y', but p1's runs along 'z' -- these components are not actually coaxial",
+      "p4/p3: p4's own built geometry runs along 'y', but p3's runs along 'z' -- these components are not actually coaxial"
+    ],
+    "unsupported_requirements": [
+      "'a gear, module 2.5, 24 teeth': feature 'base_geometry' -- gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears",
+      "'a gear, module 2.5, 36 teeth': feature 'base_geometry' -- gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears"
+    ],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'a gearbox housing, 120mm x 80mm x 60mm, with a corner array of four 6.6mm diameter holes, each 15mm from a corner': 6.6mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 5,
+      "actual": 5
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 0.3333333333333333,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 3,
+      "compatible": 1,
+      "statuses": [
+        "COMPATIBLE",
+        "INCOMPATIBLE",
+        "INCOMPATIBLE"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 5,
+      "total": 5
+    }
+  },
+  "failure_labels": [
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 5,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "UNSUPPORTED_FEATURE",
+        "severity": "advisory",
+        "question": "",
+        "context": "gear",
+        "affected_component_ids": [],
+        "affected_requirement_ids": [
+          "base_geometry"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": "proceed; this feature's presence could not be independently re-measured from the built mesh",
+        "default_allowed": true,
+        "blocking": false,
+        "reason": "gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears",
+        "source_stage": "feature_verification",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-002",
+        "category": "UNSUPPORTED_FEATURE",
+        "severity": "advisory",
+        "question": "",
+        "context": "gear",
+        "affected_component_ids": [],
+        "affected_requirement_ids": [
+          "base_geometry"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": "proceed; this feature's presence could not be independently re-measured from the built mesh",
+        "default_allowed": true,
+        "blocking": false,
+        "reason": "gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears",
+        "source_stage": "feature_verification",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-003",
+        "category": "ASSEMBLY_INCOMPATIBILITY",
+        "severity": "blocking",
+        "question": "p2 and p1 do not actually fit together as built (p2's own built geometry runs along 'y', but p1's runs along 'z' -- these components are not actually coaxial). rotate p2 (or p1) so both run along the same axis",
+        "context": "a gear, module 2.5, 24 teeth / a shaft, 10mm diameter, 70mm long",
+        "affected_component_ids": [
+          "p2",
+          "p1"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "rotate p2 (or p1) so both run along the same axis"
+        ],
+        "recommended_answer": "rotate p2 (or p1) so both run along the same axis",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "p2's own built geometry runs along 'y', but p1's runs along 'z' -- these components are not actually coaxial",
+        "source_stage": "assembly_compatibility",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-004",
+        "category": "ASSEMBLY_INCOMPATIBILITY",
+        "severity": "blocking",
+        "question": "p4 and p3 do not actually fit together as built (p4's own built geometry runs along 'y', but p3's runs along 'z' -- these components are not actually coaxial). rotate p4 (or p3) so both run along the same axis",
+        "context": "a gear, module 2.5, 36 teeth / a shaft, 10mm diameter, 70mm long",
+        "affected_component_ids": [
+          "p4",
+          "p3"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "rotate p4 (or p3) so both run along the same axis"
+        ],
+        "recommended_answer": "rotate p4 (or p3) so both run along the same axis",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "p4's own built geometry runs along 'y', but p3's runs along 'z' -- these components are not actually coaxial",
+        "source_stage": "assembly_compatibility",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-005",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'array of four 6.6mm diameter holes' states a number (6.6mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a gearbox housing, 120mm x 80mm x 60mm, with a corner array of four 6.6mm diameter holes, each 15mm from a corner",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-276"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-006",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'er holes, each 15mm from a corner' states a number (15mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a gearbox housing, 120mm x 80mm x 60mm, with a corner array of four 6.6mm diameter holes, each 15mm from a corner",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-277"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "NEEDS_CLARIFICATION",
+    "assumptions": [
+      "UNSUPPORTED_FEATURE: proceed; this feature's presence could not be independently re-measured from the built mesh (gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears)",
+      "UNSUPPORTED_FEATURE: proceed; this feature's presence could not be independently re-measured from the built mesh (gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears)"
+    ],
+    "unresolved_requirements": [
+      "'array of four 6.6mm diameter holes' states a number (6.6mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'er holes, each 15mm from a corner' states a number (15mm) but I can't tell which dimension it refers to -- which one did you mean?"
+    ],
+    "unsupported_requirements": [
+      "gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears",
+      "gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears"
+    ]
+  }
+}

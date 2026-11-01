@@ -1,0 +1,143 @@
+{
+  "id": "F60",
+  "category": "F",
+  "prompt": "A small mechanical clamp: a 80mm x 30mm x 15mm base, a 60mm x 20mm x 15mm moving jaw, a 8mm diameter x 60mm long screw, and a 30mm diameter x 10mm thick handle.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 7.318275220924988,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "PASS",
+    "component_status": "PASS",
+    "compatibility_status": "FAIL",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "p2/p0: p2's own built geometry runs along 'x', but p0's runs along 'z' -- these components are not actually coaxial"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'a clamp screw, 8mm diameter, 60mm long': 8mm does not match any measured dimension of the built geometry",
+      "'a cylindrical handle, 30mm diameter, 10mm thick': 10mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 4,
+      "actual": 4
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 0.6666666666666666,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 3,
+      "compatible": 2,
+      "statuses": [
+        "COMPATIBLE",
+        "INCOMPATIBLE",
+        "COMPATIBLE"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 4,
+      "total": 4
+    }
+  },
+  "failure_labels": [
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 4,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "AMBIGUOUS_OPERATION_CHOICE",
+        "severity": "advisory",
+        "question": "There are two equally-valid ways to build 'a moving jaw, 60mm x 20mm x 15mm' with no clear preference stated -- is the default approach acceptable, or did you have a specific method in mind?",
+        "context": "a moving jaw, 60mm x 20mm x 15mm",
+        "affected_component_ids": [
+          "p1"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [],
+        "recommended_answer": "use the default approach",
+        "default_allowed": true,
+        "blocking": false,
+        "reason": "requirements extracted: [('base_geometry', 'rectangular')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=True, coverage=1.00; RAG ('add_box', 'add_cylinder', 'boolean_intersection', 'finalize') (similarity=0.289): valid=True, coverage=1.00; both valid, equal coverage, equal length, genuinely different sequences -- ambiguous; defaulting to the classifier's own independently-derived sequence, disclosed as ambiguous rather than silently decided",
+        "source_stage": "op_arbitration",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-002",
+        "category": "AMBIGUOUS_OPERATION_CHOICE",
+        "severity": "advisory",
+        "question": "There are two equally-valid ways to build 'a cylindrical handle, 30mm diameter, 10mm thick' with no clear preference stated -- is the default approach acceptable, or did you have a specific method in mind?",
+        "context": "a cylindrical handle, 30mm diameter, 10mm thick",
+        "affected_component_ids": [
+          "p3"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [],
+        "recommended_answer": "use the default approach",
+        "default_allowed": true,
+        "blocking": false,
+        "reason": "requirements extracted: [('base_geometry', 'cylindrical')]; classifier ('add_cylinder', 'drill_hole', 'drill_hole_pattern', 'finalize'): valid=True, coverage=1.00; RAG ('add_cylinder', 'add_cylinder', 'boolean_difference', 'finalize') (similarity=0.365): valid=True, coverage=1.00; both valid, equal coverage, equal length, genuinely different sequences -- ambiguous; defaulting to the classifier's own independently-derived sequence, disclosed as ambiguous rather than silently decided",
+        "source_stage": "op_arbitration",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-003",
+        "category": "ASSEMBLY_INCOMPATIBILITY",
+        "severity": "blocking",
+        "question": "p2 and p0 do not actually fit together as built (p2's own built geometry runs along 'x', but p0's runs along 'z' -- these components are not actually coaxial). rotate p2 (or p0) so both run along the same axis",
+        "context": "a clamp screw, 8mm diameter, 60mm long / a clamp base, 80mm x 30mm x 15mm",
+        "affected_component_ids": [
+          "p2",
+          "p0"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "rotate p2 (or p0) so both run along the same axis"
+        ],
+        "recommended_answer": "rotate p2 (or p0) so both run along the same axis",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "p2's own built geometry runs along 'x', but p0's runs along 'z' -- these components are not actually coaxial",
+        "source_stage": "assembly_compatibility",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "NEEDS_CLARIFICATION",
+    "assumptions": [
+      "AMBIGUOUS_OPERATION_CHOICE: use the default approach (requirements extracted: [('base_geometry', 'rectangular')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=True, coverage=1.00; RAG ('add_box', 'add_cylinder', 'boolean_intersection', 'finalize') (similarity=0.289): valid=True, coverage=1.00; both valid, equal coverage, equal length, genuinely different sequences -- ambiguous; defaulting to the classifier's own independently-derived sequence, disclosed as ambiguous rather than silently decided)",
+      "AMBIGUOUS_OPERATION_CHOICE: use the default approach (requirements extracted: [('base_geometry', 'cylindrical')]; classifier ('add_cylinder', 'drill_hole', 'drill_hole_pattern', 'finalize'): valid=True, coverage=1.00; RAG ('add_cylinder', 'add_cylinder', 'boolean_difference', 'finalize') (similarity=0.365): valid=True, coverage=1.00; both valid, equal coverage, equal length, genuinely different sequences -- ambiguous; defaulting to the classifier's own independently-derived sequence, disclosed as ambiguous rather than silently decided)"
+    ],
+    "unresolved_requirements": [],
+    "unsupported_requirements": []
+  }
+}

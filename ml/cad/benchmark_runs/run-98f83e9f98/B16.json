@@ -1,0 +1,69 @@
+{
+  "id": "B16",
+  "category": "B",
+  "prompt": "A flanged cylindrical coupling with four bolt holes.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 6.77140915999189,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "PASS",
+    "feature_status": "FAIL",
+    "component_status": "FAIL",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'A flanged cylindrical coupling with four bolt holes.': required feature 'base_geometry' failed verification -- requested base geometry 'cylindrical' does not match the built mesh's own shape signature (bounding box (81.23637771606445, 54.49762725830078, 26.408202171325684), has_circular_cross_section=False)",
+      "'A flanged cylindrical coupling with four bolt holes.': required feature 'subtractive_hole' failed verification -- requested 4 hole(s), built geometry has 0",
+      "component 'coupling_type_A' (coupling): 1 candidate point(s) also match another expected component type -- cannot confidently assign them to 'coupling' without risking double-counting a point that may actually satisfy a DIFFERENT requirement",
+      "component 'fastener_type_B' (fastener): 1 candidate point(s) also match another expected component type -- cannot confidently assign them to 'fastener' without risking double-counting a point that may actually satisfy a DIFFERENT requirement"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 0.0,
+    "feature_completeness_detail": {
+      "applicable": true,
+      "hole": {
+        "expected": 4,
+        "actual": 0
+      }
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "FEATURE_OMISSION"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

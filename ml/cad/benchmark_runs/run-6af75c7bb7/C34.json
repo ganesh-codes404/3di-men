@@ -1,0 +1,77 @@
+{
+  "id": "C34",
+  "category": "C",
+  "prompt": "A flange with four holes on a specified 50mm pitch-circle diameter.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 4.743360611028038,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "FAIL",
+    "component_status": "PASS",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'A flange with four holes on a specified 50mm pitch-circle diameter.': required feature 'subtractive_hole' failed verification -- requested 4 hole(s), built geometry has 0"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'A flange with four holes on a specified 50mm pitch-circle diameter.': 50mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [
+      "retried program[1] with margin=12.7mm (computed from the base shape's own real footprint) -- detected 0 vs requested 4",
+      "retried program[1] with margin=7.6mm (computed from the base shape's own real footprint) -- detected 0 vs requested 4",
+      "retried program[1] with margin=3.8mm (computed from the base shape's own real footprint) -- detected 0 vs requested 4"
+    ],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 0.0,
+    "dimensional_accuracy_detail": {
+      "applicable": true,
+      "matched": [],
+      "unmatched": [
+        50
+      ]
+    },
+    "feature_completeness": 0.0,
+    "feature_completeness_detail": {
+      "applicable": true,
+      "hole": {
+        "expected": 4,
+        "actual": 0
+      }
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "DIMENSION_ASSIGNMENT_FAILURE",
+    "FEATURE_OMISSION"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

@@ -141,6 +141,24 @@ class PointBuildResult:
         # downgrade: the explicit value is already what's built and validated, this just makes the
         # conflict itself visible rather than silently resolved (this project's own non-negotiable
         # principle: "explicit numerical dimensions override semantic defaults").
+    feature_requirements: list = field(default_factory=list)  # feature_verification.py's own Required
+        # Feature Ledger for this point -- one op_requirements.Requirement (extended with .status/
+        # .actual_count/.verification_method/.failure_reason) per feature explicitly extracted from this
+        # point's own description, each independently re-measured against the ACTUAL built mesh. Never a
+        # second source of truth for hole count/diameter specifically (claimed_hole_count/
+        # detected_hole_count/unmatched_hole_diameters_mm above already cover that, see this field's own
+        # wiring in build_assembly_from_points) -- this covers the feature types nothing else in this
+        # pipeline independently re-measures: base geometry shape, slots, fillets/chamfers, stepped
+        # sections. Empty when there was no mesh to check, or extraction found nothing to check at all.
+    arbitration_outcome: "str | None" = None  # op_arbitration.ArbitrationOutcome's own value for this
+        # point's statistical prediction (e.g. "NO_VALID_PLAN", "RAG_RESCUE") -- the E47 fix's own
+        # disclosure channel: clarification.py reads this to tell "built, and the chosen op sequence
+        # was confirmed to satisfy every extracted requirement" apart from "built, but only because
+        # nothing valid was found and the least-bad disclosed default had to run anyway." None for the
+        # compositional/user_edited resolution paths, which never go through arbitration at all.
+    arbitration_reasoning: list[str] = field(default_factory=list)  # the same arbitration's own
+        # human-readable reasoning trail (op_arbitration.arbitrate's own `reasoning` list) -- carried
+        # through for clarification.py's own `context`/`reason` fields, never re-derived.
 
 
 @dataclass
@@ -171,6 +189,61 @@ class AssemblyBuildResult:
         # beyond a declared tolerance. Each entry traces the overrun to whichever placed component
         # reaches furthest from the assembly's own center along the overrunning axis -- a diagnostic,
         # same disclosure discipline as collision_warnings, not a silent pass/fail.
+    compatibility_report: "object | None" = None  # assembly_compatibility.AssemblyCompatibilityReport --
+        # confirmed real gap this closes: collision_warnings/envelope_warnings above check that parts
+        # don't COLLIDE and the assembly fits its own claimed footprint, but nothing previously checked
+        # that two parts an explicit Relationship connects actually MATE -- a shaft diametrically too
+        # large for its bore, a gear pair at the wrong center distance, a motor's mounting pattern not
+        # matching its bracket's, all built "successfully" (watertight, no collision) while being
+        # mechanically wrong. None when the assembly has no points with any id (manual single-point
+        # calls, which have no relationships to check) -- never a fabricated empty-but-"evaluated" report.
+    component_inventory: "list | None" = None  # component_inventory.ComponentTypeRequirement, reconciled --
+        # confirmed real gap this closes: build_assembly_from_prompt discarded the ORIGINAL user prompt
+        # immediately after decomposing it, so nothing anywhere could tell whether the decomposed `points`
+        # list itself still represented every component the user actually asked for (a component the
+        # LLM's own decomposition dropped, duplicated, or merged away was structurally invisible to every
+        # downstream check -- feature_verification/assembly_compatibility only ever see whatever points
+        # they were handed). None when build_assembly_from_points was never given an `original_prompt` at
+        # all (the manual/hand-edited points path, which has no separate "original request" to check
+        # against) -- never a fabricated empty-but-"reconciled" inventory.
+
+    @property
+    def components_complete(self) -> bool:
+        """COMPONENTS_COMPLETE (Part 11's own truthful criterion): true
+        only if every mandatory expected component type reconciled as
+        MATCHED. Vacuously true when component_inventory is None (no
+        original prompt was available to check against at all) -- see
+        component_inventory.components_complete's own docstring."""
+        from component_inventory import components_complete as _components_complete
+
+        return _components_complete(self.component_inventory)
+
+    @property
+    def requirements_complete(self) -> bool:
+        """REQUIREMENTS_COMPLETE (Part 10's own truthful success
+        criterion): true only if every MANDATORY, explicitly requested
+        feature across every point (PointBuildResult.feature_requirements,
+        see feature_verification.py) has passed independent geometry
+        verification in the FINAL result. A requirement this project's
+        own tooling cannot independently re-measure at all
+        (UNSUPPORTED_TO_VERIFY) is never treated as a failure here --
+        only a genuine FAILED verification counts against this, same
+        "never claim precision we don't have, but never silently pass
+        what we can check either" discipline as everywhere else in this
+        pipeline. A point EXCLUDED from the final combined mesh (a
+        collision with another, unrelated part -- see
+        PointBuildResult.excluded_from_assembly) no longer has its own
+        features present in the final result at all, regardless of how
+        they verified individually before exclusion."""
+        for p in self.points:
+            if p.excluded_from_assembly:
+                if any(r.required for r in p.feature_requirements):
+                    return False
+                continue
+            for req in p.feature_requirements:
+                if req.required and req.status.value == "FAILED":
+                    return False
+        return True
 
     @property
     def overall_status(self) -> str:
@@ -241,6 +314,42 @@ class AssemblyBuildResult:
             return "INCOMPLETE"
         if self.envelope_warnings:
             return "INCOMPLETE"
+        if not self.requirements_complete:
+            return "INCOMPLETE"
+        # Confirmed real bug (adversarial audit, live-reproduced): this
+        # property never read self.compatibility_report at all --
+        # AssemblyCompatibilityReport.overall_status could be
+        # INCOMPATIBLE (a real reproduced case: a 12mm shaft and a
+        # 10mm bore, both individually "ok" built meshes) while this
+        # property still returned "PASS", since nothing here ever
+        # looked at it. A relationship the assembly itself declares
+        # (shaft-bore fit, gear mesh, motor mount, face contact) failing
+        # to actually mate is exactly the kind of "individually valid
+        # parts, incorrect assembly" case this property exists to catch
+        # -- see its own module-level docstring. Only gated when there
+        # is at least one ACTUAL evaluation to be unhappy about --
+        # AssemblyCompatibilityReport.overall_status's own "NOT_EVALUATED"
+        # is also its default for an EMPTY report (no relationships
+        # declared at all, nothing for the engine to check -- confirmed
+        # real regression this guard fixes: every relationship-free
+        # single-point build was being flagged INCOMPLETE purely for
+        # having nothing to evaluate, not for any actual problem).
+        if (
+            self.compatibility_report is not None and self.compatibility_report.evaluations
+            and self.compatibility_report.overall_status.value not in ("COMPATIBLE", "UNSUPPORTED_TO_VERIFY")
+        ):
+            return "INCOMPLETE"
+        # COMPONENTS_COMPLETE (component_inventory.py) -- a component
+        # the original prompt asked for but decomposition dropped,
+        # duplicated, or merged away never shows up as a "rejected"
+        # point (there's no point for it at all) or a "suspect" one
+        # (every point that DID get built can be perfectly valid on its
+        # own) -- this is the one check in this property that looks
+        # PAST the points list actually produced, at what should have
+        # been in it to begin with. Vacuously true (never gates) when
+        # no original_prompt was available to reconcile against.
+        if not self.components_complete:
+            return "INCOMPLETE"
         return "PASS"
 
 
@@ -303,6 +412,41 @@ def _build_one(args: tuple[str, "list[dict] | None"]) -> dict:
     repair_dropped_a_step = any(
         a.strategy == "truncate_to_earlier_step" and a.improved for a in repaired.attempts
     )
+    structural_repair_attempts = [a.description for a in repaired.attempts]
+    final_program = prediction.program
+
+    # Dimension/count repair (dimension_repair.py) -- a SEPARATE, later
+    # repair stage from repair.py's own structural one above: a program
+    # can execute with status="ok" (watertight, positive volume, no
+    # boolean failure) while still having the wrong number of holes or
+    # a hole that misses the material entirely, which repair.py's own
+    # execution-status-driven strategies have no way to even detect (see
+    # dimension_repair.py's own module docstring for the 3 confirmed-
+    # live failure patterns this closes). Runs only when there's an
+    # actual mesh to measure against, and only re-executes (through the
+    # SAME bounded structural repair above, not a bare Sandbox.execute())
+    # when it actually changed the program.
+    feature_count_repair_attempts: list[str] = []
+    if result.mesh is not None:
+        from dimension_repair import repair_hole_count_mismatch
+        from dimension_requirements import extract_feature_count_requirements
+
+        candidate_program = final_program
+        changed = False
+        for count_req in extract_feature_count_requirements(description):
+            outcome = repair_hole_count_mismatch(candidate_program, count_req)
+            feature_count_repair_attempts.extend(a.description for a in outcome.attempts)
+            if outcome.was_repaired:
+                candidate_program = outcome.program
+                changed = True
+        if changed:
+            repaired = execute_with_bounded_repair(candidate_program)
+            result = repaired.result
+            final_program = candidate_program
+            structural_repair_attempts += [a.description for a in repaired.attempts]
+            repair_dropped_a_step = repair_dropped_a_step or any(
+                a.strategy == "truncate_to_earlier_step" and a.improved for a in repaired.attempts
+            )
 
     if not prediction.in_distribution:
         status = "out_of_distribution"
@@ -320,11 +464,11 @@ def _build_one(args: tuple[str, "list[dict] | None"]) -> dict:
         "executed_steps": result.executed_steps,
         "error": result.error,
         "nearest_neighbor_similarity": prediction.nearest_neighbor_similarity,
-        "program": [{"op": c.op, "args": c.args} for c in prediction.program],
+        "program": [{"op": c.op, "args": c.args} for c in final_program],
         "mesh": result.mesh,
         "topology": topology,
-        "repair_applied": repaired.was_repaired,
-        "repair_attempts": [a.description for a in repaired.attempts],
+        "repair_applied": repaired.was_repaired or bool(feature_count_repair_attempts),
+        "repair_attempts": structural_repair_attempts + feature_count_repair_attempts,
         "repair_dropped_a_step": repair_dropped_a_step,
         "resolution_method": resolution_method,
         # Already computed by Sandbox.execute() on every build -- previously
@@ -332,6 +476,17 @@ def _build_one(args: tuple[str, "list[dict] | None"]) -> dict:
         # outside sandbox.py itself ever read result.geometry_report before
         # this). detected_hole_count feeds the new hole-count check below.
         "geometry_report": result.geometry_report.as_dict() if result.geometry_report is not None else None,
+        # Phase 8 Part B (E47/clarification): op_arbitration's own
+        # outcome/reasoning for this point's statistical prediction --
+        # previously computed on every statistical-path build and then
+        # discarded the moment this dict was built, which is exactly how
+        # a NO_VALID_PLAN result could reach the executor with nothing
+        # downstream able to tell. None/[] for the compositional/
+        # user_edited paths, which never go through predict_program_
+        # hybrid at all (see ProgramPrediction.arbitration's own
+        # docstring) -- never fabricated for those.
+        "arbitration_outcome": prediction.arbitration.outcome.value if prediction.arbitration is not None else None,
+        "arbitration_reasoning": list(prediction.arbitration.reasoning) if prediction.arbitration is not None else [],
     }
 
 
@@ -353,7 +508,7 @@ def _unique_point_ids(points: list[ActionablePoint]) -> list[str]:
 
 def build_assembly_from_points(
     points: list[ActionablePoint], bundle_path: Path, max_workers: int = 4,
-    claimed_envelope_mm: "tuple[float, float] | None" = None,
+    claimed_envelope_mm: "tuple[float, float] | None" = None, original_prompt: "str | None" = None,
 ) -> AssemblyBuildResult:
     """The shared build core: takes a list of actionable points from
     WHATEVER source produced them -- the LLM's decomposition, or a user
@@ -381,7 +536,19 @@ def build_assembly_from_points(
     this function) previously never got the exact gear-mesh-distance
     correction at all -- only the LLM-decomposition path did, even
     though the correction itself has nothing LLM-specific about it (pure
-    text-regex + relationship-chain math)."""
+    text-regex + relationship-chain math).
+
+    `original_prompt`, when given, is the ORIGINAL user request BEFORE
+    decomposition -- confirmed real gap this closes: build_assembly_
+    from_prompt previously discarded this text immediately after
+    decomposing it (used for nothing but extract_claimed_envelope_mm),
+    so nothing anywhere could check whether the decomposed `points` list
+    itself still represents everything the user actually asked for. When
+    given, component_inventory.py's own extraction + reconciliation runs
+    and populates AssemblyBuildResult.component_inventory; None (the
+    default, and the only option for the manual/hand-edited points path,
+    which has no "original request" distinct from the points themselves)
+    leaves it unset, never a fabricated empty-but-"reconciled" inventory."""
     from assembly_plan import (
         Relationship, RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg,
         separate_coincident_face_attachments, validate_relationships,
@@ -535,6 +702,33 @@ def build_assembly_from_points(
                             f"matches within tolerance ({diameter_report.detector_limitation})"
                         )
 
+                # Required Feature Ledger (feature_verification.py) --
+                # independently re-measures each extracted op_requirements.
+                # Requirement against the ACTUAL built geometry: base shape,
+                # slots, edge treatments (fillet/chamfer), stepped sections.
+                # Deliberately does NOT re-add a hole-count/diameter problem
+                # here too -- hole_report/diameter_report above already
+                # cover that feature type via a longer-established, equally
+                # geometry-grounded path; re-reporting the identical fact
+                # under a second mechanism would be redundant disclosure,
+                # not a new one. A mandatory requirement that could not be
+                # independently verified at all (UNSUPPORTED_TO_VERIFY) is
+                # never treated as a problem -- see that status's own
+                # docstring: it means "not independently checked," not
+                # "wrong."
+                feature_requirements: list = []
+                if own_mesh is not None:
+                    from dimension_requirements import RequirementStatus as _ReqStatus
+                    from feature_verification import verify_requirements
+                    from op_requirements import extract_requirements as extract_op_requirements
+
+                    feature_requirements = verify_requirements(extract_op_requirements(point.description), own_mesh, point.description)
+                    for freq in feature_requirements:
+                        if freq.feature_type == "subtractive_hole":
+                            continue
+                        if freq.required and freq.status is _ReqStatus.FAILED:
+                            problems.append(f"required feature '{freq.feature_type}' (from {freq.source_text!r}): {freq.failure_reason}")
+
                 # Semantic-name-vs-explicit-dimension conflict (non-
                 # negotiable principle: "explicit numerical dimensions
                 # override semantic defaults associated with names such as
@@ -589,6 +783,9 @@ def build_assembly_from_points(
                     claimed_hole_count=claimed_hole_count, detected_hole_count=detected_hole_count,
                     unmatched_hole_diameters_mm=unmatched_hole_diameters_mm,
                     semantic_size_conflicts=semantic_size_conflicts,
+                    feature_requirements=feature_requirements,
+                    arbitration_outcome=raw.get("arbitration_outcome"),
+                    arbitration_reasoning=raw.get("arbitration_reasoning", []),
                 )
                 # "out_of_distribution" and "suspect" still carry a mesh (a
                 # guess, or a geometrically dubious result) -- included in
@@ -638,9 +835,51 @@ def build_assembly_from_points(
         if claimed_envelope_mm is not None else []
     )
 
+    # Mechanical compatibility (assembly_compatibility.py) -- runs on the
+    # SAME final, post-exclusion placed_meshes_by_id/relationships this
+    # function already has in hand, after collision resolution so an
+    # excluded part's own relationships are correctly skipped (nothing
+    # left to measure) rather than producing a spurious failure. None
+    # when no point has a stable id at all (relationships are keyed by
+    # id -- a flat, relationship-free call has nothing for this engine
+    # to check), never a fabricated empty-but-"evaluated" report.
+    compatibility_report = None
+    if any(pid for pid in ids):
+        from assembly_compatibility import evaluate_assembly_compatibility
+
+        compatibility_report = evaluate_assembly_compatibility(points, placed_meshes_by_id, relationships)
+
+    # Component Inventory (component_inventory.py) -- reconciles what the
+    # ORIGINAL prompt actually asked for against this function's own
+    # `points` argument (whatever decomposition, or a hand-edited
+    # playground list, produced). Only runs when `original_prompt` was
+    # given at all: the manual-points path has no separate "original
+    # request" to check against, and a fabricated empty-but-"reconciled"
+    # inventory would be worse than honestly leaving this unset.
+    component_inventory = None
+    if original_prompt is not None:
+        from component_inventory import extract_component_requirements, reconcile_component_inventory
+
+        expected_components = extract_component_requirements(original_prompt)
+        # Confirmed real bug (adversarial audit, live-reproduced): a
+        # point EXCLUDED from the final combined assembly by collision
+        # resolution above still built a perfectly valid mesh and still
+        # has a perfectly matching description, so reconciling against
+        # the unfiltered `points` list counted it as present -- exactly
+        # the "generated earlier but absent from the FINAL result"
+        # loophole this module's own components_complete docstring says
+        # must NOT count. Filtered out here, before reconciliation ever
+        # sees it, the same way it is already excluded from
+        # placed_meshes_by_id/the combined mesh above.
+        surviving = [(pid, p) for pid, p in zip(ids, points) if pid not in excluded_ids]
+        surviving_ids = [pid for pid, _ in surviving]
+        surviving_points = [p for _, p in surviving]
+        component_inventory = reconcile_component_inventory(expected_components, surviving_points, surviving_ids)
+
     return AssemblyBuildResult(
         mesh=combined, points=ordered_results, fell_back_to_single_point=False,
         collision_warnings=collision_warnings, envelope_warnings=envelope_warnings,
+        compatibility_report=compatibility_report, component_inventory=component_inventory,
     )
 
 
@@ -789,7 +1028,9 @@ def build_assembly_from_prompt(prompt: str, bundle_path: Path, max_workers: int 
 
     decomposition = decompose_prompt(prompt)
     claimed_envelope_mm = extract_claimed_envelope_mm(prompt)
-    result = build_assembly_from_points(decomposition.points, bundle_path, max_workers, claimed_envelope_mm=claimed_envelope_mm)
+    result = build_assembly_from_points(
+        decomposition.points, bundle_path, max_workers, claimed_envelope_mm=claimed_envelope_mm, original_prompt=prompt,
+    )
     result.fell_back_to_single_point = decomposition.fell_back
     result.raw_llm_output = decomposition.raw_llm_output
     result.knowledge_context = decomposition.knowledge_context

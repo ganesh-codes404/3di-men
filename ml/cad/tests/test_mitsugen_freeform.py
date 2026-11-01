@@ -110,6 +110,56 @@ def test_build_freeform_solid_produces_one_connected_watertight_body():
     assert build.mesh.body_count == 1
 
 
+def test_build_freeform_solid_repairs_a_near_miss_wheel_gap_into_one_connected_body():
+    """Confirmed real root cause of a live failure (a real LLM
+    decomposition of "a toy car" produced body_count=4, not 1): a
+    predicted position close to right but a few mm short of actual
+    contact still produces an individually-watertight, but DISCONNECTED,
+    boolean union -- trimesh's own is_watertight is a per-component
+    property and never catches this. Reuses _WELL_FORMED_CAR_JSON's own
+    body/wheel sizing but pulls every wheel 4mm further out along y than
+    the reference (which already only just touches, by ~1mm) -- a
+    deliberate, consistent near-miss, the exact shape of error a small
+    quantized model's own numeric estimate is prone to. The builder's
+    own _nudge_into_contact repair (freeform_builder.py) must close this
+    gap automatically; this must still come back as ONE connected,
+    watertight body, not four separate ones."""
+    raw = """{"primitives": [
+      {"id": "body", "type": "box", "size_mm": [80, 40, 20], "position_mm": [0, 0, 15]},
+      {"id": "wheel_fl", "type": "cylinder", "radius_mm": 8, "height_mm": 6, "position_mm": [25, 26, 8], "rotation_deg": [90, 0, 0]},
+      {"id": "wheel_fr", "type": "cylinder", "radius_mm": 8, "height_mm": 6, "position_mm": [25, -26, 8], "rotation_deg": [90, 0, 0]},
+      {"id": "wheel_bl", "type": "cylinder", "radius_mm": 8, "height_mm": 6, "position_mm": [-25, 26, 8], "rotation_deg": [90, 0, 0]},
+      {"id": "wheel_br", "type": "cylinder", "radius_mm": 8, "height_mm": 6, "position_mm": [-25, -26, 8], "rotation_deg": [90, 0, 0]}
+    ], "operations": [
+      {"op": "union", "target_id": "wheel_fl"}, {"op": "union", "target_id": "wheel_fr"},
+      {"op": "union", "target_id": "wheel_bl"}, {"op": "union", "target_id": "wheel_br"}
+    ]}"""
+    spec = _parse_freeform(raw, "toy car")
+    build = build_freeform_solid(spec)
+    assert build.error is None
+    assert build.mesh.is_watertight
+    assert build.mesh.body_count == 1
+
+
+def test_build_freeform_solid_refuses_to_silently_relocate_a_wildly_misplaced_primitive():
+    """The other half of the same guard: a primitive placed far beyond a
+    plausible near-miss (here, 500mm from a 90mm-tall mug -- not "a few
+    mm short," a wholesale different location) must NOT be silently
+    teleported into contact -- that would invent a position the LLM
+    never intended rather than correct a real near-miss. It stays
+    disconnected, and the existing body_count check discloses that
+    rather than this repair papering over it."""
+    raw = """{"primitives": [
+      {"id": "body", "type": "cylinder", "radius_mm": 37.5, "height_mm": 90, "position_mm": [0, 0, 0]},
+      {"id": "handle", "type": "torus", "major_radius_mm": 22, "minor_radius_mm": 6, "position_mm": [0, 500, 0], "rotation_deg": [0, 90, 0]}
+    ], "operations": [{"op": "union", "target_id": "handle"}]}"""
+    spec = _parse_freeform(raw, "a mug with a handle")
+    build = build_freeform_solid(spec)
+    assert build.error is None  # still a valid, individually-watertight mesh
+    assert build.mesh.is_watertight
+    assert build.mesh.body_count == 2  # never silently fused into 1
+
+
 def test_build_freeform_solid_supports_a_difference_operation_cutting_a_cavity():
     raw = """{"primitives": [
       {"id": "block", "type": "box", "size_mm": [40, 40, 40], "position_mm": [0, 0, 20]},

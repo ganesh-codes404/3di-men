@@ -1,0 +1,170 @@
+{
+  "id": "F59",
+  "category": "F",
+  "prompt": "A compact adjustable camera mounting bracket: a 60mm x 60mm x 8mm base, a 80mm tall x 15mm diameter vertical support post, and a pivot joint.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 7.339658291079104,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "PASS",
+    "component_status": "NOT_EVALUATED",
+    "compatibility_status": "FAIL",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "p1/p0: components are not actually in contact at the '+z' face -- gap of 1.87mm"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'a base plate, 60mm x 60mm x 8mm': 8mm does not match any measured dimension of the built geometry",
+      "'a cylindrical support post, 15mm diameter, 80mm long': 15mm does not match any measured dimension of the built geometry",
+      "'a pivot bracket, 30mm x 20mm x 10mm with a 6mm diameter hole': 20mm does not match any measured dimension of the built geometry",
+      "'a pivot bracket, 30mm x 20mm x 10mm with a 6mm diameter hole': 10mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": [
+      "6mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure"
+    ]
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 3,
+      "actual": 3
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 0.5,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 2,
+      "compatible": 1,
+      "statuses": [
+        "INCOMPATIBLE",
+        "COMPATIBLE"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 3,
+      "total": 3
+    }
+  },
+  "failure_labels": [
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 3,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "ASSEMBLY_INCOMPATIBILITY",
+        "severity": "blocking",
+        "question": "p1 and p0 do not actually fit together as built (components are not actually in contact at the '+z' face -- gap of 1.87mm). move p1 so it sits flush against p0's '+z' face",
+        "context": "a cylindrical support post, 15mm diameter, 80mm long / a base plate, 60mm x 60mm x 8mm",
+        "affected_component_ids": [
+          "p1",
+          "p0"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "move p1 so it sits flush against p0's '+z' face"
+        ],
+        "recommended_answer": "move p1 so it sits flush against p0's '+z' face",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "components are not actually in contact at the '+z' face -- gap of 1.87mm",
+        "source_stage": "assembly_compatibility",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-002",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'pivot bracket, 30mm x 20mm x 10mm' states a number (30mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a pivot bracket, 30mm x 20mm x 10mm with a 6mm diameter hole",
+        "affected_component_ids": [
+          "p2"
+        ],
+        "affected_requirement_ids": [
+          "REQ-363"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-003",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'racket, 30mm x 20mm x 10mm with a' states a number (20mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a pivot bracket, 30mm x 20mm x 10mm with a 6mm diameter hole",
+        "affected_component_ids": [
+          "p2"
+        ],
+        "affected_requirement_ids": [
+          "REQ-364"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-004",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'30mm x 20mm x 10mm with a 6mm dia' states a number (10mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a pivot bracket, 30mm x 20mm x 10mm with a 6mm diameter hole",
+        "affected_component_ids": [
+          "p2"
+        ],
+        "affected_requirement_ids": [
+          "REQ-365"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "NEEDS_CLARIFICATION",
+    "assumptions": [],
+    "unresolved_requirements": [
+      "'pivot bracket, 30mm x 20mm x 10mm' states a number (30mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'racket, 30mm x 20mm x 10mm with a' states a number (20mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'30mm x 20mm x 10mm with a 6mm dia' states a number (10mm) but I can't tell which dimension it refers to -- which one did you mean?"
+    ],
+    "unsupported_requirements": []
+  }
+}

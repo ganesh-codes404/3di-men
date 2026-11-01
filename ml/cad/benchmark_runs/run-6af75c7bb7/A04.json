@@ -1,0 +1,71 @@
+{
+  "id": "A04",
+  "category": "A",
+  "prompt": "A 120 x 80 x 5 mm rectangular plate.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 9.901515718898736,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "PASS",
+    "component_status": "FAIL",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "component 'plate_type_A' (plate): requested 5, decomposition produced only 1 distinct 'plate' point(s)"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'A 120 x 80 x 5 mm rectangular plate.': 5mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 0.3333333333333333,
+    "dimensional_accuracy_detail": {
+      "applicable": true,
+      "matched": [
+        120
+      ],
+      "unmatched": [
+        80,
+        5
+      ]
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "DIMENSION_ASSIGNMENT_FAILURE"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

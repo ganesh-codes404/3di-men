@@ -172,6 +172,33 @@ def test_relationship_based_points_build_in_dependency_order(tiny_bundle_path):
     assert result.mesh.is_watertight
 
 
+def test_compatibility_report_is_populated_for_a_real_relationship_based_assembly(tiny_bundle_path):
+    """assembly_compatibility.py's own engine, wired into build_assembly_
+    from_points right where collision resolution already runs -- a boss
+    attached_to_face of a plate has no mechanical-fit keyword on either
+    side (no shaft/bore/gear/motor/bolt), so this classifies as a
+    generic FACE_CONTACT relationship and must come back COMPATIBLE
+    (the boss really is flush against the plate, same real build the
+    test right above this one already confirms)."""
+    from assembly_compatibility import CompatibilityStatus, MechanicalRelationshipType
+    from assembly_plan import Relationship
+
+    points = [
+        ActionablePoint(description="a box 100mm x 60mm x 8mm", position_mm=(0.0, 0.0, 0.0), id="plate"),
+        ActionablePoint(
+            description="a cylinder 10mm diameter, 15mm tall", position_mm=(0.0, 0.0, 0.0), id="boss",
+            relationship=Relationship(kind="attached_to_face", target_id="plate", face="+z"),
+        ),
+    ]
+    result = build_assembly_from_points(points, tiny_bundle_path, max_workers=2)
+    assert result.compatibility_report is not None
+    assert len(result.compatibility_report.evaluations) == 1
+    eva = result.compatibility_report.evaluations[0]
+    assert eva.relationship_type is MechanicalRelationshipType.FACE_CONTACT
+    assert eva.status is CompatibilityStatus.COMPATIBLE
+    assert result.compatibility_report.overall_status is CompatibilityStatus.COMPATIBLE
+
+
 def test_hand_constructed_points_get_the_exact_gear_mesh_correction_too(tiny_bundle_path):
     """Confirmed real gap this closes: llm_decompose._correct_gear_mesh_spacing
     previously only ran inside decompose_prompt() -- hand-constructed points

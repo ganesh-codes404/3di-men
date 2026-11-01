@@ -1,0 +1,166 @@
+{
+  "id": "C27",
+  "category": "C",
+  "prompt": "A 100 x 50 x 8 mm plate with a centered 30 x 8 mm through-slot.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 3.5997922220267355,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "PASS",
+    "feature_status": "FAIL",
+    "component_status": "FAIL",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'A 100 x 50 x 8 mm plate with a centered 30 x 8 mm through-slot.': required feature 'subtractive_slot' failed verification -- no slot-shaped (elongated through-opening) feature detected in the built geometry",
+      "component 'plate_type_A' (plate): requested 8, decomposition produced only 1 distinct 'plate' point(s)"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [],
+    "repair_history": [
+      "kept every real step and re-finalized at step 2 (boolean_difference) -- the original failure may have been nothing more than a bad finalize target",
+      "dropped trailing step(s) [boolean_difference] and re-finalized at step 1 (add_box) instead -- the model still completes, just without whatever those dropped steps were adding",
+      "dropped trailing step(s) [add_box, boolean_difference] and re-finalized at step 0 (add_box) instead -- the model still completes, just without whatever those dropped steps were adding"
+    ],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": true,
+      "matched": [
+        100,
+        50,
+        8
+      ],
+      "unmatched": []
+    },
+    "feature_completeness": 0.0,
+    "feature_completeness_detail": {
+      "applicable": true,
+      "slot": {
+        "expected": 1,
+        "actual": 0
+      }
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "FEATURE_OMISSION"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "COMPONENT_COUNT_MISMATCH",
+        "severity": "blocking",
+        "question": "You asked for 8 plate(s), but 1 were generated ('8 mm plate'). Should the count be corrected to 8?",
+        "context": "8 mm plate",
+        "affected_component_ids": [
+          "plate_type_A"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "build exactly 8",
+          "keep 1 as built"
+        ],
+        "recommended_answer": "build exactly 8",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "requested 8, decomposition produced only 1 distinct 'plate' point(s)",
+        "source_stage": "component_inventory",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-002",
+        "category": "UNSUPPORTED_FEATURE",
+        "severity": "blocking",
+        "question": "",
+        "context": "A 100 x 50 x 8 mm plate with a centered 30 x 8 mm through-slot.",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "requirements extracted: [('base_geometry', 'rectangular'), ('subtractive_slot', 'slot')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.50; required feature 'subtractive_slot' (from 'slot') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); classifier and RAG agree, but their shared sequence violates the text's own requirements -- agreement alone is not validity; no valid plan from either source; widened retrieval (k=50) found no valid alternative at all -- confirmed NO_VALID_PLAN",
+        "source_stage": "op_arbitration",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-003",
+        "category": "FEATURE_VERIFICATION_FAILURE",
+        "severity": "blocking",
+        "question": "The required feature from 'slot' did not match the built geometry (no slot-shaped (elongated through-opening) feature detected in the built geometry) -- should I retry with different parameters, or was the requirement itself incorrect?",
+        "context": "slot",
+        "affected_component_ids": [],
+        "affected_requirement_ids": [
+          "subtractive_slot"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "no slot-shaped (elongated through-opening) feature detected in the built geometry",
+        "source_stage": "feature_verification",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-004",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'centered 30 x 8 mm through-slot.' states a number (8mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "A 100 x 50 x 8 mm plate with a centered 30 x 8 mm through-slot.",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-115"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "NEEDS_CLARIFICATION",
+    "assumptions": [],
+    "unresolved_requirements": [
+      "'centered 30 x 8 mm through-slot.' states a number (8mm) but I can't tell which dimension it refers to -- which one did you mean?"
+    ],
+    "unsupported_requirements": [
+      "requirements extracted: [('base_geometry', 'rectangular'), ('subtractive_slot', 'slot')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.50; required feature 'subtractive_slot' (from 'slot') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); classifier and RAG agree, but their shared sequence violates the text's own requirements -- agreement alone is not validity; no valid plan from either source; widened retrieval (k=50) found no valid alternative at all -- confirmed NO_VALID_PLAN"
+    ]
+  }
+}

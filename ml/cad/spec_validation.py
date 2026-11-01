@@ -217,8 +217,19 @@ _HOLE_COUNT_WORDS = {
 # "of"/"four"/"array" are never in this list, so they can never be
 # mistaken for filler.
 _HOLE_DESCRIPTOR_WORDS = r"(?:through|mounting|pilot|clearance|locating|alignment|access|drain|vent|screw|bolt|counterbore|countersink|tapped|threaded)"
+# "equally/evenly spaced" is a SPECIFIC, explicit connector phrase
+# (never a generic "\w+" filler, same discipline as _HOLE_DESCRIPTOR_
+# WORDS's own comment above) allowed to sit between the count word and
+# the rest -- confirmed real gap this closes (adversarial regression,
+# this project's own brief's worked example): "six equally spaced 5mm
+# holes" previously matched nothing at all (extract_claimed_hole_count
+# returned None, not even a wrong count), because the regex had no
+# tolerance for ANY word between the count and the dimension/descriptor
+# -- "six" and "5mm" are not adjacent here. Dropping it without the
+# phrase (just "six 5mm holes") already matched fine.
+_SPACED_CONNECTOR = r"(?:(?:equally|evenly)\s+spaced\s+)?"
 _HOLE_COUNT_RE = re.compile(
-    rf"\b(\w+)\s+(?:[\d.]+\s*mm\s*(?:diameter\s*)?)?(?:{_HOLE_DESCRIPTOR_WORDS}-?\s*){{0,2}}holes?\b", re.IGNORECASE,
+    rf"\b(\w+)\s+{_SPACED_CONNECTOR}(?:[\d.]+\s*mm\s*(?:diameter\s*)?)?(?:{_HOLE_DESCRIPTOR_WORDS}-?\s*){{0,2}}holes?\b", re.IGNORECASE,
 )
 
 

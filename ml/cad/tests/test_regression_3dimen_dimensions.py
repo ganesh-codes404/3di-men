@@ -7,14 +7,22 @@ prompt list ("a rectangular plate with four specified through-holes,"
 whose semantic name normally implies a standard size, but whose
 explicit dimensions intentionally differ").
 
-HONEST baseline, not an aspirational one: several tests here ASSERT a
-confirmed, NOT-YET-FIXED gap (the predicted op-sequence is structurally
-wrong -- missing a hole pattern entirely, or choosing the wrong base
-shape -- not just dimensionally approximate) rather than silently
-passing over it, per this investigation's own "record baseline outcomes
-honestly" standard. Each test's docstring says plainly whether it
-confirms a FIX or documents a REMAINING GAP -- update (never silently
-delete) a GAP test the day the underlying behavior actually changes.
+HONEST baseline, not an aspirational one: this file originally pinned
+several confirmed, NOT-YET-FIXED gaps (a hole count or hole/profile
+dimension silently wrong, a stepped section missing its own op
+entirely) rather than silently passing over them, per this project's
+"record baseline outcomes honestly" standard. A later mission brief
+(reliable dimension assignment, feature counts, and hard geometric
+constraints -- see dimension_requirements.py/dimension_assignment.py/
+dimension_repair.py's own module docstrings) fixed every one of them;
+each test below that used to document a gap now says "FIX CONFIRMED"
+and explains what actually closed it. One test remains an honestly-
+documented, intentionally out-of-scope gap (cross-dimension mechanical
+consistency checking -- see test_contradictory_dimensions_are_not_
+currently_detected_confirmed_gap's own docstring). Each test's
+docstring still says plainly whether it confirms a FIX or documents a
+REMAINING GAP -- update (never silently delete) a GAP test the day the
+underlying behavior actually changes.
 
 Uses program_model.predict_program_checked() directly wherever the
 fixture doesn't need multi-part assembly placement -- program_model's
@@ -80,19 +88,19 @@ def test_plate_four_holes_uses_a_real_hole_pattern_with_the_correct_diameter(bun
     assert pattern_call.args["hole_radius"] == 4.0
 
 
-def test_plate_four_holes_pattern_count_is_a_confirmed_remaining_gap(bundle):
-    """CONFIRMED REMAINING GAP, NOT FIXED: the pattern's own hole COUNT
-    is predicted as 5, not the requested 4 -- the regressor's own
-    approximation, with no override mechanism covering a pattern's
-    count field (only its single shared diameter, fixed above).
-    Pinned here as a concrete, separate target."""
+def test_plate_four_holes_pattern_count_is_now_fixed(bundle):
+    """FIX CONFIRMED -- this test used to pin a CONFIRMED REMAINING GAP:
+    the pattern's own hole COUNT was predicted as 5, not the requested
+    4, because nothing overrode a pattern op's own count field (only
+    its shared diameter was covered). Fixed by dimension_requirements.
+    extract_feature_count_requirements + dimension_assignment.
+    assign_requirements, wired into program_model._apply_dimension_
+    requirements -- the feature-count requirement's own stated count
+    now overrides the pattern op's count directly."""
     text = "a rectangular plate 100mm x 80mm x 6mm with four 8mm diameter through-holes near the corners"
     pred = predict_program_checked(bundle, text)
     pattern_call = pred.program[1]
-    assert pattern_call.args["count"] == 5, (
-        "count changed -- if it's now 4 (matching the request), this is FIXED: update this test. "
-        f"Got: {pattern_call.args['count']}"
-    )
+    assert pattern_call.args["count"] == 4
 
 
 # ---------------- 2. bracket + explicit dims + mounting holes ----------------
@@ -120,33 +128,42 @@ def test_bracket_mounting_hole_diameter_is_exact(bundle):
         assert call.args["radius"] == 3.0
 
 
-def test_bracket_extrusion_thickness_and_hole_count_are_confirmed_remaining_gaps(bundle):
-    """CONFIRMED REMAINING GAPS, NOT FIXED -- recorded honestly.
-    add_extrusion's rounded_rect profile has 4 numeric fields (param_a,
-    param_b, param_c, height), but the text only states 3 genuine
-    dimensions for the shape itself (80mm length, 50mm width, 5mm
-    thickness) -- param_c (the profile's own corner radius) is never
-    stated at all. _override_primary_shape_dimensions has no way to
-    know a field in the MIDDLE of the schema was skipped, so it greedily
-    maps the 4th literal number it finds in the WHOLE text (the hole's
-    own 6mm diameter, an entirely unrelated clause) onto `height`
-    instead of the bracket's own stated 5mm thickness. Also, 4 holes
-    are drilled, not the requested 2. Both pinned here as concrete,
-    separate targets -- fixing the first would need the override to
-    know which of a profile's own fields are genuinely optional, not
-    just "take the first N literals in the whole text"."""
+def test_bracket_extrusion_thickness_and_hole_count_are_now_fixed(bundle):
+    """FIX CONFIRMED -- this test used to pin TWO confirmed remaining
+    gaps: add_extrusion's own height field got the hole's 6mm diameter
+    (an entirely unrelated clause) instead of the bracket's own stated
+    5mm thickness, because the old override zipped the first N literal
+    numbers in the WHOLE text against ARG_SCHEMA's field order with no
+    semantic check; and 4 holes were drilled, not the requested 2 (no
+    override covered a pattern/count field at all, and no mechanism
+    caught 4 individually-placed drill_hole ops disagreeing with a
+    stated count of 2).
+
+    Both fixed: dimension_requirements.py tags "5mm thick" by its own
+    nearby keyword (never by position), so it reaches add_extrusion's
+    height field correctly regardless of what else is in the text; and
+    dimension_repair.repair_hole_count_mismatch (run after execution,
+    since it needs a built mesh to independently measure against)
+    detects the 4-vs-2 mismatch and replaces the 4 individually-placed
+    (and, confirmed live, wildly mispositioned) drill_hole ops with one
+    correctly-counted drill_hole_pattern."""
+    from dimension_repair import repair_hole_count_mismatch
+    from dimension_requirements import extract_feature_count_requirements
+    from evaluation.geometry_eval import evaluate_mesh
+    from sandbox import Sandbox
+
     text = "a bracket 80mm x 50mm x 5mm with two 6mm diameter mounting holes"
     pred = predict_program_checked(bundle, text)
     base = pred.program[0]
-    assert base.args["height"] == 6.0, (
-        "height changed -- if it's now 5.0 (matching the stated thickness), this is FIXED: update this test. "
-        f"Got: {base.args}"
-    )
-    hole_calls = [c for c in pred.program if c.op == "drill_hole"]
-    assert len(hole_calls) == 4, (
-        "hole count changed -- if it's now 2 (matching the request), this is FIXED: update this test. "
-        f"Got: {len(hole_calls)}"
-    )
+    assert base.args["height"] == 5.0
+
+    program = pred.program
+    for count_req in extract_feature_count_requirements(text):
+        outcome = repair_hole_count_mismatch(program, count_req)
+        program = outcome.program
+    result = Sandbox.execute(program)
+    assert result.status == "ok"
+    assert evaluate_mesh(result.mesh).detected_hole_count == 2
 
 
 # ---------------- 3. cylinder with a specified outside diameter and bore ----------------
@@ -170,49 +187,64 @@ def test_cylinder_bore_dimension_override_works_when_the_op_sequence_is_correct(
     assert hole.args["radius"] == 6.0
 
 
-def test_cylinder_bore_end_to_end_is_a_confirmed_remaining_gap(bundle):
-    """CONFIRMED REMAINING GAP, NOT FIXED end-to-end -- recorded
-    honestly. Without forcing the op-sequence, RAG overrides the
-    classifier's own CORRECT prediction (add_cylinder, drill_hole) with
-    an unrelated one (add_box, add_cylinder, boolean_intersection) at
-    0.346 similarity, and the bore-hole dimension-override fix above
-    provides NO benefit here since there is no drill_hole/
-    add_boss_with_bore/counterbore_hole op in this wrong sequence for it
-    to apply to -- the 12mm bore's own number gets misassigned onto the
-    unrelated box's height field instead. This is the SAME root cause
-    as the plate/bracket gaps above (op-sequence selection, not
-    dimension approximation) -- pinned here as its own concrete
-    regression target."""
+def test_cylinder_bore_end_to_end_is_now_fixed(bundle):
+    """FIX CONFIRMED -- this test used to pin a CONFIRMED REMAINING GAP:
+    without forcing the op-sequence, RAG overrode the classifier's own
+    CORRECT prediction (add_cylinder, drill_hole) with an unrelated one
+    (add_box, add_cylinder, boolean_intersection) at 0.346 similarity,
+    because a single global similarity floor could not tell "textually
+    similar but geometrically wrong" apart from "less similar but
+    geometrically right" (see op_arbitration.py's own module docstring
+    for the full before/after). Root cause fixed by replacing the bare
+    threshold with a requirement-aware arbitration engine
+    (op_requirements.py + op_arbitration.py, wired into
+    program_model.predict_program_hybrid): the classifier's own valid
+    sequence is now kept over RAG's requirement-violating one regardless
+    of similarity. Update (never silently delete) this test the day the
+    underlying behavior changes again."""
     pred = predict_program_checked(bundle, "a cylinder, 40mm diameter, 30mm tall, with a 12mm diameter bore through it")
+    base, hole = pred.program[0], pred.program[1]
     ops = tuple(c.op for c in pred.program)
-    assert ops == ("add_box", "add_cylinder", "boolean_intersection", "finalize"), (
-        "op-sequence changed -- if it now uses add_cylinder as the base shape with a real drill_hole/bore feature, "
-        f"this is FIXED: update this test. Got: {ops}"
-    )
+    assert base.op == "add_cylinder"
+    assert base.args["radius"] == 20.0
+    assert base.args["height"] == 30.0
+    assert hole.op in ("drill_hole", "add_boss_with_bore", "counterbore_hole")
+    assert hole.args["radius"] == 6.0
+    assert "add_box" not in ops
+    assert "boolean_intersection" not in ops
+    assert pred.arbitration is not None
+    assert pred.arbitration.outcome.name == "CLASSIFIER_ACCEPTED"
 
 
 # ---------------- 4. shaft with diameter/length/stepped section ----------------
 
-def test_shaft_base_dimensions_are_exact_but_stepped_section_is_a_confirmed_gap(bundle):
-    """Base dimensions (10mm diameter, 80mm long) ARE correctly forced
-    (FIX CONFIRMED, same _override_primary_shape_dimensions mechanism).
-    But the requested "stepped section 14mm diameter for 20mm" feature
-    is MISSING entirely from the predicted program -- no
-    add_shouldered_cylinder, no second step of any kind. CONFIRMED
-    REMAINING GAP: the classifier never predicts a feature op for this
-    phrasing at all, so there is nothing for any dimension-override
-    mechanism to even act on."""
+def test_shaft_stepped_section_is_now_fixed(bundle):
+    """FIX CONFIRMED -- this test used to pin a CONFIRMED REMAINING GAP:
+    the classifier never predicted a feature op for this phrasing at
+    all (plain add_cylinder, finalize -- no step of any kind), so there
+    was nothing for any dimension-override mechanism to even act on.
+    Also a confirmed Problem-1/Problem-2 BOUNDARY case: op_arbitration.
+    arbitrate() already correctly flagged this as NO_VALID_PLAN (missing
+    stepped_section), but nothing downstream acted on that disclosure.
+
+    Fixed by dimension_repair.repair_missing_stepped_section (wired
+    into program_model.predict_program -- see that function's own
+    docstring): when the text's own extraction already shows a wide
+    diameter (here tagged outer_diameter, since "10mm diameter" has no
+    "main section" qualifier) alongside a genuinely distinct
+    reduced_diameter ("stepped section 14mm diameter"), the base op is
+    swapped from add_cylinder to add_shouldered_cylinder, then
+    dimension_assignment places both diameters and the overall length
+    (generalized to accept "80mm long" -- a plain `length` tag -- for
+    this op, not just the literal "overall length" phrase)."""
     text = "a shaft 10mm diameter, 80mm long, with a stepped section 14mm diameter for 20mm"
     pred = predict_program_checked(bundle, text)
     base = pred.program[0]
-    assert base.op == "add_cylinder"
-    assert base.args["radius"] == 5.0
-    assert base.args["height"] == 80.0
-    ops = tuple(c.op for c in pred.program)
-    assert ops == ("add_cylinder", "finalize"), (
-        "op-sequence changed -- if it now includes add_shouldered_cylinder or another real stepped-section feature, "
-        f"this is FIXED: update this test. Got: {ops}"
-    )
+    assert base.op == "add_shouldered_cylinder"
+    assert base.args["bottom_radius"] == 5.0  # 10mm diameter / 2
+    assert base.args["top_radius"] == 7.0  # 14mm diameter / 2
+    total_length = base.args["bottom_height"] + base.args["top_height"] + base.args["transition_height"]
+    assert abs(total_length - 80.0) < 1e-6  # "80mm long"
 
 
 # ---------------- 5. gear with explicit module/teeth/face-width/bore ----------------

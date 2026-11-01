@@ -1,0 +1,72 @@
+{
+  "id": "A05",
+  "category": "A",
+  "prompt": "A stepped shaft with 20 mm, 30 mm, and 15 mm diameter sections.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 9.902369669056498,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "FAIL",
+    "component_status": "PASS",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'A stepped shaft with 20 mm, 30 mm, and 15 mm diameter sections.': required feature 'stepped_section' failed verification -- no meaningful cross-sectional radius change detected along the part's own 'z' axis (sampled radii: [8.59, 8.59, 8.59, 8.59, 8.59])"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'A stepped shaft with 20 mm, 30 mm, and 15 mm diameter sections.': 20mm does not match any measured dimension of the built geometry",
+      "'A stepped shaft with 20 mm, 30 mm, and 15 mm diameter sections.': 30mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 0.3333333333333333,
+    "dimensional_accuracy_detail": {
+      "applicable": true,
+      "matched": [
+        15
+      ],
+      "unmatched": [
+        20,
+        30
+      ]
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "DIMENSION_ASSIGNMENT_FAILURE"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": "3 distinct diameter sections -- this project's own add_shouldered_cylinder tool is 2-section only; flagged as a likely UNSUPPORTED case, not assumed"
+}

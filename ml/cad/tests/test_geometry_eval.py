@@ -105,6 +105,24 @@ def test_blind_hole_is_not_marked_through():
     assert report.hole_through == [False]
 
 
+def test_hole_position_is_the_actual_drilled_center_not_just_its_count_and_diameter():
+    """Confirmed real gap this closes: _classify_wall_component already
+    fits a circle (and so already computes its center) to every detected
+    hole, but the center was discarded before reaching GeometryReport --
+    nothing could compare where two parts' own holes actually sit (e.g. a
+    motor's mounting pattern against its bracket's), only how many there
+    were and how big."""
+    box = trimesh.creation.box([80.0, 60.0, 6.0])
+    hole = trimesh.creation.cylinder(radius=4.0, height=20.0, sections=48)
+    hole.apply_translation([20.0, -15.0, 0.0])
+    mesh = box.difference(hole, engine="manifold")
+    report = evaluate_mesh(mesh)
+    assert report.detected_hole_count == 1
+    position = report.hole_positions_mm[0]
+    assert position[0] == pytest.approx(20.0, abs=0.5)
+    assert position[1] == pytest.approx(-15.0, abs=0.5)
+
+
 def test_bracket_arms_detected_on_their_real_horizontal_axes():
     """Direct regression for the exact case data/procedural_generator.py's
     BracketParams docstring used to document as a known, deferred gap:

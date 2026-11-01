@@ -1,0 +1,127 @@
+{
+  "id": "B13",
+  "category": "B",
+  "prompt": "A shaft with two stepped diameters and a shoulder.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 3.7430022839689627,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "PASS",
+    "feature_status": "FAIL",
+    "component_status": "PASS",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'A shaft with two stepped diameters and a shoulder.': required feature 'base_geometry' failed verification -- requested base geometry 'cylindrical' does not match the built mesh's own shape signature (bounding box (65.57666206359863, 48.26109504699707, 25.374876022338867), has_circular_cross_section=False)",
+      "'A shaft with two stepped diameters and a shoulder.': required feature 'stepped_section' failed verification -- no meaningful cross-sectional radius change detected along the part's own 'x' axis (sampled radii: [27.29, 27.29, 27.29, 27.29, 27.29])"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "PROMPT_INTERPRETATION_FAILURE"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "UNSUPPORTED_FEATURE",
+        "severity": "blocking",
+        "question": "",
+        "context": "A shaft with two stepped diameters and a shoulder.",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "requirements extracted: [('base_geometry', 'cylindrical'), ('stepped_section', 'stepped')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.00; base geometry requirement 'cylindrical' (from 'shaft') violated by base op 'add_box'; required feature 'stepped_section' (from 'stepped') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); RAG ('add_box', 'drill_hole_pattern', 'finalize') (similarity=0.189): valid=False, coverage=0.00; base geometry requirement 'cylindrical' (from 'shaft') violated by base op 'add_box'; required feature 'stepped_section' (from 'stepped') has no compatible operation in ('add_box', 'drill_hole_pattern', 'finalize'); neither candidate satisfies the structured requirements -- no valid plan; falling back to the classifier's own sequence as the least-bad disclosed default; widened retrieval (k=50) found a valid alternative at similarity 0.092, below the 0.20 floor -- too weakly supported to trust; confirmed NO_VALID_PLAN",
+        "source_stage": "op_arbitration",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-002",
+        "category": "FEATURE_VERIFICATION_FAILURE",
+        "severity": "blocking",
+        "question": "The required feature from 'shaft' did not match the built geometry (requested base geometry 'cylindrical' does not match the built mesh's own shape signature (bounding box (65.57666206359863, 48.26109504699707, 25.374876022338867), has_circular_cross_section=False)) -- should I retry with different parameters, or was the requirement itself incorrect?",
+        "context": "shaft",
+        "affected_component_ids": [],
+        "affected_requirement_ids": [
+          "base_geometry"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "requested base geometry 'cylindrical' does not match the built mesh's own shape signature (bounding box (65.57666206359863, 48.26109504699707, 25.374876022338867), has_circular_cross_section=False)",
+        "source_stage": "feature_verification",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-003",
+        "category": "FEATURE_VERIFICATION_FAILURE",
+        "severity": "blocking",
+        "question": "The required feature from 'stepped' did not match the built geometry (no meaningful cross-sectional radius change detected along the part's own 'x' axis (sampled radii: [27.29, 27.29, 27.29, 27.29, 27.29])) -- should I retry with different parameters, or was the requirement itself incorrect?",
+        "context": "stepped",
+        "affected_component_ids": [],
+        "affected_requirement_ids": [
+          "stepped_section"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "no meaningful cross-sectional radius change detected along the part's own 'x' axis (sampled radii: [27.29, 27.29, 27.29, 27.29, 27.29])",
+        "source_stage": "feature_verification",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "NEEDS_CLARIFICATION",
+    "assumptions": [],
+    "unresolved_requirements": [],
+    "unsupported_requirements": [
+      "requirements extracted: [('base_geometry', 'cylindrical'), ('stepped_section', 'stepped')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.00; base geometry requirement 'cylindrical' (from 'shaft') violated by base op 'add_box'; required feature 'stepped_section' (from 'stepped') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); RAG ('add_box', 'drill_hole_pattern', 'finalize') (similarity=0.189): valid=False, coverage=0.00; base geometry requirement 'cylindrical' (from 'shaft') violated by base op 'add_box'; required feature 'stepped_section' (from 'stepped') has no compatible operation in ('add_box', 'drill_hole_pattern', 'finalize'); neither candidate satisfies the structured requirements -- no valid plan; falling back to the classifier's own sequence as the least-bad disclosed default; widened retrieval (k=50) found a valid alternative at similarity 0.092, below the 0.20 floor -- too weakly supported to trust; confirmed NO_VALID_PLAN"
+    ]
+  }
+}

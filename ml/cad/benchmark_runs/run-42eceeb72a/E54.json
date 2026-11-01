@@ -1,0 +1,252 @@
+{
+  "id": "E54",
+  "category": "E",
+  "prompt": "A bearing, shaft, and retaining collar assembly.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 6.7884119000518695,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "FAIL",
+    "component_status": "PASS",
+    "compatibility_status": "FAIL",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore': claimed hole/bore diameter 12.2mm has no matching detected hole",
+      "'a shaft collar, 25mm outer diameter, 12.2mm bore, 10mm thick with a radial set-screw hole': claimed hole/bore diameter 12.2mm has no matching detected hole",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore': required feature 'subtractive_hole' failed verification -- no hole-like feature detected in the built geometry"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [
+      "p2/p0: relationship could not be evaluated -- one or both components were not successfully built -- nothing to evaluate"
+    ],
+    "validation_warnings": [
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore': 12.2mm does not match any measured dimension of the built geometry",
+      "'a shaft collar, 25mm outer diameter, 12.2mm bore, 10mm thick with a radial set-screw hole': 12.2mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": [
+      "10mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure"
+    ]
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 0.6666666666666667,
+    "component_completeness_detail": {
+      "expected": 3,
+      "actual": 2
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 0.0,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 2,
+      "compatible": 0,
+      "statuses": [
+        "GEOMETRY_VALIDATION_FAILED",
+        "NOT_EVALUATED"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 3,
+      "total": 3
+    }
+  },
+  "failure_labels": [
+    "COMPONENT_OMISSION",
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 3,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "UNSUPPORTED_FEATURE",
+        "severity": "blocking",
+        "question": "",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "requirements extracted: [('base_geometry', 'rectangular'), ('subtractive_hole', 'bore')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); RAG ('add_gear_profile', 'finalize') (similarity=0.314): valid=False, coverage=0.00; base geometry requirement 'rectangular' (from 'NxNxN dimension phrasing') violated by base op 'add_gear_profile'; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_gear_profile', 'finalize'); neither candidate satisfies the structured requirements -- no valid plan; falling back to the classifier's own sequence as the least-bad disclosed default; widened retrieval (k=50) found a valid alternative at similarity 0.175, below the 0.20 floor -- too weakly supported to trust; confirmed NO_VALID_PLAN",
+        "source_stage": "op_arbitration",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-002",
+        "category": "AMBIGUOUS_OPERATION_CHOICE",
+        "severity": "advisory",
+        "question": "There are two equally-valid ways to build 'a shaft, 12mm diameter, 100mm long' with no clear preference stated -- is the default approach acceptable, or did you have a specific method in mind?",
+        "context": "a shaft, 12mm diameter, 100mm long",
+        "affected_component_ids": [
+          "p1"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [],
+        "recommended_answer": "use the default approach",
+        "default_allowed": true,
+        "blocking": false,
+        "reason": "requirements extracted: [('base_geometry', 'cylindrical')]; classifier ('add_cylinder', 'finalize'): valid=True, coverage=1.00; RAG ('add_tube', 'finalize') (similarity=0.521): valid=True, coverage=1.00; both valid, equal coverage, equal length, genuinely different sequences -- ambiguous; defaulting to the classifier's own independently-derived sequence, disclosed as ambiguous rather than silently decided",
+        "source_stage": "op_arbitration",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-003",
+        "category": "FEATURE_VERIFICATION_FAILURE",
+        "severity": "blocking",
+        "question": "The required feature from 'bore' did not match the built geometry (no hole-like feature detected in the built geometry) -- should I retry with different parameters, or was the requirement itself incorrect?",
+        "context": "bore",
+        "affected_component_ids": [],
+        "affected_requirement_ids": [
+          "subtractive_hole"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "no hole-like feature detected in the built geometry",
+        "source_stage": "feature_verification",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-004",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'aring housing, 40mm x 40mm x 20mm,' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-254"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-005",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'ousing, 40mm x 40mm x 20mm, with a' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-255"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-006",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'40mm x 40mm x 20mm, with a 12.2mm' states a number (20mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-256"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-007",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'x 20mm, with a 12.2mm bore' states a number (12.2mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-257"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-008",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'uter diameter, 12.2mm bore, 10mm thi' states a number (12.2mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a shaft collar, 25mm outer diameter, 12.2mm bore, 10mm thick with a radial set-screw hole",
+        "affected_component_ids": [
+          "p2"
+        ],
+        "affected_requirement_ids": [
+          "REQ-261"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "NEEDS_CLARIFICATION",
+    "assumptions": [
+      "AMBIGUOUS_OPERATION_CHOICE: use the default approach (requirements extracted: [('base_geometry', 'cylindrical')]; classifier ('add_cylinder', 'finalize'): valid=True, coverage=1.00; RAG ('add_tube', 'finalize') (similarity=0.521): valid=True, coverage=1.00; both valid, equal coverage, equal length, genuinely different sequences -- ambiguous; defaulting to the classifier's own independently-derived sequence, disclosed as ambiguous rather than silently decided)"
+    ],
+    "unresolved_requirements": [
+      "'aring housing, 40mm x 40mm x 20mm,' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'ousing, 40mm x 40mm x 20mm, with a' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'40mm x 40mm x 20mm, with a 12.2mm' states a number (20mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'x 20mm, with a 12.2mm bore' states a number (12.2mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'uter diameter, 12.2mm bore, 10mm thi' states a number (12.2mm) but I can't tell which dimension it refers to -- which one did you mean?"
+    ],
+    "unsupported_requirements": [
+      "requirements extracted: [('base_geometry', 'rectangular'), ('subtractive_hole', 'bore')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); RAG ('add_gear_profile', 'finalize') (similarity=0.314): valid=False, coverage=0.00; base geometry requirement 'rectangular' (from 'NxNxN dimension phrasing') violated by base op 'add_gear_profile'; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_gear_profile', 'finalize'); neither candidate satisfies the structured requirements -- no valid plan; falling back to the classifier's own sequence as the least-bad disclosed default; widened retrieval (k=50) found a valid alternative at similarity 0.175, below the 0.20 floor -- too weakly supported to trust; confirmed NO_VALID_PLAN"
+    ]
+  }
+}

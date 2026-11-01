@@ -1,0 +1,151 @@
+{
+  "id": "E53",
+  "category": "E",
+  "prompt": "A coupling with two flanges connected by a central shaft.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 8.612492863903753,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "PASS",
+    "feature_status": "PASS",
+    "component_status": "FAIL",
+    "compatibility_status": "FAIL",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "component 'coupling_type_A' (coupling): requested 1, decomposition produced 2 distinct 'coupling' point(s)",
+      "component 'flange_type_B' (flange): no decomposed point's own description names a 'flange' at all -- requested 2, found 0",
+      "p2/p0: shaft runs along 'x', but the only detected hole(s) on p0 run along ['z'] -- axes are not aligned"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [],
+    "repair_history": [],
+    "reconciled_claims": [
+      "10mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure",
+      "10mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure",
+      "10mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure",
+      "10mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure"
+    ]
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 3,
+      "actual": 3
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 0.0,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 1,
+      "compatible": 0,
+      "statuses": [
+        "INCOMPATIBLE"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 3,
+      "total": 3
+    }
+  },
+  "failure_labels": [
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 3,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "COMPONENT_COUNT_MISMATCH",
+        "severity": "advisory",
+        "question": "'coupling' ('A coupling') appears to have been generated more times than requested -- should the extra copy be removed?",
+        "context": "A coupling",
+        "affected_component_ids": [
+          "coupling_type_A",
+          "p0",
+          "p1"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "remove the extra copy",
+          "keep all generated copies"
+        ],
+        "recommended_answer": "keep all generated copies",
+        "default_allowed": true,
+        "blocking": false,
+        "reason": "requested 1, decomposition produced 2 distinct 'coupling' point(s)",
+        "source_stage": "component_inventory",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-002",
+        "category": "COMPONENT_COUNT_MISMATCH",
+        "severity": "blocking",
+        "question": "You asked for 2 flange(s) ('two flanges'), but none were generated. Should I add it, or did you mean to remove it from the design?",
+        "context": "two flanges",
+        "affected_component_ids": [
+          "flange_type_B"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "add the missing component",
+          "remove it from the requirements"
+        ],
+        "recommended_answer": "add the missing component",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "no decomposed point's own description names a 'flange' at all -- requested 2, found 0",
+        "source_stage": "component_inventory",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-003",
+        "category": "ASSEMBLY_INCOMPATIBILITY",
+        "severity": "blocking",
+        "question": "p2 and p0 do not actually fit together as built (shaft runs along 'x', but the only detected hole(s) on p0 run along ['z'] -- axes are not aligned). rotate p2 (or p0) so their running axes match",
+        "context": "a shaft, 10mm diameter, 80mm long / a flanged coupling disc, 50mm diameter, 10mm thick with a 10mm diameter central bore",
+        "affected_component_ids": [
+          "p2",
+          "p0"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "rotate p2 (or p0) so their running axes match"
+        ],
+        "recommended_answer": "rotate p2 (or p0) so their running axes match",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "shaft runs along 'x', but the only detected hole(s) on p0 run along ['z'] -- axes are not aligned",
+        "source_stage": "assembly_compatibility",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "NEEDS_CLARIFICATION",
+    "assumptions": [
+      "COMPONENT_COUNT_MISMATCH: keep all generated copies (requested 1, decomposition produced 2 distinct 'coupling' point(s))"
+    ],
+    "unresolved_requirements": [],
+    "unsupported_requirements": []
+  }
+}

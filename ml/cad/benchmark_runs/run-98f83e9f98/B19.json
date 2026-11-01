@@ -1,0 +1,76 @@
+{
+  "id": "B19",
+  "category": "B",
+  "prompt": "A pulley with a central bore and specified outer dimensions: 80mm outer diameter, 10mm bore, 15mm thick.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 7.589242313057184,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "PASS",
+    "component_status": "NOT_EVALUATED",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'A pulley with a central bore and specified outer dimensions: 80mm outer diameter, 10mm bore, 15mm thick.': 15mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": [
+      "10mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure"
+    ]
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 0.3333333333333333,
+    "dimensional_accuracy_detail": {
+      "applicable": true,
+      "matched": [
+        80
+      ],
+      "unmatched": [
+        10,
+        15
+      ]
+    },
+    "feature_completeness": 0.0,
+    "feature_completeness_detail": {
+      "applicable": true,
+      "hole": {
+        "expected": 1,
+        "actual": 7
+      }
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "DIMENSION_ASSIGNMENT_FAILURE",
+    "FEATURE_OMISSION"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

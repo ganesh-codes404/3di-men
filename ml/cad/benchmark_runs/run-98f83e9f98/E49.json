@@ -1,0 +1,72 @@
+{
+  "id": "E49",
+  "category": "E",
+  "prompt": "A motor housing attached to a mounting plate using four specified mounting points: 42mm x 42mm bolt pattern.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 12.122385820024647,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "PASS",
+    "feature_status": "PASS",
+    "component_status": "PASS",
+    "compatibility_status": "UNRESOLVED",
+    "requirement_status": "PASS",
+    "overall_status": "UNRESOLVED",
+    "validation_errors": [],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [],
+    "repair_history": [],
+    "reconciled_claims": [
+      "3mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure"
+    ]
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 2,
+      "actual": 2
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": true,
+      "hole": {
+        "expected": 4,
+        "actual": 4
+      }
+    },
+    "assembly_compatibility": 0.0,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 1,
+      "compatible": 0,
+      "statuses": [
+        "UNDER_SPECIFIED"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 2,
+      "total": 2
+    }
+  },
+  "failure_labels": [
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 2,
+    "resolution_methods": [
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

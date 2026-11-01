@@ -1,0 +1,62 @@
+{
+  "id": "E48",
+  "category": "E",
+  "prompt": "Two external spur gears, module 2.5mm, gear A 20 teeth, gear B 32 teeth, on parallel shafts along the x axis.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 20.311218998976983,
+  "error": null,
+  "overall_status": "PASS",
+  "validation_report": {
+    "geometry_status": "PASS",
+    "dimension_status": "PASS",
+    "feature_status": "UNSUPPORTED",
+    "component_status": "PASS",
+    "compatibility_status": "PASS",
+    "requirement_status": "PARTIAL",
+    "overall_status": "PARTIAL",
+    "validation_errors": [],
+    "unsupported_requirements": [
+      "'a gear, module 2.5, 20 teeth': feature 'base_geometry' -- gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears",
+      "'a gear, module 2.5, 32 teeth': feature 'base_geometry' -- gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears"
+    ],
+    "unresolved_requirements": [],
+    "validation_warnings": [],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 2,
+      "actual": 2
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 2,
+      "total": 2
+    }
+  },
+  "failure_labels": [],
+  "measured": {
+    "n_points": 2,
+    "resolution_methods": [
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "gear-pair spacing correction is applied automatically to any 2-gear point set (llm_decompose._correct_gear_mesh_spacing), not via a declared relationship"
+}

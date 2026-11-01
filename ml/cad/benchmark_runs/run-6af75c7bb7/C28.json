@@ -1,0 +1,75 @@
+{
+  "id": "C28",
+  "category": "C",
+  "prompt": "A cylinder 40mm diameter, 50mm tall, with a 12 mm blind hole, 20mm deep.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 6.467617423972115,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "FAIL",
+    "component_status": "NOT_EVALUATED",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'A cylinder 40mm diameter, 50mm tall, with a 12 mm blind hole, 20mm deep.': required feature 'base_geometry' failed verification -- requested base geometry 'cylindrical' does not match the built mesh's own shape signature (bounding box (60.54416465759277, 46.6633186340332, 50.0), has_circular_cross_section=False)",
+      "'A cylinder 40mm diameter, 50mm tall, with a 12 mm blind hole, 20mm deep.': required feature 'subtractive_hole' failed verification -- no hole-like feature detected in the built geometry"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'A cylinder 40mm diameter, 50mm tall, with a 12 mm blind hole, 20mm deep.': 12mm does not match any measured dimension of the built geometry",
+      "'A cylinder 40mm diameter, 50mm tall, with a 12 mm blind hole, 20mm deep.': 20mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": true,
+      "matched": [
+        40,
+        50
+      ],
+      "unmatched": []
+    },
+    "feature_completeness": 0.0,
+    "feature_completeness_detail": {
+      "applicable": true,
+      "hole": {
+        "expected": 1,
+        "actual": 0
+      }
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "FEATURE_OMISSION"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

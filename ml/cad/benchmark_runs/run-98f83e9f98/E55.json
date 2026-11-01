@@ -1,0 +1,76 @@
+{
+  "id": "E55",
+  "category": "E",
+  "prompt": "A simple gearbox with two gears, two shafts, and a housing.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 30.130780400009826,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "PARTIAL",
+    "component_status": "PASS",
+    "compatibility_status": "PASS",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'a gearbox housing, 120mm x 80mm x 60mm, with a corner array of four 6.6mm diameter holes, each 15mm from a corner': claimed hole/bore diameter 6.6mm has no matching detected hole"
+    ],
+    "unsupported_requirements": [
+      "'a gear, module 2.5, 24 teeth': feature 'base_geometry' -- gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears",
+      "'a gear, module 2.5, 36 teeth': feature 'base_geometry' -- gear tooth geometry is not independently re-measured from built geometry by this check -- only the op-sequence-level compatibility check (op_arbitration.py) covers gears"
+    ],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'a gearbox housing, 120mm x 80mm x 60mm, with a corner array of four 6.6mm diameter holes, each 15mm from a corner': 6.6mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 5,
+      "actual": 5
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 3,
+      "compatible": 3,
+      "statuses": [
+        "COMPATIBLE",
+        "COMPATIBLE",
+        "COMPATIBLE"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 5,
+      "total": 5
+    }
+  },
+  "failure_labels": [],
+  "measured": {
+    "n_points": 5,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

@@ -1,0 +1,96 @@
+{
+  "id": "B18",
+  "category": "B",
+  "prompt": "A rectangular enclosure with a removable lid.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 7.060144730960019,
+  "error": null,
+  "overall_status": "PASS",
+  "validation_report": {
+    "geometry_status": "PASS",
+    "dimension_status": "PASS",
+    "feature_status": "PARTIAL",
+    "component_status": "PASS",
+    "compatibility_status": "PASS",
+    "requirement_status": "PARTIAL",
+    "overall_status": "PARTIAL",
+    "validation_errors": [],
+    "unsupported_requirements": [
+      "'a rectangular enclosure, 100mm x 80mm x 40mm, hollow interior': feature 'hollow_shell' -- feature_verification.py does not yet independently re-measure a 'hollow_shell' feature from built geometry -- only op_arbitration.py's own op-sequence-level compatibility check (did the PLANNED program include a plausible operation, not whether the BUILT mesh actually has the feature) covers this type"
+    ],
+    "unresolved_requirements": [],
+    "validation_warnings": [],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 2,
+      "actual": 2
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 1,
+      "compatible": 1,
+      "statuses": [
+        "COMPATIBLE"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 2,
+      "total": 2
+    }
+  },
+  "failure_labels": [],
+  "measured": {
+    "n_points": 2,
+    "resolution_methods": [
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "UNSUPPORTED_FEATURE",
+        "severity": "advisory",
+        "question": "",
+        "context": "hollow",
+        "affected_component_ids": [],
+        "affected_requirement_ids": [
+          "hollow_shell"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": "proceed; this feature's presence could not be independently re-measured from the built mesh",
+        "default_allowed": true,
+        "blocking": false,
+        "reason": "feature_verification.py does not yet independently re-measure a 'hollow_shell' feature from built geometry -- only op_arbitration.py's own op-sequence-level compatibility check (did the PLANNED program include a plausible operation, not whether the BUILT mesh actually has the feature) covers this type",
+        "source_stage": "feature_verification",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "PROCEED_WITH_DISCLOSED_ASSUMPTIONS",
+    "assumptions": [
+      "UNSUPPORTED_FEATURE: proceed; this feature's presence could not be independently re-measured from the built mesh (feature_verification.py does not yet independently re-measure a 'hollow_shell' feature from built geometry -- only op_arbitration.py's own op-sequence-level compatibility check (did the PLANNED program include a plausible operation, not whether the BUILT mesh actually has the feature) covers this type)"
+    ],
+    "unresolved_requirements": [],
+    "unsupported_requirements": [
+      "feature_verification.py does not yet independently re-measure a 'hollow_shell' feature from built geometry -- only op_arbitration.py's own op-sequence-level compatibility check (did the PLANNED program include a plausible operation, not whether the BUILT mesh actually has the feature) covers this type"
+    ]
+  }
+}

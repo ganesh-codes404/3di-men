@@ -748,6 +748,118 @@ def ask_clarifying_questions(prompt: str, model_path: Path = DEFAULT_MODEL_PATH,
     return ClarifyResult(questions=questions[:max_questions], raw_llm_output=raw)
 
 
+# ---------------- crash-isolated wrappers (server.py's own HTTP-facing call path) ----------------
+#
+# Confirmed real gap this closes (live-reproduced): a native GGML
+# assertion failure inside llama-cpp-python (e.g. "GGML_ASSERT(i1 >= 0
+# && i1 < ne1) failed" during grammar-constrained sampling) calls the C
+# library's own abort() -- this is NOT a Python exception, so no
+# try/except anywhere in this file (or its caller) can catch it. In-
+# process, that takes the ENTIRE Flask server down with it: every
+# subsequent request fails with a connection error ("failed to fetch"),
+# not just the one that triggered it. decompose_prompt/ask_clarifying_
+# questions above are deliberately left untouched (this project's own
+# existing tests monkeypatch _get_llm directly against them, in-process
+# -- see tests/test_llm_decompose.py) -- these are NEW, additive
+# wrappers that run the SAME calls in a separate one-shot worker
+# process instead, so a native crash only ever takes down that one
+# worker. Server-facing callers should prefer these; nothing else needs
+# to change to opt in or out.
+
+import concurrent.futures
+
+_llm_pool: "concurrent.futures.ProcessPoolExecutor | None" = None
+_LLM_CALL_TIMEOUT_SECONDS = 180  # generous -- a genuinely slow CPU-only decompose has been observed to take
+                                  # over a minute on a complex multi-part prompt; a timeout here degrades
+                                  # exactly like a crash (see below), never hangs the caller's own response.
+
+
+def _get_llm_pool() -> "concurrent.futures.ProcessPoolExecutor":
+    global _llm_pool
+    if _llm_pool is None:
+        _llm_pool = concurrent.futures.ProcessPoolExecutor(max_workers=1)
+    return _llm_pool
+
+
+def _reset_llm_pool() -> None:
+    """Called after ANY failure (crash or timeout) so the next isolated
+    call always gets a fresh worker -- a pool whose sole worker died
+    natively can never accept new work again (BrokenProcessPool), and a
+    worker that merely timed out but is still stuck on the old call
+    should not be trusted with the next request either.
+
+    Confirmed real gap this closes (live-reproduced): ProcessPoolExecutor.
+    shutdown(wait=False) only stops the pool from accepting NEW work --
+    it does not kill a worker that's already mid-task. For a long CPU-
+    bound LLM generation (confirmed, live: over 3 minutes on this
+    machine for a single decompose call), that worker keeps running,
+    fully detached from the pool that spawned it, until its own
+    generation finishes naturally -- a real, accumulating resource leak
+    under any repeated-timeout/retry pattern (this project has hit a
+    severe swap-thrashing crisis from exactly this shape of orphaned-
+    process accumulation before). `_processes` is a documented-stable
+    CPython ProcessPoolExecutor implementation detail (pid -> Process),
+    not a public API, so this is wrapped defensively -- a future Python
+    version removing it degrades back to the ORIGINAL "leaks until it
+    finishes on its own" behavior, never a crash."""
+    global _llm_pool
+    if _llm_pool is not None:
+        try:
+            for proc in _llm_pool._processes.values():
+                if proc.is_alive():
+                    proc.kill()
+        except Exception:
+            pass
+        _llm_pool.shutdown(wait=False, cancel_futures=True)
+    _llm_pool = None
+
+
+def _decompose_prompt_worker(prompt: str, model_path: Path) -> DecomposeResult:
+    return decompose_prompt(prompt, model_path)
+
+
+def decompose_prompt_isolated(
+    prompt: str, model_path: Path = DEFAULT_MODEL_PATH, timeout: float = _LLM_CALL_TIMEOUT_SECONDS,
+) -> DecomposeResult:
+    """decompose_prompt(), isolated in a separate worker process -- see
+    this section's own module-level note. On a crash or timeout, applies
+    the EXACT SAME disclosed-fallback contract decompose_prompt() itself
+    already documents for a parse failure (treat the whole prompt as one
+    actionable point at the origin, fell_back=True) -- a crash degrades
+    exactly like any other recognized failure mode, never a server-wide
+    outage and never a silent hang."""
+    pool = _get_llm_pool()
+    try:
+        future = pool.submit(_decompose_prompt_worker, prompt, model_path)
+        return future.result(timeout=timeout)
+    except Exception:
+        _reset_llm_pool()
+        return DecomposeResult(
+            points=[ActionablePoint(description=prompt, position_mm=(0.0, 0.0, 0.0))],
+            raw_llm_output="", fell_back=True, knowledge_context="",
+        )
+
+
+def _ask_clarifying_questions_worker(prompt: str, model_path: Path, max_questions: int) -> ClarifyResult:
+    return ask_clarifying_questions(prompt, model_path, max_questions)
+
+
+def ask_clarifying_questions_isolated(
+    prompt: str, model_path: Path = DEFAULT_MODEL_PATH, max_questions: int = 3, timeout: float = _LLM_CALL_TIMEOUT_SECONDS,
+) -> ClarifyResult:
+    """ask_clarifying_questions(), isolated the same way decompose_prompt_
+    isolated() is -- see this section's own module-level note. Falls back
+    to ask_clarifying_questions' own documented "no questions needed"
+    empty result on a crash or timeout, never a server-wide outage."""
+    pool = _get_llm_pool()
+    try:
+        future = pool.submit(_ask_clarifying_questions_worker, prompt, model_path, max_questions)
+        return future.result(timeout=timeout)
+    except Exception:
+        _reset_llm_pool()
+        return ClarifyResult(questions=[], raw_llm_output="")
+
+
 def fold_answers_into_prompt(prompt: str, qa_pairs: list[tuple[str, str]]) -> str:
     """Combines the original prompt with the user's answers to the
     clarify-stage questions into one enriched prompt text -- kept as a

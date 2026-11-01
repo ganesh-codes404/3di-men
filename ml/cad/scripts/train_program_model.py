@@ -73,7 +73,7 @@ def main() -> None:
         return predict_program_rag(bundle, text)
 
     def predict_fn_hybrid(text: str):
-        program, _used_rag = predict_program_hybrid(bundle, text)
+        program, _used_rag, _arbitration = predict_program_hybrid(bundle, text)
         return program
 
     print("\n--- honest 3-bucket eval: classifier-only (legacy path) ---")

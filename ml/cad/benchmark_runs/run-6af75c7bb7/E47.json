@@ -1,0 +1,75 @@
+{
+  "id": "E47",
+  "category": "E",
+  "prompt": "A shaft inserted into two bearing housings.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 5.739427751046605,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "FAIL",
+    "component_status": "PASS",
+    "compatibility_status": "FAIL",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore': claimed hole/bore diameter 12.2mm has no matching detected hole",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore': claimed hole/bore diameter 12.2mm has no matching detected hole",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore': required feature 'subtractive_hole' failed verification -- no hole-like feature detected in the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore': required feature 'subtractive_hole' failed verification -- no hole-like feature detected in the built geometry"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore': 12.2mm does not match any measured dimension of the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 12.2mm bore': 12.2mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 3,
+      "actual": 3
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 0.0,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 1,
+      "compatible": 0,
+      "statuses": [
+        "GEOMETRY_VALIDATION_FAILED"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 3,
+      "total": 3
+    }
+  },
+  "failure_labels": [
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 3,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

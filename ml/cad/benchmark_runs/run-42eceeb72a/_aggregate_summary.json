@@ -1,0 +1,140 @@
+{
+  "total_prompts": 60,
+  "completed_generations": 60,
+  "failed_generations": 0,
+  "generation_success_rate": 1.0,
+  "overall_status_counts": {
+    "INCOMPLETE": 51,
+    "PASS": 9
+  },
+  "component_completeness_rate": 0.991111111111111,
+  "dimensional_compliance_rate": 0.9041666666666667,
+  "feature_completeness_rate": 0.8333333333333334,
+  "assembly_compatibility_rate": 0.8416666666666667,
+  "geometry_validity_rate": 1.0,
+  "average_generation_time_seconds": 7.035881143736575,
+  "median_generation_time_seconds": 6.253118979046121,
+  "slowest_prompts": [
+    {
+      "id": "A04",
+      "elapsed_seconds": 15.141988152987324
+    },
+    {
+      "id": "D45",
+      "elapsed_seconds": 14.395281894947402
+    },
+    {
+      "id": "E55",
+      "elapsed_seconds": 13.819534268928692
+    },
+    {
+      "id": "A03",
+      "elapsed_seconds": 13.718723295023665
+    },
+    {
+      "id": "E48",
+      "elapsed_seconds": 13.358261132030748
+    }
+  ],
+  "most_common_failure_labels": [
+    [
+      "PROMPT_INTERPRETATION_FAILURE",
+      14
+    ],
+    [
+      "FEATURE_OMISSION",
+      12
+    ],
+    [
+      "ASSEMBLY_COMPATIBILITY_FAILURE",
+      11
+    ],
+    [
+      "DIMENSION_ASSIGNMENT_FAILURE",
+      9
+    ],
+    [
+      "COMPONENT_OMISSION",
+      2
+    ]
+  ],
+  "by_category": {
+    "A": {
+      "total": 10,
+      "completed": 10,
+      "overall_pass": 1,
+      "avg_component_completeness": 1.0,
+      "avg_dimensional_accuracy": 0.7416666666666667,
+      "avg_feature_completeness": 0.9,
+      "avg_assembly_compatibility": 1.0,
+      "avg_geometry_validity": 1.0
+    },
+    "B": {
+      "total": 15,
+      "completed": 15,
+      "overall_pass": 4,
+      "avg_component_completeness": 1.0,
+      "avg_dimensional_accuracy": 0.8222222222222222,
+      "avg_feature_completeness": 0.6133333333333333,
+      "avg_assembly_compatibility": 0.9333333333333333,
+      "avg_geometry_validity": 1.0
+    },
+    "C": {
+      "total": 10,
+      "completed": 10,
+      "overall_pass": 2,
+      "avg_component_completeness": 1.0,
+      "avg_dimensional_accuracy": 1.0,
+      "avg_feature_completeness": 0.75,
+      "avg_assembly_compatibility": 1.0,
+      "avg_geometry_validity": 1.0
+    },
+    "D": {
+      "total": 10,
+      "completed": 10,
+      "overall_pass": 0,
+      "avg_component_completeness": 1.0,
+      "avg_dimensional_accuracy": 0.95,
+      "avg_feature_completeness": 0.93,
+      "avg_assembly_compatibility": 1.0,
+      "avg_geometry_validity": 1.0
+    },
+    "E": {
+      "total": 10,
+      "completed": 10,
+      "overall_pass": 1,
+      "avg_component_completeness": 0.9666666666666666,
+      "avg_dimensional_accuracy": 1.0,
+      "avg_feature_completeness": 1.0,
+      "avg_assembly_compatibility": 0.33333333333333337,
+      "avg_geometry_validity": 1.0
+    },
+    "F": {
+      "total": 5,
+      "completed": 5,
+      "overall_pass": 1,
+      "avg_component_completeness": 0.96,
+      "avg_dimensional_accuracy": 1.0,
+      "avg_feature_completeness": 1.0,
+      "avg_assembly_compatibility": 0.6333333333333333,
+      "avg_geometry_validity": 1.0
+    }
+  },
+  "not_completed_ids": [],
+  "clarification_metrics": {
+    "build_decision_counts": {
+      "NEEDS_CLARIFICATION": 35,
+      "BLOCKED_BY_VALIDATION_FAILURE": 5,
+      "PROCEED": 15,
+      "PROCEED_WITH_DISCLOSED_ASSUMPTIONS": 2,
+      "UNSUPPORTED": 3
+    },
+    "total_clarification_requests": 127,
+    "blocking_clarification_requests": 110,
+    "total_assumptions_disclosed": 17,
+    "total_unsupported_requirements": 29,
+    "prompts_marked_unsupported": 3,
+    "prompts_needing_clarification": 35,
+    "note": "These are directly observed counts, not precision/recall against independent ground truth for whether a clarification was actually necessary -- that requires a dedicated hand-labeling pass per prompt, not computed in this run (see the Phase 8 final report's own disclosure)."
+  }
+}

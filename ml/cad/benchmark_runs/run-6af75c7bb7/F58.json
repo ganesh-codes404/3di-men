@@ -1,0 +1,94 @@
+{
+  "id": "F58",
+  "category": "F",
+  "prompt": "A two-stage shaft support: two bearing housings, two spacers, and a coupling, all on one 10mm diameter shaft.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 7.15254284394905,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "FAIL",
+    "component_status": "FAIL",
+    "compatibility_status": "UNRESOLVED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': claimed hole/bore diameter 10.2mm has no matching detected hole",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': claimed hole/bore diameter 10.2mm has no matching detected hole",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': required feature 'subtractive_hole' failed verification -- no hole-like feature detected in the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': required feature 'subtractive_hole' failed verification -- no hole-like feature detected in the built geometry",
+      "component 'support_type_A' (support): no decomposed point's own description names a 'support' at all -- requested 2, found 0",
+      "component 'coupling_type_D' (coupling): no decomposed point's own description names a 'coupling' at all -- requested 1, found 0",
+      "component 'shaft_type_E' (shaft): no decomposed point's own description names a 'shaft' at all -- requested 1, found 0"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [
+      "p4/p0: relationship could not be evaluated -- one or both components were not successfully built -- nothing to evaluate"
+    ],
+    "validation_warnings": [
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': 10.2mm does not match any measured dimension of the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': 10.2mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 20mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 10mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 15mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 20mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 10mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 15mm does not match any measured dimension of the built geometry",
+      "'a flanged coupling disc, 40mm diameter, 8mm thick with a 10mm diameter central bore': 8mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": [
+      "10mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure"
+    ]
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 0.8,
+    "component_completeness_detail": {
+      "expected": 5,
+      "actual": 4
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 0.6666666666666666,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 3,
+      "compatible": 2,
+      "statuses": [
+        "COMPATIBLE",
+        "COMPATIBLE",
+        "NOT_EVALUATED"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 5,
+      "total": 5
+    }
+  },
+  "failure_labels": [
+    "COMPONENT_OMISSION",
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 5,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

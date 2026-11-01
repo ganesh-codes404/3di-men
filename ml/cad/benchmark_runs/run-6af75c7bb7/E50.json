@@ -1,0 +1,72 @@
+{
+  "id": "E50",
+  "category": "E",
+  "prompt": "A pulley mounted on a stepped shaft.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 4.610144093981944,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "PASS",
+    "component_status": "PASS",
+    "compatibility_status": "FAIL",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "p0/p1: p0's shaft (55.00mm) is larger than p1's bore (9.96mm) -- interference, not clearance"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'a pulley, 60mm outer diameter, 10mm bore, 15mm thick': 15mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": [
+      "10mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure"
+    ]
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 2,
+      "actual": 2
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 0.0,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 1,
+      "compatible": 0,
+      "statuses": [
+        "INCOMPATIBLE"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 2,
+      "total": 2
+    }
+  },
+  "failure_labels": [
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 2,
+    "resolution_methods": [
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "'stepped shaft' simplified to a plain shaft in this fixed decomposition -- disclosed, see expected_features"
+}

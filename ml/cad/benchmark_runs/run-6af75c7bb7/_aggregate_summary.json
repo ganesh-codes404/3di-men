@@ -1,0 +1,124 @@
+{
+  "total_prompts": 60,
+  "completed_generations": 60,
+  "failed_generations": 0,
+  "generation_success_rate": 1.0,
+  "overall_status_counts": {
+    "INCOMPLETE": 52,
+    "PASS": 8
+  },
+  "component_completeness_rate": 0.991111111111111,
+  "dimensional_compliance_rate": 0.8347222222222221,
+  "feature_completeness_rate": 0.8333333333333334,
+  "assembly_compatibility_rate": 0.9027777777777778,
+  "geometry_validity_rate": 1.0,
+  "average_generation_time_seconds": 6.95152023351208,
+  "median_generation_time_seconds": 6.36091716698138,
+  "slowest_prompts": [
+    {
+      "id": "E55",
+      "elapsed_seconds": 14.916873243055306
+    },
+    {
+      "id": "B25",
+      "elapsed_seconds": 14.636189687997103
+    },
+    {
+      "id": "A03",
+      "elapsed_seconds": 14.591839175089262
+    },
+    {
+      "id": "C27",
+      "elapsed_seconds": 12.421124945045449
+    },
+    {
+      "id": "C26",
+      "elapsed_seconds": 12.18111405603122
+    }
+  ],
+  "most_common_failure_labels": [
+    [
+      "DIMENSION_ASSIGNMENT_FAILURE",
+      14
+    ],
+    [
+      "PROMPT_INTERPRETATION_FAILURE",
+      14
+    ],
+    [
+      "FEATURE_OMISSION",
+      12
+    ],
+    [
+      "ASSEMBLY_COMPATIBILITY_FAILURE",
+      7
+    ],
+    [
+      "COMPONENT_OMISSION",
+      2
+    ]
+  ],
+  "by_category": {
+    "A": {
+      "total": 10,
+      "completed": 10,
+      "overall_pass": 1,
+      "avg_component_completeness": 1.0,
+      "avg_dimensional_accuracy": 0.5583333333333333,
+      "avg_feature_completeness": 1.0,
+      "avg_assembly_compatibility": 1.0,
+      "avg_geometry_validity": 1.0
+    },
+    "B": {
+      "total": 15,
+      "completed": 15,
+      "overall_pass": 4,
+      "avg_component_completeness": 1.0,
+      "avg_dimensional_accuracy": 0.8222222222222222,
+      "avg_feature_completeness": 0.6133333333333333,
+      "avg_assembly_compatibility": 1.0,
+      "avg_geometry_validity": 1.0
+    },
+    "C": {
+      "total": 10,
+      "completed": 10,
+      "overall_pass": 1,
+      "avg_component_completeness": 1.0,
+      "avg_dimensional_accuracy": 0.7666666666666666,
+      "avg_feature_completeness": 0.65,
+      "avg_assembly_compatibility": 1.0,
+      "avg_geometry_validity": 1.0
+    },
+    "D": {
+      "total": 10,
+      "completed": 10,
+      "overall_pass": 0,
+      "avg_component_completeness": 1.0,
+      "avg_dimensional_accuracy": 0.95,
+      "avg_feature_completeness": 0.93,
+      "avg_assembly_compatibility": 1.0,
+      "avg_geometry_validity": 1.0
+    },
+    "E": {
+      "total": 10,
+      "completed": 10,
+      "overall_pass": 1,
+      "avg_component_completeness": 0.9666666666666666,
+      "avg_dimensional_accuracy": 1.0,
+      "avg_feature_completeness": 1.0,
+      "avg_assembly_compatibility": 0.5,
+      "avg_geometry_validity": 1.0
+    },
+    "F": {
+      "total": 5,
+      "completed": 5,
+      "overall_pass": 1,
+      "avg_component_completeness": 0.96,
+      "avg_dimensional_accuracy": 1.0,
+      "avg_feature_completeness": 1.0,
+      "avg_assembly_compatibility": 0.8333333333333333,
+      "avg_geometry_validity": 1.0
+    }
+  },
+  "not_completed_ids": []
+}

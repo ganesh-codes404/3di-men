@@ -1,0 +1,457 @@
+{
+  "id": "F58",
+  "category": "F",
+  "prompt": "A two-stage shaft support: two bearing housings, two spacers, and a coupling, all on one 10mm diameter shaft.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 7.1048743079882115,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "FAIL",
+    "component_status": "FAIL",
+    "compatibility_status": "FAIL",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': claimed hole/bore diameter 10.2mm has no matching detected hole",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': claimed hole/bore diameter 10.2mm has no matching detected hole",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': required feature 'subtractive_hole' failed verification -- no hole-like feature detected in the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': required feature 'subtractive_hole' failed verification -- no hole-like feature detected in the built geometry",
+      "component 'support_type_A' (support): no decomposed point's own description names a 'support' at all -- requested 2, found 0",
+      "component 'coupling_type_D' (coupling): no decomposed point's own description names a 'coupling' at all -- requested 1, found 0",
+      "component 'shaft_type_E' (shaft): no decomposed point's own description names a 'shaft' at all -- requested 1, found 0",
+      "p2/p0: p2's own built geometry runs along 'x', but p0's runs along 'z' -- these components are not actually coaxial",
+      "p3/p1: p3's own built geometry runs along 'x', but p1's runs along 'z' -- these components are not actually coaxial"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [
+      "p4/p0: relationship could not be evaluated -- one or both components were not successfully built -- nothing to evaluate"
+    ],
+    "validation_warnings": [
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': 40mm does not match any measured dimension of the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': 40mm does not match any measured dimension of the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': 10.2mm does not match any measured dimension of the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': 40mm does not match any measured dimension of the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': 40mm does not match any measured dimension of the built geometry",
+      "'a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore': 10.2mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 20mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 10mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 15mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 20mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 10mm does not match any measured dimension of the built geometry",
+      "'a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length': 15mm does not match any measured dimension of the built geometry",
+      "'a flanged coupling disc, 40mm diameter, 8mm thick with a 10mm diameter central bore': 8mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": [
+      "10mm was flagged unmatched against the mesh's own overall extents (spec_validation.py's generic check), but independently confirmed as this part's own hole_diameter by feature_verification.py's more specific check -- reconciled, not a real failure"
+    ]
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 0.8,
+    "component_completeness_detail": {
+      "expected": 5,
+      "actual": 4
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 0.0,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 3,
+      "compatible": 0,
+      "statuses": [
+        "INCOMPATIBLE",
+        "INCOMPATIBLE",
+        "NOT_EVALUATED"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 5,
+      "total": 5
+    }
+  },
+  "failure_labels": [
+    "COMPONENT_OMISSION",
+    "ASSEMBLY_COMPATIBILITY_FAILURE"
+  ],
+  "measured": {
+    "n_points": 5,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "COMPONENT_COUNT_MISMATCH",
+        "severity": "blocking",
+        "question": "You asked for 2 support(s) ('two-stage shaft support'), but none were generated. Should I add it, or did you mean to remove it from the design?",
+        "context": "two-stage shaft support",
+        "affected_component_ids": [
+          "support_type_A"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "add the missing component",
+          "remove it from the requirements"
+        ],
+        "recommended_answer": "add the missing component",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "no decomposed point's own description names a 'support' at all -- requested 2, found 0",
+        "source_stage": "component_inventory",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-002",
+        "category": "COMPONENT_COUNT_MISMATCH",
+        "severity": "blocking",
+        "question": "You asked for 1 coupling(s) ('a coupling'), but none were generated. Should I add it, or did you mean to remove it from the design?",
+        "context": "a coupling",
+        "affected_component_ids": [
+          "coupling_type_D"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "add the missing component",
+          "remove it from the requirements"
+        ],
+        "recommended_answer": "add the missing component",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "no decomposed point's own description names a 'coupling' at all -- requested 1, found 0",
+        "source_stage": "component_inventory",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-003",
+        "category": "COMPONENT_COUNT_MISMATCH",
+        "severity": "blocking",
+        "question": "You asked for 1 shaft(s) ('one 10mm diameter shaft'), but none were generated. Should I add it, or did you mean to remove it from the design?",
+        "context": "one 10mm diameter shaft",
+        "affected_component_ids": [
+          "shaft_type_E"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "add the missing component",
+          "remove it from the requirements"
+        ],
+        "recommended_answer": "add the missing component",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "no decomposed point's own description names a 'shaft' at all -- requested 1, found 0",
+        "source_stage": "component_inventory",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-004",
+        "category": "UNSUPPORTED_FEATURE",
+        "severity": "blocking",
+        "question": "",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "requirements extracted: [('base_geometry', 'rectangular'), ('subtractive_hole', 'bore')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); RAG ('add_box', 'chamfer_box_edges', 'finalize') (similarity=0.316): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'chamfer_box_edges', 'finalize'); neither candidate satisfies the structured requirements -- no valid plan; falling back to the classifier's own sequence as the least-bad disclosed default; widened retrieval (k=50) found a valid alternative at similarity 0.176, below the 0.20 floor -- too weakly supported to trust; confirmed NO_VALID_PLAN",
+        "source_stage": "op_arbitration",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-005",
+        "category": "UNSUPPORTED_FEATURE",
+        "severity": "blocking",
+        "question": "",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p1"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "requirements extracted: [('base_geometry', 'rectangular'), ('subtractive_hole', 'bore')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); RAG ('add_box', 'chamfer_box_edges', 'finalize') (similarity=0.316): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'chamfer_box_edges', 'finalize'); neither candidate satisfies the structured requirements -- no valid plan; falling back to the classifier's own sequence as the least-bad disclosed default; widened retrieval (k=50) found a valid alternative at similarity 0.176, below the 0.20 floor -- too weakly supported to trust; confirmed NO_VALID_PLAN",
+        "source_stage": "op_arbitration",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-006",
+        "category": "FEATURE_VERIFICATION_FAILURE",
+        "severity": "blocking",
+        "question": "The required feature from 'bore' did not match the built geometry (no hole-like feature detected in the built geometry) -- should I retry with different parameters, or was the requirement itself incorrect?",
+        "context": "bore",
+        "affected_component_ids": [],
+        "affected_requirement_ids": [
+          "subtractive_hole"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "no hole-like feature detected in the built geometry",
+        "source_stage": "feature_verification",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-007",
+        "category": "FEATURE_VERIFICATION_FAILURE",
+        "severity": "blocking",
+        "question": "The required feature from 'bore' did not match the built geometry (no hole-like feature detected in the built geometry) -- should I retry with different parameters, or was the requirement itself incorrect?",
+        "context": "bore",
+        "affected_component_ids": [],
+        "affected_requirement_ids": [
+          "subtractive_hole"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "no hole-like feature detected in the built geometry",
+        "source_stage": "feature_verification",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-008",
+        "category": "ASSEMBLY_INCOMPATIBILITY",
+        "severity": "blocking",
+        "question": "p2 and p0 do not actually fit together as built (p2's own built geometry runs along 'x', but p0's runs along 'z' -- these components are not actually coaxial). rotate p2 (or p0) so both run along the same axis",
+        "context": "a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length / a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p2",
+          "p0"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "rotate p2 (or p0) so both run along the same axis"
+        ],
+        "recommended_answer": "rotate p2 (or p0) so both run along the same axis",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "p2's own built geometry runs along 'x', but p0's runs along 'z' -- these components are not actually coaxial",
+        "source_stage": "assembly_compatibility",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-009",
+        "category": "ASSEMBLY_INCOMPATIBILITY",
+        "severity": "blocking",
+        "question": "p3 and p1 do not actually fit together as built (p3's own built geometry runs along 'x', but p1's runs along 'z' -- these components are not actually coaxial). rotate p3 (or p1) so both run along the same axis",
+        "context": "a spacer, 20mm outer diameter, 10mm inner diameter, 15mm length / a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p3",
+          "p1"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "rotate p3 (or p1) so both run along the same axis"
+        ],
+        "recommended_answer": "rotate p3 (or p1) so both run along the same axis",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "p3's own built geometry runs along 'x', but p1's runs along 'z' -- these components are not actually coaxial",
+        "source_stage": "assembly_compatibility",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-010",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'aring housing, 40mm x 40mm x 20mm,' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-328"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-011",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'ousing, 40mm x 40mm x 20mm, with a' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-329"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-012",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'40mm x 40mm x 20mm, with a 10.2mm' states a number (20mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-330"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-013",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'x 20mm, with a 10.2mm bore' states a number (10.2mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-331"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-014",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'aring housing, 40mm x 40mm x 20mm,' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p1"
+        ],
+        "affected_requirement_ids": [
+          "REQ-332"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-015",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'ousing, 40mm x 40mm x 20mm, with a' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p1"
+        ],
+        "affected_requirement_ids": [
+          "REQ-333"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-016",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'40mm x 40mm x 20mm, with a 10.2mm' states a number (20mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p1"
+        ],
+        "affected_requirement_ids": [
+          "REQ-334"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-017",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'x 20mm, with a 10.2mm bore' states a number (10.2mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "a bearing housing, 40mm x 40mm x 20mm, with a 10.2mm bore",
+        "affected_component_ids": [
+          "p1"
+        ],
+        "affected_requirement_ids": [
+          "REQ-335"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "NEEDS_CLARIFICATION",
+    "assumptions": [],
+    "unresolved_requirements": [
+      "'aring housing, 40mm x 40mm x 20mm,' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'ousing, 40mm x 40mm x 20mm, with a' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'40mm x 40mm x 20mm, with a 10.2mm' states a number (20mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'x 20mm, with a 10.2mm bore' states a number (10.2mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'aring housing, 40mm x 40mm x 20mm,' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'ousing, 40mm x 40mm x 20mm, with a' states a number (40mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'40mm x 40mm x 20mm, with a 10.2mm' states a number (20mm) but I can't tell which dimension it refers to -- which one did you mean?",
+      "'x 20mm, with a 10.2mm bore' states a number (10.2mm) but I can't tell which dimension it refers to -- which one did you mean?"
+    ],
+    "unsupported_requirements": [
+      "requirements extracted: [('base_geometry', 'rectangular'), ('subtractive_hole', 'bore')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); RAG ('add_box', 'chamfer_box_edges', 'finalize') (similarity=0.316): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'chamfer_box_edges', 'finalize'); neither candidate satisfies the structured requirements -- no valid plan; falling back to the classifier's own sequence as the least-bad disclosed default; widened retrieval (k=50) found a valid alternative at similarity 0.176, below the 0.20 floor -- too weakly supported to trust; confirmed NO_VALID_PLAN",
+      "requirements extracted: [('base_geometry', 'rectangular'), ('subtractive_hole', 'bore')]; classifier ('add_box', 'add_box', 'boolean_difference', 'finalize'): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'add_box', 'boolean_difference', 'finalize'); RAG ('add_box', 'chamfer_box_edges', 'finalize') (similarity=0.316): valid=False, coverage=0.50; required feature 'subtractive_hole' (from 'bore') has no compatible operation in ('add_box', 'chamfer_box_edges', 'finalize'); neither candidate satisfies the structured requirements -- no valid plan; falling back to the classifier's own sequence as the least-bad disclosed default; widened retrieval (k=50) found a valid alternative at similarity 0.176, below the 0.20 floor -- too weakly supported to trust; confirmed NO_VALID_PLAN"
+    ]
+  }
+}

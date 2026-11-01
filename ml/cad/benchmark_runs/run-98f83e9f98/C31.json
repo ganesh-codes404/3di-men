@@ -1,0 +1,64 @@
+{
+  "id": "C31",
+  "category": "C",
+  "prompt": "A block with two counterbored holes.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 6.156680685933679,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "PASS",
+    "feature_status": "PASS",
+    "component_status": "NOT_EVALUATED",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "PASS",
+    "overall_status": "PARTIAL",
+    "validation_errors": [],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": true,
+      "hole": {
+        "expected": 2,
+        "actual": 2
+      }
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "PROMPT_INTERPRETATION_FAILURE"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": ""
+}

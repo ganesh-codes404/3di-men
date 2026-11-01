@@ -84,18 +84,21 @@ def test_in_distribution_text_scores_above_threshold(tiny_program_dataset):
     assert prediction.nearest_neighbor_similarity >= bundle.config.ood_similarity_threshold
 
 
-def test_predict_program_hybrid_does_not_force_a_weakly_matched_rag_sequence(tiny_program_dataset):
+def test_predict_program_hybrid_does_not_force_a_rag_sequence_with_no_coverage_advantage(tiny_program_dataset):
     """Confirmed real gap (mission-brief audit): predict_program_hybrid used
     to force RAG's retrieved op-sequence onto ANY disagreement with the
-    classifier, with no floor on how similar that "winning" neighbor
-    actually was -- forcing an unrelated training example's op-sequence
-    (which can include ops like add_cylinder or round_box_edges that share
-    no real connection to the actual request) onto a text with no genuinely
-    close neighbor at all is exactly how an unrequested cylinder or rounded
-    block could reach a built model. Below bundle.config.
-    rag_override_similarity_threshold, the classifier's own (unforced)
-    program must be used instead, even when it disagrees with RAG's
-    retrieved sequence."""
+    classifier whose similarity cleared a bare global floor -- forcing an
+    unrelated training example's op-sequence onto a text with no
+    genuinely close neighbor at all is exactly how an unrequested cylinder
+    or rounded block could reach a built model. That bare-similarity gate
+    is gone now (see op_arbitration.py/ProgramModelConfig.
+    rag_override_similarity_threshold's own docstrings): for "a spaceship"
+    (no recognizable base-geometry or feature requirement at all, so
+    BOTH candidates are trivially "valid" with equal coverage), a RAG
+    candidate that is merely the classifier's own sequence plus one
+    extra, unrequested op must still lose to the classifier's shorter,
+    equally-valid one -- arbitrate()'s own tie-break, not a similarity
+    check."""
     from program_model import ProgramModelConfig, predict_program, predict_program_hybrid, train_program_model
 
     bundle, _ = train_program_model(tiny_program_dataset, ProgramModelConfig(seed=0))
@@ -103,36 +106,40 @@ def test_predict_program_hybrid_does_not_force_a_weakly_matched_rag_sequence(tin
     classifier_program = predict_program(bundle, text)
     disagreeing_ops = tuple(c.op for c in classifier_program) + ("add_cylinder",)  # force a real disagreement
 
-    with patch("program_model.retrieve_nearest_op_sequence", return_value=(disagreeing_ops, 0.05)):
-        program, used_rag = predict_program_hybrid(bundle, text)
+    with patch("program_model.retrieve_nearest_op_sequence_requirement_aware", return_value=(disagreeing_ops, 0.05)):
+        program, used_rag, _arbitration = predict_program_hybrid(bundle, text)
 
     assert used_rag is False
     assert [c.op for c in program] == [c.op for c in classifier_program]
 
 
-def test_predict_program_hybrid_still_uses_rag_when_the_match_is_strong(tiny_program_dataset):
-    """The other half of the same gate: a genuinely close match (similarity
-    at/above rag_override_similarity_threshold) that disagrees with the
-    classifier must still win -- this is the hybrid's own documented
-    value-add (measured gains on hand_written/generic_composition
-    prompts), and the floor must not quietly disable it for every
-    disagreement. Uses rag_override_similarity_threshold specifically
-    (NOT ood_similarity_threshold -- see ProgramModelConfig's own
-    docstring for why these are now two separate floors, not one reused
-    number)."""
+def test_predict_program_hybrid_still_uses_rag_when_it_is_a_valid_and_simpler_candidate(tiny_program_dataset):
+    """The other half of the same gate: a disagreeing RAG candidate that
+    actually SATISFIES the text's own structured requirements
+    (op_requirements.extract_requirements) just as fully as the
+    classifier's own sequence, but more simply, must still win -- RAG
+    must not have been quietly disabled for every disagreement by the
+    new requirement-aware check. (Similarity itself no longer has any
+    say in this decision at all -- see op_arbitration.py's own
+    module docstring -- so this test deliberately does NOT use
+    rag_override_similarity_threshold, unlike the old version of this
+    test.) The classifier's own real prediction for this text already
+    satisfies the plate's requirements (base geometry rectangular, a
+    hole feature) in 3 ops; a shorter 2-op candidate that ALSO satisfies
+    both must be preferred as RAG_ASSISTED."""
     from program_model import ProgramModelConfig, predict_program, predict_program_hybrid, train_program_model
 
     bundle, _ = train_program_model(tiny_program_dataset, ProgramModelConfig(seed=0))
     text = "rectangular aluminum mounting plate, 120 mm x 80 mm, with four 10 mm mounting holes"
     classifier_program = predict_program(bundle, text)
-    disagreeing_ops = ("add_cylinder", "finalize")  # short, valid, and different from the plate's own prediction
+    disagreeing_ops = ("add_box", "drill_hole_pattern")  # valid (rectangular base + a hole-pattern op) and shorter than the classifier's own sequence
     assert tuple(c.op for c in classifier_program) != disagreeing_ops
-    strong_sim = bundle.config.rag_override_similarity_threshold + 0.1
 
-    with patch("program_model.retrieve_nearest_op_sequence", return_value=(disagreeing_ops, strong_sim)):
-        program, used_rag = predict_program_hybrid(bundle, text)
+    with patch("program_model.retrieve_nearest_op_sequence_requirement_aware", return_value=(disagreeing_ops, 0.9)):
+        program, used_rag, arbitration = predict_program_hybrid(bundle, text)
 
     assert used_rag is True
+    assert arbitration.outcome.name == "RAG_ASSISTED"
     assert tuple(c.op for c in program) == disagreeing_ops
 
 
@@ -176,50 +183,72 @@ def test_malformed_handcrafted_program_is_rejected_not_silently_repaired():
     assert result.mesh is None
 
 
-def test_override_bore_hole_dimensions_uses_the_literal_diameter_near_bore_or_hole():
-    """Feature-level analogue of the base-shape override: confirmed real
-    gap (mission-brief audit, live-reproduced against the actual trained
-    bundle) -- a feature op's own explicit bore/hole diameter had no
-    override mechanism at all, unlike the base shape's own primary
-    dimensions. "12mm diameter bore" -> radius 6.0, regardless of what
-    the (possibly very wrong) regressor predicted."""
-    from program_model import _override_bore_hole_dimensions
+def test_dimension_assignment_uses_the_literal_diameter_near_bore_or_hole():
+    """RETIRED: this used to test program_model._override_bore_hole_
+    dimensions directly, since replaced by dimension_requirements.py +
+    dimension_assignment.py (see program_model.py's own module-level
+    comment at the old override functions' former location for the full
+    story of why). Same underlying guarantee, through the new
+    mechanism: "12mm diameter bore" -> drill_hole's own radius = 6.0,
+    regardless of what the regressor separately predicted."""
+    from dimension_assignment import assign_requirements
+    from dimension_requirements import extract_dimension_requirements
+    from sandbox import ToolCall
 
     text = "a cylinder, 40mm diameter, 30mm tall, with a 12mm diameter bore through it"
-    args = {"target": 0, "radius": 99.0, "depth": 5.0, "center": [0, 0, 0], "axis": "z"}
-    overridden = _override_bore_hole_dimensions("drill_hole", args, text)
-    assert overridden["radius"] == 6.0
-    assert overridden["depth"] == 5.0  # untouched -- this override is scoped to the radius field only
+    program = [
+        ToolCall(op="add_cylinder", args={"radius": 20.0, "height": 30.0, "center": [0, 0, 0], "axis": "z"}),
+        ToolCall(op="drill_hole", args={"target": 0, "radius": 99.0, "depth": 5.0, "center": [0, 0, 0], "axis": "z"}),
+    ]
+    result = assign_requirements(extract_dimension_requirements(text), [], program)
+    assert result.program[1].args["radius"] == 6.0
+    assert result.program[1].args["depth"] == 5.0  # untouched -- no depth claim in this text
 
 
-def test_override_bore_hole_dimensions_handles_bore_before_the_number_too():
-    from program_model import _override_bore_hole_dimensions
+def test_dimension_assignment_handles_bore_before_the_number_too():
+    from dimension_assignment import assign_requirements
+    from dimension_requirements import extract_dimension_requirements
+    from sandbox import ToolCall
 
     text = "a boss with a bore of 8mm through the plate"
-    args = {"target": 0, "direction": "+z", "offset_u": 0.0, "offset_v": 0.0, "boss_radius": 20.0, "boss_height": 10.0, "bore_radius": 99.0}
-    overridden = _override_bore_hole_dimensions("add_boss_with_bore", args, text)
-    assert overridden["bore_radius"] == 4.0
+    program = [
+        ToolCall(op="add_box", args={"length": 50.0, "width": 50.0, "height": 10.0, "center": [0, 0, 0]}),
+        ToolCall(op="add_boss_with_bore", args={"target": 0, "direction": "+z", "offset_u": 0.0, "offset_v": 0.0, "boss_radius": 20.0, "boss_height": 10.0, "bore_radius": 99.0}),
+    ]
+    result = assign_requirements(extract_dimension_requirements(text), [], program)
+    assert result.program[1].args["bore_radius"] == 4.0
 
 
-def test_override_bore_hole_dimensions_does_nothing_without_an_explicit_bore_claim():
+def test_dimension_assignment_does_nothing_without_an_explicit_bore_claim():
     """Never a guessed mapping: with no "Nmm bore/hole" phrasing at all,
     the regressor's own prediction is left untouched."""
-    from program_model import _override_bore_hole_dimensions
+    from dimension_assignment import assign_requirements
+    from dimension_requirements import extract_dimension_requirements
+    from sandbox import ToolCall
 
-    args = {"target": 0, "radius": 7.5, "depth": 5.0, "center": [0, 0, 0], "axis": "z"}
-    overridden = _override_bore_hole_dimensions("drill_hole", args, "a cylinder 40mm diameter, 30mm tall")
-    assert overridden is args or overridden["radius"] == 7.5
+    text = "a cylinder 40mm diameter, 30mm tall"
+    program = [
+        ToolCall(op="add_cylinder", args={"radius": 20.0, "height": 30.0, "center": [0, 0, 0], "axis": "z"}),
+        ToolCall(op="drill_hole", args={"target": 0, "radius": 7.5, "depth": 5.0, "center": [0, 0, 0], "axis": "z"}),
+    ]
+    result = assign_requirements(extract_dimension_requirements(text), [], program)
+    assert result.program[1].args["radius"] == 7.5
 
 
-def test_override_bore_hole_dimensions_does_not_apply_to_unrelated_ops():
-    """Scoped to the small, explicit _BORE_HOLE_RADIUS_FIELD map -- an op
-    with no corresponding entry (e.g. the base shape itself) is passed
-    through unchanged, never guessed at."""
-    from program_model import _override_bore_hole_dimensions
+def test_dimension_assignment_does_not_apply_a_hole_diameter_to_an_unrelated_op():
+    """A requirement's own parameter type (hole_diameter) is only ever
+    matched against an op whose OPERATION_PARAMETER_SEMANTICS registry
+    entry declares it -- the base shape itself (add_cylinder) has no
+    such entry for hole_diameter, so it's left untouched, never guessed
+    at."""
+    from dimension_assignment import assign_requirements
+    from dimension_requirements import extract_dimension_requirements
+    from sandbox import ToolCall
 
-    args = {"radius": 20.0, "height": 30.0, "axis": "z", "center": [0, 0, 0]}
-    overridden = _override_bore_hole_dimensions("add_cylinder", args, "a cylinder with a 12mm diameter bore")
-    assert overridden is args
+    text = "a cylinder with a 12mm diameter bore"
+    program = [ToolCall(op="add_cylinder", args={"radius": 20.0, "height": 30.0, "axis": "z", "center": [0, 0, 0]})]
+    result = assign_requirements(extract_dimension_requirements(text), [], program)
+    assert result.program[0].args["radius"] == 20.0
 
 
 def test_override_gear_dimensions_matches_every_field_by_its_own_label():

@@ -1,0 +1,123 @@
+{
+  "id": "A09",
+  "category": "A",
+  "prompt": "A 60 mm cylindrical boss on a 100 x 100 x 10 mm plate.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 4.992585539934225,
+  "error": null,
+  "overall_status": "INCOMPLETE",
+  "validation_report": {
+    "geometry_status": "PARTIAL",
+    "dimension_status": "FAIL",
+    "feature_status": "PASS",
+    "component_status": "FAIL",
+    "compatibility_status": "NOT_EVALUATED",
+    "requirement_status": "FAIL",
+    "overall_status": "FAIL",
+    "validation_errors": [
+      "component 'plate_type_A' (plate): requested 10, decomposition produced only 1 distinct 'plate' point(s)"
+    ],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [
+      "'A 60 mm cylindrical boss on a 100 x 100 x 10 mm plate.': 60mm does not match any measured dimension of the built geometry"
+    ],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 1,
+      "actual": 1
+    },
+    "dimensional_accuracy": 0.25,
+    "dimensional_accuracy_detail": {
+      "applicable": true,
+      "matched": [
+        10
+      ],
+      "unmatched": [
+        100,
+        100,
+        60
+      ]
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": false
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 1,
+      "total": 1
+    }
+  },
+  "failure_labels": [
+    "DIMENSION_ASSIGNMENT_FAILURE"
+  ],
+  "measured": {
+    "n_points": 1,
+    "resolution_methods": [
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [
+      {
+        "clarification_id": "CLR-001",
+        "category": "COMPONENT_COUNT_MISMATCH",
+        "severity": "blocking",
+        "question": "You asked for 10 plate(s), but 1 were generated ('10 mm plate'). Should the count be corrected to 10?",
+        "context": "10 mm plate",
+        "affected_component_ids": [
+          "plate_type_A"
+        ],
+        "affected_requirement_ids": [],
+        "candidate_answers": [
+          "build exactly 10",
+          "keep 1 as built"
+        ],
+        "recommended_answer": "build exactly 10",
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "requested 10, decomposition produced only 1 distinct 'plate' point(s)",
+        "source_stage": "component_inventory",
+        "status": "DETECTED"
+      },
+      {
+        "clarification_id": "CLR-002",
+        "category": "AMBIGUOUS_DIMENSION",
+        "severity": "blocking",
+        "question": "'A 60 mm cylindrical bo' states a number (60mm) but I can't tell which dimension it refers to -- which one did you mean?",
+        "context": "A 60 mm cylindrical boss on a 100 x 100 x 10 mm plate.",
+        "affected_component_ids": [
+          "p0"
+        ],
+        "affected_requirement_ids": [
+          "REQ-040"
+        ],
+        "candidate_answers": [],
+        "recommended_answer": null,
+        "default_allowed": false,
+        "blocking": true,
+        "reason": "an explicit numeric value could not be confidently assigned to any specific parameter",
+        "source_stage": "dimension_requirements",
+        "status": "DETECTED"
+      }
+    ],
+    "build_decision": "NEEDS_CLARIFICATION",
+    "assumptions": [],
+    "unresolved_requirements": [
+      "'A 60 mm cylindrical bo' states a number (60mm) but I can't tell which dimension it refers to -- which one did you mean?"
+    ],
+    "unsupported_requirements": []
+  }
+}

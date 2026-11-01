@@ -1,0 +1,75 @@
+{
+  "id": "F56",
+  "category": "F",
+  "prompt": "A compact screw-driven linear slide: a 200mm x 60mm x 10mm base, two 200mm x 10mm x 15mm guide rails, a 40mm x 40mm x 15mm carriage, and a 10mm diameter, 220mm long lead screw.",
+  "mode": "deterministic",
+  "completed": true,
+  "elapsed_seconds": 4.854290823917836,
+  "error": null,
+  "overall_status": "PASS",
+  "validation_report": {
+    "geometry_status": "PASS",
+    "dimension_status": "PASS",
+    "feature_status": "PASS",
+    "component_status": "PASS",
+    "compatibility_status": "PASS",
+    "requirement_status": "PASS",
+    "overall_status": "PASS",
+    "validation_errors": [],
+    "unsupported_requirements": [],
+    "unresolved_requirements": [],
+    "validation_warnings": [],
+    "repair_history": [],
+    "reconciled_claims": []
+  },
+  "scores": {
+    "generation_success": 1.0,
+    "component_completeness": 1.0,
+    "component_completeness_detail": {
+      "expected": 4,
+      "actual": 4
+    },
+    "dimensional_accuracy": 1.0,
+    "dimensional_accuracy_detail": {
+      "applicable": false
+    },
+    "feature_completeness": 1.0,
+    "feature_completeness_detail": {
+      "applicable": false
+    },
+    "assembly_compatibility": 1.0,
+    "assembly_compatibility_detail": {
+      "applicable": true,
+      "evaluations": 3,
+      "compatible": 3,
+      "statuses": [
+        "COMPATIBLE",
+        "COMPATIBLE",
+        "COMPATIBLE"
+      ]
+    },
+    "geometry_validity": 1.0,
+    "geometry_validity_detail": {
+      "watertight": 4,
+      "total": 4
+    }
+  },
+  "failure_labels": [],
+  "measured": {
+    "n_points": 4,
+    "resolution_methods": [
+      "statistical",
+      "statistical",
+      "statistical",
+      "statistical"
+    ]
+  },
+  "notes": "",
+  "clarification_report": {
+    "clarification_requests": [],
+    "build_decision": "PROCEED",
+    "assumptions": [],
+    "unresolved_requirements": [],
+    "unsupported_requirements": []
+  }
+}
