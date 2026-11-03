@@ -2025,20 +2025,54 @@
 
   const statusDot = document.getElementById('heroStatusDot');
 
+  // "FrontUpperArmL" -> "Front Upper Arm L"
+  function humanizeEntityName(name) {
+    return name.replace(/([a-z])([A-Z])/g, '$1 $2');
+  }
+
+  const BUILD_FLAVOR_TEXT = [
+    'Resolving relationships…',
+    'Running boolean passes…',
+    'Stitching parts into one mesh…',
+    'Checking for a watertight result…',
+  ];
+
+  // for long builds (the F1 car's 34 parts, ~16-20s) a single static
+  // "Building…" line with just a spinner reads as stuck well before it's
+  // actually done -- cycle through the real part names plus a few process
+  // beats instead, so the wait reads as work happening, not a hang.
+  function buildCycleMessages(spec) {
+    const messages = [];
+    spec.entities.forEach((entity, i) => {
+      messages.push(`Building ${humanizeEntityName(entity.name)}…`);
+      if ((i + 1) % 4 === 0) {
+        messages.push(BUILD_FLAVOR_TEXT[Math.floor(i / 4) % BUILD_FLAVOR_TEXT.length]);
+      }
+    });
+    return messages;
+  }
+
   async function buildShowcase(key) {
     const spec = SHOWCASES[key];
     if (!spec) return;
 
     container.classList.add('loading');
     if (statusDot) statusDot.classList.add('live');
+
+    let cycleTimer = null;
     if (heroStatusText) {
-      // the F1 car (34 entities) takes ~16-20s to build, long enough that a
-      // bare "Building…" with no explanation reads as stuck rather than
-      // working -- name the part count so the wait makes sense.
       const partCount = spec.entities ? spec.entities.length : 1;
-      heroStatusText.textContent = partCount > 10
-        ? `Building "${spec.label}" — ${partCount} parts, worth the wait…`
-        : `Building "${spec.label}"…`;
+      if (partCount > 10) {
+        const messages = buildCycleMessages(spec);
+        let i = 0;
+        heroStatusText.textContent = messages[0];
+        cycleTimer = setInterval(() => {
+          i = (i + 1) % messages.length;
+          heroStatusText.textContent = messages[i];
+        }, 850);
+      } else {
+        heroStatusText.textContent = `Building "${spec.label}"…`;
+      }
     }
 
     try {
@@ -2092,6 +2126,7 @@
     } finally {
       container.classList.remove('loading');
       if (statusDot) statusDot.classList.remove('live');
+      if (cycleTimer) clearInterval(cycleTimer);
     }
   }
 
