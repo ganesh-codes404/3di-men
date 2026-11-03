@@ -21,6 +21,7 @@ import numpy as np
 import trimesh
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
+from assembly_plan import Relationship
 from build_logger import log_build
 from llm_decompose import ActionablePoint, _parse_relationship, ask_clarifying_questions, fold_answers_into_prompt
 from parallel_builder import build_assembly_from_points, build_assembly_from_programs, build_assembly_from_prompt
@@ -102,6 +103,40 @@ def _parse_rotation(raw) -> tuple[float, float, float]:
     if isinstance(raw, (list, tuple)) and len(raw) == 3:
         return (float(raw[0] or 0.0), float(raw[1] or 0.0), float(raw[2] or 0.0))
     return (0.0, 0.0, 0.0)
+
+
+_MANUAL_CONSOLE_RELATIONSHIP_KINDS = {"attached_to_face", "concentric_with", "symmetric_about", "parallel_to", "abutted_to"}
+
+
+def _parse_entity_relationship(raw) -> Relationship | None:
+    """The tool console's own relationship parser for /api/execute_programs
+    entities -- mirrors llm_decompose._parse_relationship's exact field
+    handling, but deliberately kept SEPARATE from it (not just an extra
+    kind added to that shared function): llm_decompose._RELATIONSHIP_KINDS
+    also builds the LLM's own constrained-decoding JSON schema
+    (_POINTS_JSON_SCHEMA), so adding abutted_to there would make it
+    reachable by the LLM's own decomposition output. abutted_to is a new,
+    not-yet-LLM-reviewed relationship (see assembly_plan.py's own module
+    docstring and the axial-contact-gap audit it came out of) -- it must
+    stay reachable only through a user hand-authoring a console entity's
+    relationship directly (this route), never through decompose_prompt."""
+    if not isinstance(raw, dict):
+        return None
+    kind = raw.get("kind")
+    target_id = raw.get("target_id")
+    if kind not in _MANUAL_CONSOLE_RELATIONSHIP_KINDS or not isinstance(target_id, str) or not target_id:
+        return None
+    try:
+        return Relationship(
+            kind=kind, target_id=target_id,
+            face=raw.get("face"), offset_u=float(raw.get("offset_u", 0.0) or 0.0),
+            offset_v=float(raw.get("offset_v", 0.0) or 0.0), standoff=float(raw.get("standoff", 0.0) or 0.0),
+            axis=raw.get("axis"), axis_offset=float(raw.get("axis_offset", 0.0) or 0.0),
+            lateral_axis=raw.get("lateral_axis"), lateral_offset=float(raw.get("lateral_offset", 0.0) or 0.0),
+            abutment_direction=raw.get("abutment_direction"),
+        )
+    except (TypeError, ValueError):
+        return None
 
 
 def _parse_point_program_override(raw_program) -> list[dict] | None:
@@ -380,7 +415,14 @@ def api_execute_programs():
     rotation) -- exactly the same combine-by-placement logic /api/build
     already uses for LLM-decomposed parts, just fed by raw programs instead
     of program_model predictions. `rotation_deg` is optional per entity and
-    defaults to no rotation (see _parse_rotation)."""
+    defaults to no rotation (see _parse_rotation).
+
+    `relationship` is also optional per entity (see
+    _parse_entity_relationship) -- when present and valid, it OVERRIDES
+    that entity's own position_mm/rotation_deg with a position/rotation
+    computed from the TARGET entity's own real built geometry (by name),
+    the same discipline /api/build already applies for LLM/manual points,
+    now also available to hand-authored console entities."""
     body = request.get_json(silent=True) or {}
     entities = []
     for item in body.get("entities") or []:
@@ -390,7 +432,10 @@ def api_execute_programs():
         if not program:
             continue
         name = str(item.get("name", "")).strip() or "part"
-        entities.append((name, program, _parse_position(item.get("position_mm")), _parse_rotation(item.get("rotation_deg"))))
+        entities.append((
+            name, program, _parse_position(item.get("position_mm")), _parse_rotation(item.get("rotation_deg")),
+            _parse_entity_relationship(item.get("relationship")),
+        ))
     if not entities:
         return jsonify({"error": "no entities with a program"}), 400
 
@@ -418,6 +463,12 @@ def api_execute_programs():
                 "error": e.error,
                 "mesh_url": _export_mesh(e.mesh) if e.mesh is not None else None,
                 "topology": e.topology,
+                # Non-None only when this entity carried a relationship
+                # that resolved successfully -- the ACTUAL computed
+                # placement, distinct from whatever raw position_mm/
+                # rotation_deg it was sent with.
+                "resolved_position_mm": list(e.resolved_position_mm) if e.resolved_position_mm is not None else None,
+                "resolved_rotation_deg": list(e.resolved_rotation_deg) if e.resolved_rotation_deg is not None else None,
             }
             for e in result.entities
         ],

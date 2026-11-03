@@ -8,9 +8,10 @@ import pytest
 
 pytest.importorskip("sklearn")
 
+from assembly_plan import Relationship
 from data.program_dataset import sample_program_dataset, write_program_dataset
 from llm_decompose import ActionablePoint, DecomposeResult
-from parallel_builder import build_assembly_from_points
+from parallel_builder import build_assembly_from_points, build_assembly_from_programs
 from program_model import ProgramModelConfig, train_program_model
 
 
@@ -750,3 +751,137 @@ def test_overall_status_incomplete_for_an_empty_assembly():
     from parallel_builder import AssemblyBuildResult
 
     assert AssemblyBuildResult(mesh=None, points=[], fell_back_to_single_point=False).overall_status == "INCOMPLETE"
+
+
+# ---- build_assembly_from_programs (the manual tool-console path) ----
+
+def _box_program(size: float = 20.0) -> list:
+    from sandbox import ToolCall
+
+    return [
+        ToolCall(op="add_box", args={"length": size, "width": size, "height": size, "center": [0, 0, 0]}),
+        ToolCall(op="finalize", args={"target": 0}),
+    ]
+
+
+def test_build_assembly_from_programs_with_no_relationships_is_unchanged():
+    """relationship=None for every entity must reduce exactly to the prior
+    translation-only behavior -- the baseline this function always had,
+    before any relationship support existed."""
+    entities = [
+        ("A", _box_program(20), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), None),
+        ("B", _box_program(20), (50.0, 0.0, 0.0), (0.0, 0.0, 0.0), None),
+    ]
+    result = build_assembly_from_programs(entities)
+    assert [e.name for e in result.entities] == ["A", "B"]
+    assert all(e.status == "ok" for e in result.entities)
+    assert all(e.resolved_position_mm is None for e in result.entities)
+    assert result.mesh is not None
+    assert result.mesh.extents[0] > 50  # genuinely separated, same as before relationship support existed
+
+
+def test_build_assembly_from_programs_abutted_to_overrides_the_given_position():
+    """The exact mechanism behind the F1 car demo fix: an entity's own
+    hand-entered position_mm/rotation_deg is a fallback the relationship
+    OVERRIDES once it resolves -- here a deliberately wrong position_mm
+    (0,0,0, which would overlap the target) must end up correctly placed
+    flush against the target's own real built geometry instead."""
+    entities = [
+        ("Base", _box_program(40), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), None),
+        ("Cap", _box_program(10), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+         Relationship(kind="abutted_to", target_id="Base", axis="z", abutment_direction="+")),
+    ]
+    result = build_assembly_from_programs(entities)
+    by_name = {e.name: e for e in result.entities}
+    assert by_name["Base"].status == "ok"
+    assert by_name["Cap"].status == "ok"
+    assert by_name["Cap"].resolved_position_mm == pytest.approx((0.0, 0.0, 25.0))  # 20 (base top) + 5 (cap half)
+    assert by_name["Cap"].resolved_rotation_deg == pytest.approx((0.0, 0.0, 0.0))
+
+    from parallel_builder import PlacementTransform
+
+    placed_cap = (
+        PlacementTransform.translation(by_name["Cap"].resolved_position_mm)
+        .compose(PlacementTransform.rotation(by_name["Cap"].resolved_rotation_deg))
+        .apply_to_mesh(by_name["Cap"].mesh)
+    )
+    assert placed_cap.bounds[0][2] == pytest.approx(by_name["Base"].mesh.bounds[1][2])  # flush, not the given (0,0,0)
+
+
+def test_build_assembly_from_programs_builds_in_dependency_order_regardless_of_list_order():
+    """Cap is listed FIRST, before its own relationship target Base --
+    order_by_dependency must still build Base first so Cap's relationship
+    has something real to resolve against, and the final entities list
+    must still come back in the ORIGINAL given order, not build order."""
+    entities = [
+        ("Cap", _box_program(10), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+         Relationship(kind="abutted_to", target_id="Base", axis="z", abutment_direction="+")),
+        ("Base", _box_program(40), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), None),
+    ]
+    result = build_assembly_from_programs(entities)
+    assert [e.name for e in result.entities] == ["Cap", "Base"]  # original order preserved
+    by_name = {e.name: e for e in result.entities}
+    assert by_name["Cap"].status == "ok"
+    assert by_name["Cap"].resolved_position_mm == pytest.approx((0.0, 0.0, 25.0))
+
+
+def test_build_assembly_from_programs_rejects_a_dangling_relationship_target():
+    entities = [
+        ("Cap", _box_program(10), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+         Relationship(kind="abutted_to", target_id="NoSuchEntity", axis="z", abutment_direction="+")),
+    ]
+    result = build_assembly_from_programs(entities)
+    assert result.entities[0].status == "rejected"
+    assert "RelationshipError" in result.entities[0].error
+    assert result.mesh is None
+
+
+def test_build_assembly_from_programs_rejects_a_relationship_cycle_before_building_anything():
+    entities = [
+        ("A", _box_program(10), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+         Relationship(kind="abutted_to", target_id="B", axis="z", abutment_direction="+")),
+        ("B", _box_program(10), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+         Relationship(kind="abutted_to", target_id="A", axis="z", abutment_direction="+")),
+    ]
+    result = build_assembly_from_programs(entities)
+    assert all(e.status == "rejected" for e in result.entities)
+    assert result.mesh is None
+
+
+def test_build_assembly_from_programs_a_dangling_relationship_rejects_the_whole_batch():
+    """Same structural-validity discipline build_assembly_from_points
+    already applies: a dangling reference is caught BEFORE anything is
+    built, rejecting every entity (not just the one with the bad
+    relationship) -- a malformed plan is never partially built."""
+    entities = [
+        ("Good", _box_program(20), (100.0, 0.0, 0.0), (0.0, 0.0, 0.0), None),
+        ("Cap", _box_program(10), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+         Relationship(kind="abutted_to", target_id="NoSuchEntity", axis="z", abutment_direction="+")),
+    ]
+    result = build_assembly_from_programs(entities)
+    by_name = {e.name: e for e in result.entities}
+    assert by_name["Good"].status == "rejected"
+    assert by_name["Cap"].status == "rejected"
+    assert result.mesh is None
+
+
+def test_build_assembly_from_programs_other_entities_still_build_when_one_entitys_own_program_fails():
+    """A genuinely independent per-entity failure (a bad handle reference
+    in ONE entity's own tool program, nothing to do with relationships)
+    must not take down the others -- same behavior this function always
+    had, confirmed still true now that relationship resolution sits
+    alongside it."""
+    from sandbox import ToolCall
+
+    bad_program = [ToolCall(op="add_box", args={"length": 20, "width": 20, "height": 20, "center": [0, 0, 0]}),
+                   ToolCall(op="translate", args={"target": 99, "dx": 1, "dy": 0, "dz": 0}),
+                   ToolCall(op="finalize", args={"target": 1})]
+    entities = [
+        ("Good", _box_program(20), (100.0, 0.0, 0.0), (0.0, 0.0, 0.0), None),
+        ("Bad", bad_program, (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), None),
+    ]
+    result = build_assembly_from_programs(entities)
+    by_name = {e.name: e for e in result.entities}
+    assert by_name["Good"].status == "ok"
+    assert by_name["Bad"].status == "rejected"
+    assert result.mesh is not None  # Good's own mesh still forms a combined assembly
