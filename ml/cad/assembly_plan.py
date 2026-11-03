@@ -36,14 +36,42 @@ from typing import Literal
 import numpy as np
 import trimesh
 
-RelationshipKind = Literal["attached_to_face", "concentric_with", "symmetric_about", "parallel_to"]
+RelationshipKind = Literal["attached_to_face", "concentric_with", "symmetric_about", "parallel_to", "abutted_to"]
 FaceDirection = Literal["+x", "-x", "+y", "-y", "+z", "-z"]
 Axis = Literal["x", "y", "z"]
+AbutmentDirection = Literal["+", "-"]
 
 _FACE_DIRECTION_VECTORS: dict[str, list[int]] = {
     "+x": [1, 0, 0], "-x": [-1, 0, 0], "+y": [0, 1, 0], "-y": [0, -1, 0], "+z": [0, 0, 1], "-z": [0, 0, -1],
 }
 _AXIS_INDEX = {"x": 0, "y": 1, "z": 2}
+
+# abutted_to's own contact-face guard (see resolve_position's abutted_to
+# branch): find_facet_by_direction happily returns the best-aligned flat
+# facet no matter how small -- by design, it only answers "is there a flat
+# facet facing this way at all," not "is it big enough to be a real contact
+# surface" (see its own docstring: "even a freshly-created box's faces...
+# must be selectable"). A post-boolean mesh can have a stray, near-zero-area
+# sliver facet (a re-triangulation artifact, see mesh_quality.py's own
+# module docstring) that happens to face the right way and would otherwise
+# be accepted as "the" contact face. A small, fixed ABSOLUTE floor (not
+# scaled to either part's size) is deliberately the narrowest fix: it
+# rejects a sub-mm^2 sliver without rejecting any genuinely small real
+# part's end face (the smallest fixture this project tests against, an
+# 8mm-diameter shaft end, is ~50mm^2 -- 50x this floor).
+_MIN_CONTACT_FACE_AREA_MM2 = 1.0
+
+
+def _facet_outer_area(face) -> float:
+    """Polygon area of a SelectedFace's own outer boundary ring (shoelace
+    formula -- the same math find_facet_by_direction already applies
+    internally to tell its outer ring from any hole rings), used only to
+    reject a facet too small to be a real contact surface. Holes are not
+    subtracted: this is a lower bound on how big the facet looks, used
+    purely as a sliver-rejection floor, not a precise contact-area
+    measurement."""
+    x, y = face.outer[:, 0], face.outer[:, 1]
+    return abs(0.5 * float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
 
 
 @dataclass
@@ -81,6 +109,21 @@ class Relationship:
     # lateral_offset directly from real gear math instead of guessing.
     lateral_axis: Axis | None = None
     lateral_offset: float = 0.0
+    # abutted_to only: which end of the TARGET, along `axis`, own_mesh
+    # touches -- "+" = target's own +axis-max face (own_mesh sits beyond
+    # it, extending further +axis); "-" = target's own -axis-min face
+    # (own_mesh sits beyond it, extending further -axis). Required
+    # whenever kind == "abutted_to" (validate_relationships rejects a
+    # missing/invalid value before any geometry is built) and NEVER
+    # inferred from axis_offset/standoff/either part's own dimensions --
+    # exactly this project's standing policy of an explicit typed field
+    # over a silently-guessed one (see symmetric_about's own
+    # RelationshipError in resolve_position for the same policy applied
+    # to a different ambiguity). Reuses `standoff` (already defined above)
+    # for its own clearance: 0 = flush, positive = a deliberate gap,
+    # negative = deliberate planned interference -- same field, same sign
+    # convention attached_to_face already uses, not reinvented.
+    abutment_direction: AbutmentDirection | None = None
 
 
 class RelationshipError(Exception):
@@ -99,6 +142,12 @@ def validate_relationships(ids: list[str], relationships: dict[str, Relationship
             raise RelationshipError(f"part {pid!r} references itself")
         if rel.target_id not in id_set:
             raise RelationshipError(f"part {pid!r} references unknown part {rel.target_id!r}")
+        if rel.kind == "abutted_to" and rel.abutment_direction not in ("+", "-"):
+            raise RelationshipError(
+                f"part {pid!r} has kind='abutted_to' but abutment_direction={rel.abutment_direction!r} -- "
+                "must be explicitly '+' or '-'; it is never inferred from axis_offset, standoff, or either "
+                "part's own dimensions"
+            )
 
     WHITE, GRAY, BLACK = 0, 1, 2
     color = {pid: WHITE for pid in ids}
@@ -315,6 +364,75 @@ def resolve_position(relationship: Relationship, target_mesh: trimesh.Trimesh, o
         world_pos = attach_point + unit_normal * offset_along_normal
         return (float(world_pos[0]), float(world_pos[1]), float(world_pos[2]))
 
+    if relationship.kind == "abutted_to":
+        # Geometry-grounded end-to-end/stacked contact: unlike
+        # concentric_with/parallel_to's axis_offset (a raw, ungrounded
+        # number the caller must get exactly right by hand -- the
+        # confirmed root cause of this project's axial-contact-gap audit),
+        # this reads BOTH real built meshes' own actual extents and
+        # computes the contact coordinate directly, the same discipline
+        # attached_to_face already applies to a target's face position.
+        #
+        # direction is never inferred (validate_relationships already
+        # rejected a missing/invalid one before this ever runs; re-checked
+        # here too since resolve_position is a public function other
+        # callers could reach directly, e.g. in tests, without going
+        # through validate_relationships first).
+        if relationship.abutment_direction not in ("+", "-"):
+            raise RelationshipError(
+                f"abutted_to requires an explicit abutment_direction of '+' or '-' (got "
+                f"{relationship.abutment_direction!r})"
+            )
+        from mesh_quality import find_facet_by_direction
+
+        idx = _AXIS_INDEX[relationship.axis or "z"]
+        sign = 1.0 if relationship.abutment_direction == "+" else -1.0
+        world_direction = np.zeros(3)
+        world_direction[idx] = sign
+
+        # Both intended contact surfaces must be real, meaningfully-sized
+        # flat faces before their bounds are trusted -- never assume the
+        # target's/own part's axis extreme IS the contact face just
+        # because it's the AABB extreme (a curved end, e.g. a dome's apex
+        # or a capsule's rounded cap, has no flat facet here at all and
+        # find_facet_by_direction correctly returns None; a stray post-
+        # boolean sliver facet is rejected by the area floor above).
+        target_face = find_facet_by_direction(target_mesh, world_direction)
+        if target_face is None or _facet_outer_area(target_face) < _MIN_CONTACT_FACE_AREA_MM2:
+            raise RelationshipError(
+                f"abutted_to target {relationship.target_id!r} has no meaningful flat face facing "
+                f"{relationship.abutment_direction}{relationship.axis or 'z'} to abut against -- refusing to guess "
+                "a contact point from a curved or incidental surface"
+            )
+        # own_mesh's contact end is, by this project's own local-origin
+        # convention (see this function's own module-level docstring),
+        # ALWAYS its local Z minimum, read BEFORE rotation -- so its
+        # outward-facing normal, in OWN_MESH'S OWN LOCAL FRAME, is always
+        # local -Z, regardless of which signed world direction
+        # resolve_rotation_deg is about to rotate it to. This mirrors
+        # attached_to_face's own own_mesh.bounds[0][2] trick exactly: one
+        # rotation-invariant local measurement, not a world-frame one.
+        own_face = find_facet_by_direction(own_mesh, np.array([0.0, 0.0, -1.0]))
+        if own_face is None or _facet_outer_area(own_face) < _MIN_CONTACT_FACE_AREA_MM2:
+            raise RelationshipError(
+                "abutted_to: own part has no meaningful flat face at its own contact end (local Z minimum) to abut "
+                f"with target {relationship.target_id!r} -- refusing to guess a contact point from a curved or "
+                "incidental surface"
+            )
+
+        target_contact = float(target_bounds[1][idx] if sign > 0 else target_bounds[0][idx])
+        # Same formula as attached_to_face's offset_along_normal, using
+        # the SAME rotation-invariant local measurement -- own_mesh's
+        # local Z minimum is "how far the part extends behind its own
+        # origin," regardless of which signed direction it ends up
+        # rotated to. standoff reused exactly as attached_to_face defines
+        # it: 0 = flush, positive = deliberate gap, negative = deliberate
+        # interference.
+        offset_along_normal = -float(own_mesh.bounds[0][2]) + relationship.standoff
+        pos = list(target_center)
+        pos[idx] = float(target_contact + sign * offset_along_normal)
+        return (float(pos[0]), float(pos[1]), float(pos[2]))
+
     raise RelationshipError(f"unsupported relationship kind {relationship.kind!r}")
 
 
@@ -364,6 +482,15 @@ def resolve_rotation_deg(relationship: Relationship) -> tuple[float, float, floa
     if relationship.kind == "attached_to_face":
         face_dir = relationship.face or "+z"
         return _ALIGN_LOCAL_Z_TO[face_dir]
+    if relationship.kind == "abutted_to":
+        # Sign matters here, same reason attached_to_face's sign matters
+        # (see that branch above): own_mesh's body must extend AWAY from
+        # the target, not into it. "+"/"-" plus axis forms exactly the
+        # same signed key attached_to_face's face_dir already uses (e.g.
+        # "-z"), so the same lookup table applies unchanged.
+        axis = relationship.axis or "z"
+        direction = relationship.abutment_direction or "+"
+        return _ALIGN_LOCAL_Z_TO[f"{direction}{axis}"]
     return (0.0, 0.0, 0.0)
 
 
