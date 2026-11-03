@@ -49,11 +49,36 @@
   #topbar .wordmark .sep { color: var(--text-faint); font-weight: 400; }
   #topbar .back { font-size: 12px; color: var(--text-dim); text-decoration: none; padding: 6px 10px; border-radius: 7px; }
   #topbar .back:hover { color: var(--text); background: var(--bg-input); }
-  #body-row { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+  #body-row { flex: 1; display: flex; min-height: 0; overflow: hidden; position: relative; }
 
-  #panel { width: 400px; flex-shrink: 0; padding: 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; border-right: 1px solid var(--border); background: var(--bg-panel); }
+  #panelToggle {
+    display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; flex-shrink: 0;
+    transition: color 0.15s, border-color 0.15s, background 0.15s; margin-right: 10px;
+  }
+  #panelToggle:hover { color: var(--text); background: var(--bg-input); }
+  #panelToggle:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+  #panelToggle svg { width: 17px; height: 17px; }
+
+  /* same off-canvas drawer as 3di-men's own workspace -- an overlay OVER
+     the viewer, closed by default, not a flex sibling that shrinks it. */
+  #panel {
+    position: absolute; inset: 0 auto 0 0; width: 400px; max-width: 86vw; z-index: 30;
+    padding: 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto;
+    border-right: 1px solid var(--border); background: var(--bg-panel);
+    transform: translateX(-100%); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 24px 0 60px -24px rgba(0, 0, 0, 0.6);
+  }
+  #panel.open { transform: translateX(0); }
   #panel::-webkit-scrollbar { width: 8px; }
   #panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+  @media (prefers-reduced-motion: reduce) { #panel { transition: none; } }
+
+  #panelBackdrop {
+    position: absolute; inset: 0; z-index: 29; background: rgba(5, 6, 8, 0.45);
+    opacity: 0; pointer-events: none; transition: opacity 0.22s ease;
+  }
+  #panelBackdrop.show { opacity: 1; pointer-events: auto; }
 
   .brand { display: flex; align-items: center; gap: 10px; }
   .brand .mark { width: 30px; height: 30px; }
@@ -127,18 +152,61 @@
   #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   #viewer { flex: 1; position: relative; }
   #viewer canvas { display: block; width: 100%; height: 100%; }
-  #placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-faint); font-size: 13px; text-align: center; padding: 20px; }
-  #statusLine { position: absolute; bottom: 12px; left: 12px; font-size: 11px; color: var(--text-faint); font-family: var(--font-mono); z-index: 5; }
+  #placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-faint); font-size: 13px; text-align: center; padding: 20px 20px 120px; }
+
+  /* ---------- composer: the floating, bottom-center prompt bar ----------
+     same pattern as 3di-men's own workspace: #prompt/#generateBtn are the
+     SAME elements the sidebar card used to hold (moved here, not
+     duplicated), and #statusLine is the same element setStatus() already
+     writes to -- just relocated so it's visible without opening the panel. */
+  #composer {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 20;
+    width: min(700px, calc(100% - 40px)); display: flex; flex-direction: column; gap: 8px;
+  }
+  #composer #statusLine:empty { display: none; }
+  #composer #statusLine {
+    align-self: center; max-width: 100%; text-align: center; font-size: 11px;
+    background: rgba(21, 23, 28, 0.88); backdrop-filter: blur(6px); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 14px;
+  }
+  #composerBar {
+    display: flex; align-items: flex-end; gap: 8px; padding: 10px 10px 10px 18px;
+    background: rgba(17, 19, 16, 0.92); backdrop-filter: blur(10px); border: 1px solid var(--border);
+    border-radius: 22px; box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+  }
+  #composerBar textarea#prompt {
+    flex: 1; min-height: 58px; max-height: 200px; resize: none; border: none; background: transparent;
+    padding: 9px 0; box-shadow: none !important;
+  }
+  #composerBar textarea#prompt:focus { outline: 2px solid transparent; }
+  #composerBar button.primary { width: auto; flex-shrink: 0; border-radius: 14px; align-self: center; padding: 11px 18px; }
+  #composerHint { align-self: center; font-size: 11px; color: var(--text-faint); text-align: center; }
+  @media (max-width: 760px) {
+    #composer { bottom: 14px; width: calc(100% - 24px); }
+    #composerHint { display: none; }
+    #panel { width: 100%; max-width: 100%; border-right: none; }
+    /* the panelToggle button now shares this row -- keep the wordmark/back
+       link to one line each (ellipsis/compact padding) instead of letting
+       them wrap to two, same fix as 3di-men's own workspace. */
+    #topbar .wordmark { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+    #topbar .back { padding: 6px 6px; font-size: 11px; white-space: nowrap; }
+  }
 </style>
 </head>
 <body>
 
 <div id="topbar">
-  <a class="wordmark" href="/"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></span>Mitsuhub <span class="sep">/</span> Mitsugen — 3D Printing</a>
+  <div style="display:flex; align-items:center;">
+    <button id="panelToggle" aria-expanded="false" aria-controls="panel" title="Options &amp; results" aria-label="Toggle options and results">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
+    </button>
+    <a class="wordmark" href="/"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></span>Mitsuhub <span class="sep">/</span> Mitsugen — 3D Printing</a>
+  </div>
   <a class="back" href="/workspace">3di-men — CAD &rarr;</a>
 </div>
 
 <div id="body-row">
+<div id="panelBackdrop"></div>
 <div id="panel">
   <div class="brand">
     <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></div>
@@ -147,8 +215,7 @@
   <p class="hint">A distinct generation pipeline from 3di-men's CAD engine. Plain bodies of revolution (a vase, a bottle, a bowl, a handle-less cup) go through a structured shape spec and a bounded sequence of construction slices, lofted into a real solid. Anything else — a mug with a handle, a toy car, a bracket, any object with real features or a non-round cross-section — is approximated through primitive composition (box/cylinder/sphere/cone + boolean ops) by a local LLM. Both paths are disclosed explicitly in the result; neither is claimed to be a perfect reproduction of a free-form object.</p>
 
   <div class="card">
-    <div class="card-title">Prompt</div>
-    <textarea id="prompt" rows="3" placeholder="e.g. a vase, 200mm tall, 110mm wide at the base, narrowing to 40mm at the top">a vase, 200mm tall, 110mm wide at the base, narrowing to 40mm at the top</textarea>
+    <div class="card-title">Generation options</div>
     <label class="field">Maximum construction slices
       <input type="number" id="maxSlices" value="12" min="1">
     </label>
@@ -165,7 +232,6 @@
       <input type="number" id="wallThickness" value="3" min="0.5" step="0.5" style="width:70px;margin-left:auto;" disabled>
       <span style="font-size:11px;color:var(--text-faint);">mm wall</span>
     </div>
-    <button class="primary" id="generateBtn">Generate</button>
   </div>
 
   <div id="statusCard" class="card" style="display:none;">
@@ -213,8 +279,20 @@
 
 <div id="main">
   <div id="viewer">
-    <div id="placeholder">Describe an object and click Generate.<br>Plain vessels (vase/bottle/bowl/cup) are lofted exactly from a shape spec. Anything with real features (a handle, wheels, a non-round body) is approximated via primitive composition instead — disclosed either way.</div>
-    <div id="statusLine"></div>
+    <div id="placeholder">Describe an object in the bar below and click Generate.<br>Plain vessels (vase/bottle/bowl/cup) are lofted exactly from a shape spec. Anything with real features (a handle, wheels, a non-round body) is approximated via primitive composition instead — disclosed either way.</div>
+
+    <!-- the ChatGPT/Claude-web composer: #prompt/#generateBtn are the SAME
+         elements the sidebar card used to hold (moved here, not
+         duplicated); #statusLine is likewise the real element setStatus()
+         already writes to. -->
+    <div id="composer">
+      <div id="statusLine"></div>
+      <div id="composerBar">
+        <textarea id="prompt" rows="1" placeholder="e.g. a vase, 200mm tall, 110mm wide at the base, narrowing to 40mm at the top">a vase, 200mm tall, 110mm wide at the base, narrowing to 40mm at the top</textarea>
+        <button class="primary" id="generateBtn">Generate</button>
+      </div>
+      <div id="composerHint">options &amp; results in the panel, top left</div>
+    </div>
   </div>
 </div>
 </div>
@@ -237,6 +315,25 @@
 import * as THREE from 'three';
 import { STLLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/STLLoader.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+/* ---------------- panel (options & results drawer) ----------------
+   Closed by default -- the viewer + the floating composer are the whole
+   screen at rest, same pattern as 3di-men's own workspace. Toggle button,
+   backdrop click, and Escape all close it. */
+const panelEl = document.getElementById('panel');
+const panelToggle = document.getElementById('panelToggle');
+const panelBackdrop = document.getElementById('panelBackdrop');
+
+function setPanelOpen(open) {
+  panelEl.classList.toggle('open', open);
+  panelBackdrop.classList.toggle('show', open);
+  panelToggle.setAttribute('aria-expanded', String(open));
+}
+panelToggle.addEventListener('click', () => setPanelOpen(!panelEl.classList.contains('open')));
+panelBackdrop.addEventListener('click', () => setPanelOpen(false));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && panelEl.classList.contains('open')) setPanelOpen(false);
+});
 
 const viewerEl = document.getElementById('viewer');
 const placeholder = document.getElementById('placeholder');
@@ -326,6 +423,17 @@ function setStatus(msg, isError) {
 document.getElementById('hollowCheckbox').addEventListener('change', (e) => {
   document.getElementById('wallThickness').disabled = !e.target.checked;
 });
+
+// Auto-grow the composer textarea (CSS sets resize:none on it) as the
+// real ChatGPT/Claude-web composers do -- reset to auto first so it can
+// also SHRINK back down, not just grow.
+const promptTextarea = document.getElementById('prompt');
+function autoGrowPrompt() {
+  promptTextarea.style.height = 'auto';
+  promptTextarea.style.height = Math.min(promptTextarea.scrollHeight, 200) + 'px';
+}
+promptTextarea.addEventListener('input', autoGrowPrompt);
+autoGrowPrompt(); // the textarea starts pre-filled with an example prompt, not empty
 
 function renderStat(container, label, value, cls) {
   const div = document.createElement('div');

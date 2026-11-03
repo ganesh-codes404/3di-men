@@ -70,15 +70,42 @@
   #topbar .back:hover, #topbar .print-lab-link:hover { color: var(--text); background: var(--bg-input); }
   #topbar .back:focus-visible, #topbar .print-lab-link:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
   #topbar .right { display: flex; align-items: center; gap: 2px; }
-  #body-row { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+  #body-row { flex: 1; display: flex; min-height: 0; overflow: hidden; position: relative; }
 
-  /* ---------- side panel ---------- */
-  #panel {
-    width: 400px; flex-shrink: 0; padding: 22px; display: flex; flex-direction: column;
-    gap: 16px; overflow-y: auto; border-right: 1px solid var(--border); background: var(--bg-panel);
+  /* ---------- panel toggle ---------- */
+  #panelToggle {
+    display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; flex-shrink: 0;
+    transition: color 0.15s, border-color 0.15s, background 0.15s; margin-right: 4px;
   }
+  #panelToggle:hover { color: var(--text); background: var(--bg-input); }
+  #panelToggle:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+  #panelToggle svg { width: 17px; height: 17px; }
+
+  /* ---------- side panel ----------
+     an off-canvas drawer OVER the viewer (position:absolute, not a flex
+     sibling that shrinks it) -- the viewport stays full-bleed whether the
+     panel is open or closed, the ChatGPT/Claude-web pattern this was asked
+     to match, rather than the old permanently-docked 400px column. Closed
+     by default: every option/result lives behind the toggle, the viewer +
+     the floating composer below are the only things on screen at rest. */
+  #panel {
+    position: absolute; inset: 0 auto 0 0; width: 400px; max-width: 86vw; z-index: 30;
+    padding: 22px; display: flex; flex-direction: column;
+    gap: 16px; overflow-y: auto; border-right: 1px solid var(--border); background: var(--bg-panel);
+    transform: translateX(-100%); transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+    box-shadow: 24px 0 60px -24px rgba(0, 0, 0, 0.6);
+  }
+  #panel.open { transform: translateX(0); }
   #panel::-webkit-scrollbar { width: 8px; }
   #panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+  @media (prefers-reduced-motion: reduce) { #panel { transition: none; } }
+
+  #panelBackdrop {
+    position: absolute; inset: 0; z-index: 29; background: rgba(5, 6, 8, 0.45);
+    opacity: 0; pointer-events: none; transition: opacity 0.22s ease;
+  }
+  #panelBackdrop.show { opacity: 1; pointer-events: auto; }
 
   .brand { display: flex; align-items: center; gap: 10px; }
   .brand .mark { width: 30px; height: 30px; }
@@ -331,8 +358,49 @@
   #viewer canvas { display: block; }
   #placeholder {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: var(--text-faint); font-size: 13px; text-align: center; padding: 40px; line-height: 1.6;
+    color: var(--text-faint); font-size: 13px; text-align: center; padding: 40px 40px 120px; line-height: 1.6;
   }
+
+  /* ---------- composer: the floating, bottom-center prompt bar ----------
+     Lives inside #viewer (already position:relative), the same pattern as
+     every other viewer overlay (toolbar, view cube, ref-planes toggle)
+     rather than a new positioning context -- a real ChatGPT/Claude-web
+     composer, not a sidebar field: the actual #prompt textarea and
+     #continueBtn were MOVED here from the panel (same elements, same ids,
+     so every existing listener keeps working untouched), leaving the
+     panel for the hint text, examples, and build results. Hidden outright
+     on the Tool Console tab, which has no single prompt to submit. */
+  #composer {
+    position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 20;
+    width: min(700px, calc(100% - 40px)); display: flex; flex-direction: column; gap: 8px;
+  }
+  #composer.hide { display: none; }
+  /* #status is the SAME element setStatus()/startStatusTimer() already
+     write to -- relocated here (not duplicated), so the live "building…
+     mm:ss elapsed" timer stays visible without opening the panel. */
+  #composer #status:empty { display: none; }
+  #composer #status {
+    align-self: center; max-width: 100%; text-align: center;
+    background: rgba(21, 23, 28, 0.88); backdrop-filter: blur(6px); border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 14px;
+  }
+  #composerBar {
+    display: flex; align-items: flex-end; gap: 8px; padding: 10px 10px 10px 18px;
+    background: rgba(17, 19, 16, 0.92); backdrop-filter: blur(10px); border: 1px solid var(--border);
+    border-radius: 22px; box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+  }
+  #composerBar textarea#prompt {
+    /* min-height includes the 9px+9px padding (global box-sizing:border-box)
+       -- 58px is sized for the PLACEHOLDER wrapping to 2 lines on a narrow
+       phone (it was clipping to ~37px before, cutting the second line off
+       against the screen edge), not just a single typed line. */
+    flex: 1; min-height: 58px; max-height: 200px; resize: none; border: none; background: transparent;
+    padding: 9px 0; box-shadow: none !important;
+  }
+  #composerBar textarea#prompt:focus { outline: none; box-shadow: none; }
+  #composerBar button.primary { border-radius: 14px; flex-shrink: 0; }
+  #composerHint { align-self: center; font-size: 11px; color: var(--text-faint); text-align: center; }
+  @media (max-width: 760px) { #composer { bottom: 14px; width: calc(100% - 24px); } #composerHint { display: none; } }
   #viewerOverlay {
     position: absolute; top: 16px; left: 16px; display: none; flex-direction: column; gap: 6px;
     background: rgba(21, 23, 28, 0.82); backdrop-filter: blur(6px); border: 1px solid var(--border);
@@ -398,13 +466,23 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ---------- narrow screens: stack panel above viewport instead of shrinking it ---------- */
+  /* ---------- narrow screens ----------
+     the panel is already an overlay drawer at every width now (not a flex
+     sibling that used to need shrinking/stacking), so this only needs to
+     widen it to fill the phone screen and shrink the viewer's own
+     overlays -- the old "stack panel above viewport" rules are gone along
+     with the layout they were compensating for. */
   @media (max-width: 760px) {
     body { font-size: 14px; }
+    /* the panelToggle button now shares this row too, so the wordmark's
+       full breadcrumb ("Mitsuhub / 3di-men — CAD / workspace") no longer
+       fits -- truncate with an ellipsis instead of letting it wrap and
+       spill below #topbar's fixed height into the viewer underneath it. */
     #topbar .wordmark .sep, #topbar .wordmark { font-size: 13px; }
-    #body-row { flex-direction: column; }
-    #panel { width: 100%; max-height: 52vh; border-right: none; border-bottom: 1px solid var(--border); }
-    #viewer { flex: 1; min-height: 38vh; }
+    #topbar .wordmark { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+    #topbar .right { gap: 0; }
+    #topbar .print-lab-link, #topbar .back { padding: 6px 6px; font-size: 11px; white-space: nowrap; }
+    #panel { width: 100%; max-width: 100%; border-right: none; }
     #viewerToolbar, #viewerOverlay { transform: scale(0.92); transform-origin: top right; }
     #viewerOverlay { transform-origin: top left; }
   }
@@ -413,13 +491,19 @@
 <body>
 
 <div id="topbar">
-  <a class="wordmark" href="/"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></span>Mitsuhub <span class="sep">/</span> 3di-men — CAD <span class="sep">/</span> workspace</a>
+  <div style="display:flex; align-items:center;">
+    <button id="panelToggle" aria-expanded="false" aria-controls="panel" title="Options &amp; results" aria-label="Toggle options and results">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
+    </button>
+    <a class="wordmark" href="/"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></span>Mitsuhub <span class="sep">/</span> 3di-men — CAD <span class="sep">/</span> workspace</a>
+  </div>
   <div class="right">
     <a class="print-lab-link" id="topbarPrintLabLink" href="/print-lab" target="_blank" title="Analyze printability, or upload a model directly">Print Lab &#9654;</a>
     <a class="back" href="/">&larr; Back to overview</a>
   </div>
 </div>
 <div id="body-row">
+<div id="panelBackdrop"></div>
 <div id="panel">
   <div class="brand">
     <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="12" y1="3.4" x2="12" y2="1"/></svg></div>
@@ -435,11 +519,10 @@
   </div>
 
   <div id="promptTab">
-  <p class="hint">A local Qwen3-4B model (llama.cpp, in-process, no network) breaks your prompt into independently-buildable parts, asking clarifying questions first if needed. Each part is built in parallel by 3di-men's own proprietary tool-composing model — the LLM never touches geometry, only language. This runs entirely on-device with no GPU, so each step can take <strong>8–15 minutes</strong> — the elapsed timer below is live, not stuck.</p>
+  <p class="hint">A local Qwen3-4B model (llama.cpp, in-process, no network) breaks your prompt into independently-buildable parts, asking clarifying questions first if needed. Each part is built in parallel by 3di-men's own proprietary tool-composing model — the LLM never touches geometry, only language. This runs entirely on-device with no GPU, so each step can take <strong>8–15 minutes</strong> — the elapsed timer below is live, not stuck. Type the prompt in the bar at the bottom of the viewport.</p>
 
   <div class="card">
-    <div class="card-title">Prompt</div>
-    <textarea id="prompt" placeholder="e.g. a base plate with a shaft on top and a gear next to it"></textarea>
+    <div class="card-title">Example prompts</div>
     <div class="examples">
       <button class="ex" data-p="a steel shaft, 20mm diameter, 100mm long, with a spur gear next to it, module 2, 16 teeth">Shaft + gear</button>
       <button class="ex" data-p="a box 50mm x 40mm x 10mm with a cylinder 16mm diameter x 20mm tall on top">Box + cylinder</button>
@@ -448,10 +531,7 @@
       <button class="ex" data-p="a control knob 30mm diameter, 20mm tall, with a knurled grip on top">Knurled knob</button>
       <button class="ex" data-p="a rounded enclosure box 80mm x 60mm x 30mm with a screw boss in each corner">Enclosure + bosses</button>
     </div>
-    <button class="primary" id="continueBtn">Continue</button>
   </div>
-
-  <div id="status"></div>
 
   <div id="info">
     <div id="overallStatusBanner" style="display:none;"></div>
@@ -529,7 +609,22 @@
 </div>
 
 <div id="viewer">
-  <div id="placeholder">Type a prompt and click Continue to see the assembly here.<br/>Drag to rotate, scroll to zoom.</div>
+  <div id="placeholder">Type a prompt in the bar below and hit Continue to see the assembly here.<br/>Drag to rotate, scroll to zoom.</div>
+
+  <!-- the ChatGPT/Claude-web composer: #prompt and #continueBtn are the
+       SAME elements the original sidebar card used (moved here, not
+       duplicated), so requestClarification()/the keydown handler/etc. all
+       keep working with zero JS changes. #status is likewise the real
+       element setStatus()/startStatusTimer() write to. -->
+  <div id="composer">
+    <div id="status"></div>
+    <div id="composerBar">
+      <textarea id="prompt" placeholder="e.g. a base plate with a shaft on top and a gear next to it" rows="1"></textarea>
+      <button class="primary" id="continueBtn">Continue</button>
+    </div>
+    <div id="composerHint">⌘/Ctrl + Enter to build · options &amp; results in the panel, top left</div>
+  </div>
+
   <div id="viewerOverlay">
     <div class="title">Combined mesh</div>
     <div id="viewerOverlayBody"></div>
@@ -839,8 +934,24 @@ const viewerOverlayBody = document.getElementById('viewerOverlayBody');
 let pendingQuestions = [];
 
 document.querySelectorAll('.examples button.ex').forEach(btn => {
-  btn.addEventListener('click', () => { promptEl.value = btn.dataset.p; clarifyOverlay.classList.remove('show'); });
+  btn.addEventListener('click', () => {
+    promptEl.value = btn.dataset.p;
+    promptEl.dispatchEvent(new Event('input'));  // triggers the auto-grow below
+    clarifyOverlay.classList.remove('show');
+    setPanelOpen(false);  // back to the composer, now filled in, ready to build
+    promptEl.focus();
+  });
 });
+
+// Auto-grow the composer textarea as the real ChatGPT/Claude-web composers
+// do, instead of the old sidebar field's manual drag-to-resize handle
+// (CSS now sets resize:none on it) -- reset to auto first so it can also
+// SHRINK back down, not just grow.
+function autoGrowPrompt() {
+  promptEl.style.height = 'auto';
+  promptEl.style.height = Math.min(promptEl.scrollHeight, 200) + 'px';
+}
+promptEl.addEventListener('input', autoGrowPrompt);
 
 let statusTimerInterval = null;
 let statusTimerStart = null;
@@ -1334,6 +1445,27 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && clarifyOverlay.classList.contains('show')) runBuild([]);
 });
 
+/* ---------------- panel (options & results drawer) ----------------
+   Closed by default -- the viewer + the floating composer are the whole
+   screen at rest, matching the ChatGPT/Claude-web layout this was asked
+   to follow. Toggle button, backdrop click, and Escape all close it, same
+   pattern this file already uses for the clarify-questions modal below. */
+const panelEl = document.getElementById('panel');
+const panelToggle = document.getElementById('panelToggle');
+const panelBackdrop = document.getElementById('panelBackdrop');
+const composerEl = document.getElementById('composer');
+
+function setPanelOpen(open) {
+  panelEl.classList.toggle('open', open);
+  panelBackdrop.classList.toggle('show', open);
+  panelToggle.setAttribute('aria-expanded', String(open));
+}
+panelToggle.addEventListener('click', () => setPanelOpen(!panelEl.classList.contains('open')));
+panelBackdrop.addEventListener('click', () => setPanelOpen(false));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && panelEl.classList.contains('open')) setPanelOpen(false);
+});
+
 /* ---------------- tabs ---------------- */
 
 const tabPromptBtn = document.getElementById('tabPromptBtn');
@@ -1350,6 +1482,11 @@ function switchTab(which) {
   tabPromptBtn.classList.toggle('active', isPrompt);
   tabConsoleBtn.classList.toggle('active', !isPrompt);
   document.getElementById('viewerToolbar').classList.toggle('show', !isPrompt);
+  // the floating composer only makes sense for the free-text Prompt tab --
+  // the Tool Console is a structured, panel-driven workflow with no single
+  // prompt to submit, so it opens the panel instead (it's unusable closed).
+  composerEl.classList.toggle('hide', !isPrompt);
+  if (!isPrompt) setPanelOpen(true);
   mouseEditingActive = !isPrompt;
   if (isPrompt) {
     setGizmoMode(null);
