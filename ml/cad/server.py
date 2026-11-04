@@ -352,6 +352,16 @@ def api_build():
         # (which can look perfectly clean even when a required part failed)
         # should check this field first.
         "overall_status": result.overall_status,
+        # Confirmed real gap this closes (PILOT_FAILURE_INVESTIGATION.md
+        # section 5): component_count.estimate_expected_component_count's
+        # best-effort read of the ORIGINAL PROMPT text, vs how many points
+        # actually made it into mesh_url above -- None when the prompt gave
+        # no confident signal (free-form/common-object prompts are never
+        # flagged). Already folded into overall_status (FAIL when short),
+        # surfaced here too so a caller can show the actual numbers, not
+        # just the aggregate verdict.
+        "expected_component_count": result.expected_component_count,
+        "built_component_count": result.built_component_count,
     })
 
 

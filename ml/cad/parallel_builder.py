@@ -171,6 +171,25 @@ class AssemblyBuildResult:
         # beyond a declared tolerance. Each entry traces the overrun to whichever placed component
         # reaches furthest from the assembly's own center along the overrunning axis -- a diagnostic,
         # same disclosure discipline as collision_warnings, not a silent pass/fail.
+    expected_component_count: "int | None" = None  # component_count.estimate_expected_component_count(prompt)
+        # -- confirmed real gap this closes (PILOT_FAILURE_INVESTIGATION.md section 5): nothing
+        # anywhere in this pipeline previously checked whether decompose_prompt's own points covered
+        # every component the ORIGINAL PROMPT implied -- a decomposition that silently dropped one of
+        # three requested stacked cylinders, built the remaining two perfectly, still came back
+        # overall_status="PASS". None when the prompt's own text gave no confident signal (a free-form
+        # or common-object prompt -- see that function's own docstring); never populated for the
+        # manual-points path (build_assembly_from_points), which has no single originating prompt text
+        # to extract from -- only build_assembly_from_prompt sets this.
+
+    @property
+    def built_component_count(self) -> int:
+        """How many of self.points actually made it into the final combined
+        assembly -- a real mesh, not excluded by collision resolution. This
+        is the "built" side of expected_component_count's planned-vs-built
+        comparison; len(self.points) alone is the "planned" side (every
+        point decompose_prompt attempted, successful or not) -- see
+        overall_status below, which is where the two are actually compared."""
+        return sum(1 for p in self.points if p.mesh is not None and not p.excluded_from_assembly)
 
     @property
     def overall_status(self) -> str:
@@ -189,6 +208,15 @@ class AssemblyBuildResult:
           no usable mesh at all) and nothing -- not repair.py's bounded
           repair loop, not an unrelated collision's own resolution -- was
           able to rescue it. A mandatory requirement is definitively unmet.
+          OR expected_component_count is set and built_component_count
+          falls short of it -- the decomposition itself produced fewer
+          components than the ORIGINAL PROMPT implied (a component dropped
+          before a single tool call ever ran, invisible to every per-point
+          check above, which only ever sees the points that DID get
+          attempted). Reuses FAIL rather than a new status: this is the
+          same severity as a rejected point -- a mandatory requirement
+          (an implied component) is definitively unmet -- just caught one
+          stage earlier, at the planning level instead of the build level.
         - "INCOMPLETE": every point produced SOME mesh, but at least one is
           not fully trustworthy (status in {"suspect", "partial",
           "out_of_distribution"} -- built, but geometrically dubious, built
@@ -234,6 +262,8 @@ class AssemblyBuildResult:
         if not self.points:
             return "INCOMPLETE"
         if any(p.status == "rejected" for p in self.points):
+            return "FAIL"
+        if self.expected_component_count is not None and self.built_component_count < self.expected_component_count:
             return "FAIL"
         if any(p.status in ("suspect", "partial", "out_of_distribution") for p in self.points):
             return "INCOMPLETE"
@@ -785,6 +815,7 @@ def _diagnose_envelope_overrun(
 
 
 def build_assembly_from_prompt(prompt: str, bundle_path: Path, max_workers: int = 4) -> AssemblyBuildResult:
+    from component_count import estimate_expected_component_count
     from spec_validation import extract_claimed_envelope_mm
 
     decomposition = decompose_prompt(prompt)
@@ -793,6 +824,14 @@ def build_assembly_from_prompt(prompt: str, bundle_path: Path, max_workers: int 
     result.fell_back_to_single_point = decomposition.fell_back
     result.raw_llm_output = decomposition.raw_llm_output
     result.knowledge_context = decomposition.knowledge_context
+    # Never checked against a decomposition that already fell back to one
+    # whole-prompt point (decomposition.fell_back) -- that's a DIFFERENT,
+    # already-disclosed degradation (fell_back_to_single_point), and the
+    # single fallback point's own description is the whole original prompt
+    # text, which would spuriously re-trigger this same count extraction
+    # against itself.
+    if not decomposition.fell_back:
+        result.expected_component_count = estimate_expected_component_count(prompt)
     return result
 
 

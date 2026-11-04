@@ -885,3 +885,176 @@ def test_build_assembly_from_programs_other_entities_still_build_when_one_entity
     assert by_name["Good"].status == "ok"
     assert by_name["Bad"].status == "rejected"
     assert result.mesh is not None  # Good's own mesh still forms a combined assembly
+
+
+# ---- component-count cross-check (PILOT_FAILURE_INVESTIGATION.md section 5) ----
+# component_count.py's own extraction logic has its own dedicated, pure unit
+# tests (tests/test_component_count.py) -- these exercise the WIRING into
+# AssemblyBuildResult/overall_status, via the same decompose_prompt-mocking
+# pattern every other build_assembly_from_prompt test above already uses.
+
+
+def test_all_requested_components_built_is_not_flagged(tiny_bundle_path, monkeypatch):
+    import parallel_builder
+
+    points = [
+        ActionablePoint(description="a steel bracket, 60mm x 40mm x 6mm", position_mm=(0.0, 0.0, 0.0), id="bracket"),
+        ActionablePoint(description="a steel shaft, 10mm diameter, 60mm long", position_mm=(200.0, 0.0, 0.0), id="shaft"),
+    ]
+    monkeypatch.setattr(parallel_builder, "decompose_prompt", _mock_decompose(points))
+
+    result = parallel_builder.build_assembly_from_prompt("a bracket and a shaft", tiny_bundle_path, max_workers=2)
+    assert result.expected_component_count == 2
+    assert result.built_component_count == 2
+    assert result.overall_status != "FAIL"
+
+
+def test_one_requested_component_silently_dropped_is_flagged_as_fail(tiny_bundle_path, monkeypatch):
+    """The core gap PILOT_FAILURE_INVESTIGATION.md found: a decomposition
+    that silently produces FEWER points than the original prompt implied
+    (here, the mock stands in for decompose_prompt dropping the gear
+    entirely) previously came back overall_status="PASS" as long as the
+    points it DID produce all built cleanly. Must now be FAIL, with the
+    shortfall visible in expected_component_count/built_component_count,
+    not just a generic unexplained failure."""
+    import parallel_builder
+
+    # the prompt asks for 3 (bracket, shaft, gear); decompose_prompt is
+    # mocked to return only 2 -- simulating a real silent-drop decomposition
+    points = [
+        ActionablePoint(description="a steel bracket, 60mm x 40mm x 6mm", position_mm=(0.0, 0.0, 0.0), id="bracket"),
+        ActionablePoint(description="a steel shaft, 10mm diameter, 60mm long", position_mm=(200.0, 0.0, 0.0), id="shaft"),
+    ]
+    monkeypatch.setattr(parallel_builder, "decompose_prompt", _mock_decompose(points))
+
+    result = parallel_builder.build_assembly_from_prompt(
+        "a bracket, a shaft, and a gear", tiny_bundle_path, max_workers=2,
+    )
+    assert result.expected_component_count == 3
+    assert result.built_component_count == 2
+    assert result.overall_status == "FAIL"
+    # the points that DID build are still reported, not hidden just because
+    # the aggregate status is FAIL -- same "disclose, never drop" discipline
+    # every other status path in this module already follows
+    assert len(result.points) == 2
+    assert all(p.mesh is not None for p in result.points)
+
+
+def test_multiple_components_of_the_same_primitive_type_is_not_a_false_positive(tiny_bundle_path, monkeypatch):
+    """Two shafts (the same primitive TYPE, not two different parts) must
+    count as 2 expected and 2 built -- never flagged just because they
+    share a shape family. A confirmed real risk for any naive "one entry
+    per distinct part TYPE" design; this project's own count is purely
+    numeric, not type-keyed, so it's naturally immune."""
+    import parallel_builder
+
+    points = [
+        ActionablePoint(description="a steel shaft, 10mm diameter, 60mm long", position_mm=(0.0, 0.0, 0.0), id="shaft_a"),
+        ActionablePoint(description="a steel shaft, 10mm diameter, 60mm long", position_mm=(200.0, 0.0, 0.0), id="shaft_b"),
+    ]
+    monkeypatch.setattr(parallel_builder, "decompose_prompt", _mock_decompose(points))
+
+    result = parallel_builder.build_assembly_from_prompt("two shafts, side by side", tiny_bundle_path, max_workers=2)
+    assert result.expected_component_count == 2
+    assert result.built_component_count == 2
+    assert result.overall_status != "FAIL"
+
+
+def test_a_failed_component_construction_counts_toward_the_shortfall(tiny_bundle_path, monkeypatch):
+    """A component that WAS planned (present in decompose_prompt's own
+    points) but fails to actually build (status="rejected") must count
+    the same as a component the decomposition never planned at all, for
+    this check's purposes -- built_component_count only counts points that
+    actually produced a real, included mesh."""
+    import concurrent.futures
+
+    import parallel_builder
+
+    points = [
+        ActionablePoint(description="a steel bracket, 60mm x 40mm x 6mm", position_mm=(0.0, 0.0, 0.0), id="bracket"),
+        ActionablePoint(description="a steel shaft, 10mm diameter, 60mm long", position_mm=(200.0, 0.0, 0.0), id="shaft"),
+    ]
+    monkeypatch.setattr(parallel_builder, "decompose_prompt", _mock_decompose(points))
+
+    # _ImmediateExecutor below runs real_build_one in THIS process, never
+    # spawning a real worker -- so _init_worker (which a real
+    # ProcessPoolExecutor would call once per worker process to populate
+    # the per-process _worker_bundle global predict_program_checked reads)
+    # never runs on its own; called directly here instead, same effect.
+    parallel_builder._init_worker(str(tiny_bundle_path))
+
+    real_build_one = parallel_builder._build_one
+
+    def _flaky_build_one(args):
+        description, _override = args
+        if "shaft" in description:
+            return {
+                "status": "rejected", "executed_steps": 0, "error": "forced failure for test",
+                "nearest_neighbor_similarity": 0.9, "program": [], "mesh": None, "topology": None,
+                "repair_applied": False, "repair_attempts": [], "repair_dropped_a_step": False,
+                "resolution_method": "statistical", "geometry_report": None,
+            }
+        return real_build_one(args)
+
+    monkeypatch.setattr(parallel_builder, "_build_one", _flaky_build_one)
+
+    class _ImmediateExecutor:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def map(self, fn, iterable):
+            return [_flaky_build_one(x) for x in iterable]
+
+    monkeypatch.setattr(concurrent.futures, "ProcessPoolExecutor", _ImmediateExecutor)
+    monkeypatch.setattr(parallel_builder, "ProcessPoolExecutor", _ImmediateExecutor)
+
+    result = parallel_builder.build_assembly_from_prompt("a bracket and a shaft", tiny_bundle_path, max_workers=1)
+    assert result.expected_component_count == 2
+    assert result.built_component_count == 1  # the shaft's rejection means only the bracket made it in
+    assert result.overall_status == "FAIL"  # already FAIL via the plain "any point rejected" rule too --
+        # confirms the two FAIL paths agree rather than contradict each other on the same real gap
+
+
+def test_existing_free_form_prompts_are_never_flagged_by_the_component_count_check(tiny_bundle_path, monkeypatch):
+    """A common, well-known object with no recognized component-noun
+    vocabulary at all (component_count.estimate_expected_component_count
+    returns None for these -- see that module's own docstring) must never
+    be forced into FAIL by this check, preserving free-form generation
+    behavior exactly as before this feature existed."""
+    import parallel_builder
+
+    points = [ActionablePoint(
+        description="a hollow vessel: a 65mm diameter, 190mm tall body smoothly narrowing to a 25mm "
+                     "diameter, 30mm tall neck over a 25mm shoulder, 2mm walls",
+        position_mm=(0.0, 0.0, 0.0), id="body",
+    )]
+    monkeypatch.setattr(parallel_builder, "decompose_prompt", _mock_decompose(points))
+
+    result = parallel_builder.build_assembly_from_prompt("a water bottle", tiny_bundle_path, max_workers=1)
+    assert result.expected_component_count is None
+    assert result.overall_status != "FAIL"
+
+
+def test_a_fallback_to_single_point_never_triggers_the_component_count_check(tiny_bundle_path, monkeypatch):
+    """decomposition.fell_back=True means the LLM's own output was
+    unparseable and the WHOLE original prompt became one point's own
+    description -- estimate_expected_component_count must never be run
+    against the prompt in that case (see build_assembly_from_prompt's own
+    comment): the single fallback point's description IS the full prompt
+    text, which would spuriously re-trigger extraction against itself."""
+    import parallel_builder
+
+    def _mock_decompose_fell_back(prompt, model_path=None):
+        return DecomposeResult(
+            points=[ActionablePoint(description="a steel bracket, 60mm x 40mm x 6mm", position_mm=(0.0, 0.0, 0.0))],
+            raw_llm_output="not json", fell_back=True,
+        )
+
+    monkeypatch.setattr(parallel_builder, "decompose_prompt", _mock_decompose_fell_back)
+
+    result = parallel_builder.build_assembly_from_prompt(
+        "a bracket, a shaft, and a gear", tiny_bundle_path, max_workers=1,
+    )
+
+    assert result.fell_back_to_single_point is True
+    assert result.expected_component_count is None
