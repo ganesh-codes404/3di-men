@@ -1641,10 +1641,22 @@
           { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 650, bottom_param_b: 400, bottom_param_c: 50, top_profile: 'rounded_rect', top_param_a: 850, top_param_b: 470, top_param_c: 60, height: 825, sections: 28 } },
           { op: 'finalize', args: { target: 0 } },
         ] },
+        // SECOND real fix versus the backend script, confirmed by actually
+        // building both lofts and measuring: the hand-placed z=1475 above
+        // overlapped ChassisFront by 550mm along the car's own length axis
+        // -- 81% of the Nose's own volume (38.5M of its 47.4M mm^3) sat
+        // embedded inside the chassis, not resting flush against its tip.
+        // position_mm is kept only as the pre-fix fallback value (used
+        // only if the relationship below somehow fails to resolve);
+        // abutted_to computes the real flush position (z=2025) directly
+        // from both lofts' own actual built geometry instead -- the exact
+        // relationship type the axial-contact-gap audit's fix introduced,
+        // demonstrated here on real production geometry, not a synthetic
+        // fixture.
         { name: 'Nose', position_mm: { x: 0, y: 415, z: 1475 }, program: [
           { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 320, bottom_param_b: 300, bottom_param_c: 50, top_profile: 'ellipse', top_param_a: 34, top_param_b: 48, top_param_c: 0, height: 1150, sections: 28 } },
           { op: 'finalize', args: { target: 0 } },
-        ] },
+        ], relationship: { kind: 'abutted_to', target_id: 'ChassisFront', axis: 'z', abutment_direction: '+' } },
         { name: 'EngineCover', position_mm: { x: 0, y: 550, z: -770 }, program: [
           { op: 'add_loft', args: { bottom_profile: 'rounded_rect', bottom_param_a: 180, bottom_param_b: 180, bottom_param_c: 40, top_profile: 'rounded_rect', top_param_a: 650, top_param_b: 420, top_param_c: 55, height: 850, sections: 24 } },
           { op: 'finalize', args: { target: 0 } },
@@ -2013,20 +2025,54 @@
 
   const statusDot = document.getElementById('heroStatusDot');
 
+  // "FrontUpperArmL" -> "Front Upper Arm L"
+  function humanizeEntityName(name) {
+    return name.replace(/([a-z])([A-Z])/g, '$1 $2');
+  }
+
+  const BUILD_FLAVOR_TEXT = [
+    'Resolving relationships…',
+    'Running boolean passes…',
+    'Stitching parts into one mesh…',
+    'Checking for a watertight result…',
+  ];
+
+  // for long builds (the F1 car's 34 parts, ~16-20s) a single static
+  // "Building…" line with just a spinner reads as stuck well before it's
+  // actually done -- cycle through the real part names plus a few process
+  // beats instead, so the wait reads as work happening, not a hang.
+  function buildCycleMessages(spec) {
+    const messages = [];
+    spec.entities.forEach((entity, i) => {
+      messages.push(`Building ${humanizeEntityName(entity.name)}…`);
+      if ((i + 1) % 4 === 0) {
+        messages.push(BUILD_FLAVOR_TEXT[Math.floor(i / 4) % BUILD_FLAVOR_TEXT.length]);
+      }
+    });
+    return messages;
+  }
+
   async function buildShowcase(key) {
     const spec = SHOWCASES[key];
     if (!spec) return;
 
     container.classList.add('loading');
     if (statusDot) statusDot.classList.add('live');
+
+    let cycleTimer = null;
     if (heroStatusText) {
-      // the F1 car (34 entities) takes ~16-20s to build, long enough that a
-      // bare "Building…" with no explanation reads as stuck rather than
-      // working -- name the part count so the wait makes sense.
       const partCount = spec.entities ? spec.entities.length : 1;
-      heroStatusText.textContent = partCount > 10
-        ? `Building "${spec.label}" — ${partCount} parts, worth the wait…`
-        : `Building "${spec.label}"…`;
+      if (partCount > 10) {
+        const messages = buildCycleMessages(spec);
+        let i = 0;
+        heroStatusText.textContent = messages[0];
+        cycleTimer = setInterval(() => {
+          i = (i + 1) % messages.length;
+          heroStatusText.textContent = messages[i];
+        }, 850);
+      } else {
+        heroStatusText.textContent = `Building "${spec.label}"…`;
+      }
     }
 
     try {
@@ -2041,6 +2087,16 @@
       const data = await res.json();
       const meshUrl = data.mesh_url || data.assembly_mesh_url;
       if (!res.ok || !meshUrl) throw new Error(data.error || 'no mesh returned');
+
+      // Disclosed, not silent: any entity placed via a relationship (e.g.
+      // the F1 car's Nose, see its own comment above) logs the REAL
+      // computed position it resolved to, so the fix is inspectable in
+      // devtools instead of being an invisible number swap.
+      for (const e of data.entities || []) {
+        if (e.resolved_position_mm) {
+          console.info(`[3di-men landing] ${e.name}: relationship resolved to position_mm=`, e.resolved_position_mm);
+        }
+      }
 
       if (!renderer) initThree();
 
@@ -2070,6 +2126,7 @@
     } finally {
       container.classList.remove('loading');
       if (statusDot) statusDot.classList.remove('live');
+      if (cycleTimer) clearInterval(cycleTimer);
     }
   }
 

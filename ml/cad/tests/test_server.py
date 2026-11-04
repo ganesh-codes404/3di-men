@@ -112,6 +112,75 @@ def test_api_execute_programs_errors_cleanly_with_no_valid_entities(client):
     assert res.status_code == 400
 
 
+def test_api_execute_programs_abutted_to_resolves_a_real_entity_relationship(client):
+    """Confirmed real bug reproduction + fix: the frontend's own 'Retro F1
+    car' showcase hardcodes Nose at position_mm.z=1475 against
+    ChassisFront at z=987.5, which measurably overlaps by 550mm (81% of
+    the Nose's own volume embedded in the chassis) when both are built
+    through this exact route with their exact real program/position_mm --
+    confirmed by building and measuring both meshes directly. Sending an
+    abutted_to relationship instead (same two real programs) must land
+    Nose flush against ChassisFront's own actual top face, not at the
+    stale hand-placed number."""
+    res = client.post("/api/execute_programs", json={
+        "entities": [
+            {
+                "name": "ChassisFront",
+                "program": [
+                    {"op": "add_loft", "args": {
+                        "bottom_profile": "rounded_rect", "bottom_param_a": 850, "bottom_param_b": 470, "bottom_param_c": 60,
+                        "top_profile": "rounded_rect", "top_param_a": 320, "top_param_b": 300, "top_param_c": 50,
+                        "height": 925, "sections": 28,
+                    }},
+                    {"op": "finalize", "args": {"target": 0}},
+                ],
+                "position_mm": {"x": 0, "y": 415, "z": 987.5},
+            },
+            {
+                "name": "Nose",
+                "program": [
+                    {"op": "add_loft", "args": {
+                        "bottom_profile": "rounded_rect", "bottom_param_a": 320, "bottom_param_b": 300, "bottom_param_c": 50,
+                        "top_profile": "ellipse", "top_param_a": 34, "top_param_b": 48, "top_param_c": 0,
+                        "height": 1150, "sections": 28,
+                    }},
+                    {"op": "finalize", "args": {"target": 0}},
+                ],
+                # Deliberately the showcase's OLD, now-confirmed-overlapping
+                # hardcoded value -- must be overridden, not used.
+                "position_mm": {"x": 0, "y": 415, "z": 1475},
+                "relationship": {"kind": "abutted_to", "target_id": "ChassisFront", "axis": "z", "abutment_direction": "+"},
+            },
+        ]
+    })
+    assert res.status_code == 200
+    data = res.get_json()
+    by_name = {e["name"]: e for e in data["entities"]}
+    assert by_name["ChassisFront"]["status"] == "ok"
+    assert by_name["Nose"]["status"] == "ok"
+    assert by_name["Nose"]["resolved_position_mm"] == pytest.approx([0.0, 415.0, 2025.0])
+    assert by_name["Nose"]["resolved_position_mm"][2] != 1475  # the stale hand-placed number was overridden
+
+
+def test_api_execute_programs_without_a_relationship_field_is_unaffected(client):
+    """No "relationship" key at all (every entity sent by every existing
+    caller) must behave exactly as before -- resolved_position_mm/
+    resolved_rotation_deg both come back None, never a surprise value."""
+    res = client.post("/api/execute_programs", json={
+        "entities": [
+            {"name": "Box", "program": [
+                {"op": "add_box", "args": {"length": 20, "width": 20, "height": 20, "center": [0, 0, 0]}},
+                {"op": "finalize", "args": {"target": 0}},
+            ], "position_mm": {"x": 0, "y": 0, "z": 0}},
+        ]
+    })
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["entities"][0]["status"] == "ok"
+    assert data["entities"][0]["resolved_position_mm"] is None
+    assert data["entities"][0]["resolved_rotation_deg"] is None
+
+
 def test_api_execute_programs_reports_a_failing_entity_without_dropping_the_others(client):
     res = client.post("/api/execute_programs", json={
         "entities": [

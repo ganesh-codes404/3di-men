@@ -804,6 +804,13 @@ class EntityBuildResult:
     error: str | None
     mesh: "trimesh.Trimesh | None" = field(repr=False, default=None)
     topology: "dict | None" = None
+    # Non-None only when this entity carried a relationship that resolved
+    # successfully -- the ACTUAL computed placement, for a caller (e.g. the
+    # frontend) to show "this was derived from real geometry," distinct
+    # from the raw position_mm/rotation_deg it was sent with (which a
+    # resolved relationship overrides, see build_assembly_from_programs).
+    resolved_position_mm: "tuple[float, float, float] | None" = None
+    resolved_rotation_deg: "tuple[float, float, float] | None" = None
 
 
 @dataclass
@@ -813,21 +820,43 @@ class RawAssemblyBuildResult:
 
 
 def build_assembly_from_programs(
-    entities: list[tuple[str, list, tuple[float, float, float], tuple[float, float, float]]],
+    entities: list[tuple[str, list, tuple[float, float, float], tuple[float, float, float], "Relationship | None"]],
 ) -> RawAssemblyBuildResult:
     """The manual tool console's counterpart to build_assembly_from_points --
-    same combine-by-translation(-and-now-rotation) logic, but for a user who
-    has hand-authored each entity's own raw Sandbox program directly (via the
+    same combine-by-translation(-and-rotation) logic, but for a user who has
+    hand-authored each entity's own raw Sandbox program directly (via the
     console's form/gizmo/click-drag tools), not a text description for
     program_model to predict from. Each entry is
-    (name, program, position_mm, rotation_deg) -- rotation_deg is applied
-    (X, then Y, then Z, about the entity's own local origin, see
-    PlacementTransform.rotation()) BEFORE translating into position_mm, same
-    order sandbox.py's own rotate() tool implies. `program` is expected to
-    already end in its own "finalize" step, exactly like a single-entity
-    /api/execute_program call. build_assembly_from_points (the separate,
-    LLM-prompt path) is untouched by this -- it has its own, translation-only
-    placement resolution in assembly_plan.py and is out of scope here.
+    (name, program, position_mm, rotation_deg, relationship) --
+    rotation_deg is applied (X, then Y, then Z, about the entity's own local
+    origin, see PlacementTransform.rotation()) BEFORE translating into
+    position_mm, same order sandbox.py's own rotate() tool implies.
+    `program` is expected to already end in its own "finalize" step, exactly
+    like a single-entity /api/execute_program call.
+
+    `relationship` is optional (None for every entity that doesn't need one
+    -- reduces exactly to the prior translation-only behavior) and, when
+    given, OVERRIDES position_mm/rotation_deg the same way
+    build_assembly_from_points already does for LLM/manual-point entities:
+    resolved from the TARGET ENTITY's own actual built-and-placed mesh via
+    assembly_plan.resolve_position/resolve_rotation_deg, not the raw numbers
+    sent alongside it. The entity's own `name` doubles as the relationship
+    graph's id -- the console already requires unique, user-visible names,
+    so no separate id concept is introduced. validate_relationships/
+    order_by_dependency are the exact same functions build_assembly_from_
+    points uses (a dangling target, self-reference, or cycle is rejected
+    before anything is built), just applied to entity names instead of
+    point ids; entities are still built synchronously, one at a time, now
+    in dependency-wave order rather than list order so a relationship's
+    target is always already placed by the time it's needed.
+
+    No collision-exclusion here (unlike build_assembly_from_points) -- the
+    manual console has never had that safety net; out of scope for adding
+    relationship support, not a regression this introduces.
+
+    build_assembly_from_points (the separate, LLM-prompt path) is untouched
+    by this -- it has its own identical-in-spirit but independently-called
+    placement resolution in assembly_plan.py.
 
     Deliberately synchronous / single-process, unlike
     build_assembly_from_points' ProcessPoolExecutor: a manual console
@@ -837,30 +866,68 @@ def build_assembly_from_programs(
     surface (see server.py's main() docstring for the real
     BrokenProcessPool incident that caused) for a path that doesn't need
     the throughput."""
+    from assembly_plan import RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg, validate_relationships
     from sandbox import Sandbox
 
-    results: list[EntityBuildResult] = []
-    placed_meshes: list[trimesh.Trimesh] = []
-    for name, program, position_mm, rotation_deg in entities:
-        exec_result = Sandbox.execute(program)
-        topology = None
-        if exec_result.mesh is not None:
-            from mesh_quality import mesh_topology_stats
+    names = [name for name, *_rest in entities]
+    by_name = {name: (program, position_mm, rotation_deg, relationship)
+               for name, program, position_mm, rotation_deg, relationship in entities}
+    relationships = {name: relationship for name, _p, _pos, _rot, relationship in entities}
 
-            topology = mesh_topology_stats(exec_result.mesh)
-        results.append(
-            EntityBuildResult(
-                name=name, status=exec_result.status, executed_steps=exec_result.executed_steps,
-                error=exec_result.error, mesh=exec_result.mesh, topology=topology,
+    try:
+        validate_relationships(names, relationships)
+        waves = order_by_dependency(names, relationships)
+    except RelationshipError as exc:
+        rejected = [
+            EntityBuildResult(name=n, status="rejected", executed_steps=0, error=f"RelationshipError: {exc}", mesh=None, topology=None)
+            for n in names
+        ]
+        return RawAssemblyBuildResult(mesh=None, entities=rejected)
+
+    results: dict[str, EntityBuildResult] = {}
+    placed_meshes_by_name: dict[str, trimesh.Trimesh] = {}  # final, WORLD-placed meshes -- relationship targets for later waves
+
+    for wave in waves:
+        for name in wave:
+            program, position_mm, rotation_deg, relationship = by_name[name]
+            exec_result = Sandbox.execute(program)
+            own_mesh, status, error = exec_result.mesh, exec_result.status, exec_result.error
+            resolved_position_mm, resolved_rotation_deg = None, None
+
+            if own_mesh is not None and relationship is not None:
+                target_mesh = placed_meshes_by_name.get(relationship.target_id)
+                if target_mesh is None:
+                    status, error, own_mesh = "rejected", (
+                        f"cannot resolve relationship: target {relationship.target_id!r} failed to build its own geometry"
+                    ), None
+                else:
+                    try:
+                        position_mm = resolve_position(relationship, target_mesh, own_mesh)
+                        rotation_deg = resolve_rotation_deg(relationship)
+                        resolved_position_mm, resolved_rotation_deg = position_mm, rotation_deg
+                    except RelationshipError as exc:
+                        status, error, own_mesh = "rejected", f"RelationshipError: {exc}", None
+
+            topology = None
+            if own_mesh is not None:
+                from mesh_quality import mesh_topology_stats
+
+                topology = mesh_topology_stats(own_mesh)
+
+            results[name] = EntityBuildResult(
+                name=name, status=status, executed_steps=exec_result.executed_steps, error=error,
+                mesh=own_mesh, topology=topology,
+                resolved_position_mm=resolved_position_mm, resolved_rotation_deg=resolved_rotation_deg,
             )
-        )
-        if exec_result.mesh is not None:
-            # Rotation first (about the entity's own local origin), then
-            # translation into its final position_mm -- an all-zero
-            # rotation_deg reduces this exactly to the prior
-            # translation-only behavior, so this is provably additive.
-            transform = PlacementTransform.translation(position_mm).compose(PlacementTransform.rotation(rotation_deg))
-            placed_meshes.append(transform.apply_to_mesh(exec_result.mesh))
+            if own_mesh is not None:
+                # Rotation first (about the entity's own local origin), then
+                # translation into its final position_mm -- an all-zero
+                # rotation_deg reduces this exactly to the prior
+                # translation-only behavior, so this is provably additive.
+                transform = PlacementTransform.translation(position_mm).compose(PlacementTransform.rotation(rotation_deg))
+                placed_meshes_by_name[name] = transform.apply_to_mesh(own_mesh)
 
+    ordered_results = [results[n] for n in names]
+    placed_meshes = [placed_meshes_by_name[n] for n in names if n in placed_meshes_by_name]
     combined = trimesh.util.concatenate(placed_meshes) if placed_meshes else None
-    return RawAssemblyBuildResult(mesh=combined, entities=results)
+    return RawAssemblyBuildResult(mesh=combined, entities=ordered_results)

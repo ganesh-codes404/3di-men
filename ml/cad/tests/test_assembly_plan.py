@@ -3,7 +3,11 @@ assemblies. Pure-geometry tests (no LLM, no program_model.py classifier):
 hand-built meshes via sandbox.py's own tools, checking resolve_position()'s
 arithmetic directly against values computable by hand, plus the
 validation/ordering logic's error paths."""
+import dataclasses
+
+import numpy as np
 import pytest
+import trimesh
 
 from assembly_plan import (
     Relationship, RelationshipError, order_by_dependency, resolve_position, resolve_rotation_deg,
@@ -568,6 +572,200 @@ def test_attached_to_face_raises_when_target_has_no_matching_face():
         resolve_position(Relationship(kind="attached_to_face", target_id="sphere", face="+x"), sphere, tiny)
 
 
+# ---- abutted_to (axial-contact gap audit's recommended minimal fix) ----
+
+def test_abutted_to_box_to_box_plus_direction_lands_flush():
+    sb = Sandbox()
+    base = sb._get(sb.add_box(40, 40, 20, [0, 0, 0]))  # z: [-10, 10]
+    sb2 = Sandbox()
+    cap = sb2._get(sb2.add_box(40, 40, 6, [0, 0, 0]))  # z: [-3, 3] pre-rotation
+
+    rel = Relationship(kind="abutted_to", target_id="base", axis="z", abutment_direction="+")
+    pos = resolve_position(rel, base, cap)
+    assert pos == pytest.approx((0.0, 0.0, 13.0))  # base's top (10) + cap's own half-thickness (3)
+
+
+def test_abutted_to_box_to_box_minus_direction_lands_flush():
+    sb = Sandbox()
+    base = sb._get(sb.add_box(40, 40, 20, [0, 0, 0]))  # z: [-10, 10]
+    sb2 = Sandbox()
+    foot = sb2._get(sb2.add_box(40, 40, 6, [0, 0, 0]))
+
+    rel = Relationship(kind="abutted_to", target_id="base", axis="z", abutment_direction="-")
+    pos = resolve_position(rel, base, foot)
+    assert pos == pytest.approx((0.0, 0.0, -13.0))  # base's bottom (-10) - foot's own half-thickness (3)
+
+
+def test_abutted_to_cylinder_to_cylinder_both_directions_with_different_lengths():
+    """Different target/own lengths, deliberately (not a symmetric
+    same-size pair) -- also reproduces the axial-contact-gap audit's own
+    Fixture 1 (target shaft Ø10x40, own shaft Ø10x60): the audit found
+    axis_offset=0 overlaps fully and a naive axis_offset=40 guess still
+    overlaps by 10mm, with only the hand-derived axis_offset=50 landing
+    flush. This confirms abutted_to derives that same 50mm figure
+    directly from the real built geometry, in both directions, instead
+    of requiring anyone to compute it by hand."""
+    sb = Sandbox()
+    shaft_a = sb._get(sb.add_cylinder(5, 40, [0, 0, 0], "z"))  # z: [-20, 20]
+    sb2 = Sandbox()
+    shaft_b = sb2._get(sb2.add_cylinder(5, 60, [0, 0, 0], "z"))  # z: [-30, 30]
+
+    rel_plus = Relationship(kind="abutted_to", target_id="shaft_a", axis="z", abutment_direction="+")
+    pos_plus = resolve_position(rel_plus, shaft_a, shaft_b)
+    assert pos_plus == pytest.approx((0.0, 0.0, 50.0))  # 20 + 30, matches the audit's hand-derived figure
+
+    sb3 = Sandbox()
+    shaft_c = sb3._get(sb3.add_cylinder(5, 60, [0, 0, 0], "z"))
+    rel_minus = Relationship(kind="abutted_to", target_id="shaft_a", axis="z", abutment_direction="-")
+    pos_minus = resolve_position(rel_minus, shaft_a, shaft_c)
+    assert pos_minus == pytest.approx((0.0, 0.0, -50.0))
+
+
+def test_abutted_to_positive_standoff_creates_a_measured_gap():
+    sb = Sandbox()
+    base = sb._get(sb.add_box(20, 20, 10, [0, 0, 0]))  # z: [-5, 5]
+    sb2 = Sandbox()
+    cap = sb2._get(sb2.add_box(20, 20, 4, [0, 0, 0]))  # z: [-2, 2]
+
+    rel = Relationship(kind="abutted_to", target_id="base", axis="z", abutment_direction="+", standoff=3.0)
+    pos = resolve_position(rel, base, cap)
+    assert pos == pytest.approx((0.0, 0.0, 10.0))  # 5 + 2 + 3
+
+    from parallel_builder import PlacementTransform
+
+    rot = resolve_rotation_deg(rel)
+    placed = PlacementTransform.translation(pos).compose(PlacementTransform.rotation(rot)).apply_to_mesh(cap)
+    assert placed.bounds[0][2] - base.bounds[1][2] == pytest.approx(3.0)  # the actual measured gap, not just the input
+
+
+def test_abutted_to_negative_standoff_creates_deliberate_interference():
+    sb = Sandbox()
+    base = sb._get(sb.add_box(20, 20, 10, [0, 0, 0]))  # z: [-5, 5]
+    sb2 = Sandbox()
+    cap = sb2._get(sb2.add_box(20, 20, 4, [0, 0, 0]))  # z: [-2, 2]
+
+    rel = Relationship(kind="abutted_to", target_id="base", axis="z", abutment_direction="+", standoff=-1.5)
+    pos = resolve_position(rel, base, cap)
+    assert pos == pytest.approx((0.0, 0.0, 5.5))  # 5 + 2 - 1.5
+
+    from parallel_builder import PlacementTransform
+
+    rot = resolve_rotation_deg(rel)
+    placed = PlacementTransform.translation(pos).compose(PlacementTransform.rotation(rot)).apply_to_mesh(cap)
+    assert base.bounds[1][2] - placed.bounds[0][2] == pytest.approx(1.5)  # deliberate planned overlap depth
+
+
+def test_abutted_to_against_a_target_rotated_through_an_existing_relationship():
+    """abutted_to must read the target's REAL WORLD-FRAME bounds (after
+    its own upstream relationship has already rotated and placed it), not
+    its pre-rotation local bounds -- the same world-frame guarantee
+    concentric_with/parallel_to already rely on (see
+    test_parallel_to_stays_level_with_an_elevated_target_and_slides_sideways
+    above). Build a bracket attached_to_face onto a base's +x side (a
+    genuine 90-degree rotation, since +x isn't the bracket's own default
+    build axis), place it for real, then abut a third part against the
+    ROTATED bracket."""
+    sb = Sandbox()
+    base = sb._get(sb.add_box(100, 80, 20, [0, 0, 0]))  # +x face at x=50
+    sb2 = Sandbox()
+    bracket = sb2._get(sb2.add_cylinder(8, 24, [0, 0, 0], "z"))  # 16mm diameter, 24mm long
+
+    from parallel_builder import PlacementTransform
+
+    attach_rel = Relationship(kind="attached_to_face", target_id="base", face="+x")
+    bracket_pos = resolve_position(attach_rel, base, bracket)
+    bracket_rot = resolve_rotation_deg(attach_rel)
+    placed_bracket = (
+        PlacementTransform.translation(bracket_pos).compose(PlacementTransform.rotation(bracket_rot)).apply_to_mesh(bracket)
+    )
+    # confirm it actually rotated -- the bracket's 24mm length now runs along world x, not z
+    assert placed_bracket.extents == pytest.approx([24.0, 16.0, 16.0])
+
+    sb3 = Sandbox()
+    pin = sb3._get(sb3.add_cylinder(3, 50, [0, 0, 0], "z"))
+    rel = Relationship(kind="abutted_to", target_id="bracket", axis="x", abutment_direction="+")
+    pos = resolve_position(rel, placed_bracket, pin)
+    rot = resolve_rotation_deg(rel)
+    placed_pin = PlacementTransform.translation(pos).compose(PlacementTransform.rotation(rot)).apply_to_mesh(pin)
+
+    # flush against the bracket's REAL rotated +x-max face, not its pre-rotation local one
+    assert placed_pin.bounds[0][0] == pytest.approx(placed_bracket.bounds[1][0])
+    assert placed_pin.extents == pytest.approx([50.0, 6.0, 6.0])  # pin's own length now runs along x too
+
+
+def test_abutted_to_rejects_a_curved_dome_end():
+    """The target's apex (a dome's curved top, not its flat base) has no
+    flat facet at all -- this must refuse to guess a contact point from
+    it, rather than silently treating the AABB extreme (the apex point)
+    as if it were a real planar contact face."""
+    sb = Sandbox()
+    dome = sb._get(sb.add_dome(10, 15, [0, 0, 0], "z"))  # flat base at z=0, curved apex at z=15
+    sb2 = Sandbox()
+    cap = sb2._get(sb2.add_box(10, 10, 4, [0, 0, 0]))
+
+    rel = Relationship(kind="abutted_to", target_id="dome", axis="z", abutment_direction="+")
+    with pytest.raises(RelationshipError):
+        resolve_position(rel, dome, cap)
+
+
+def test_abutted_to_rejects_a_tiny_incidental_facet_as_the_contact_face():
+    """A real flat facet exists facing the right way, but it's a sub-
+    mm^2 sliver (e.g. the kind of stray post-boolean re-triangulation
+    artifact mesh_quality.py's own module docstring documents) --
+    find_facet_by_direction alone would happily return it (it only asks
+    "is there a flat facet here," never "is it big enough"), so this
+    confirms the dedicated area floor actually rejects it. Synthetic
+    mesh, not built via any sandbox.py tool, since no production builder
+    makes a shape this degenerate on purpose -- purpose-built to
+    exercise the area guard in isolation."""
+    bottom, top = 0.05, 20.0  # a 0.1x0.1mm tip flaring out to a 40x40mm cross-section
+    verts = np.array([
+        [-bottom, -bottom, -5], [bottom, -bottom, -5], [bottom, bottom, -5], [-bottom, bottom, -5],
+        [-top, -top, 5], [top, -top, 5], [top, top, 5], [-top, top, 5],
+    ])
+    faces = np.array([
+        [0, 1, 2], [0, 2, 3],
+        [4, 6, 5], [4, 7, 6],
+        [0, 4, 5], [0, 5, 1],
+        [1, 5, 6], [1, 6, 2],
+        [2, 6, 7], [2, 7, 3],
+        [3, 7, 4], [3, 4, 0],
+    ])
+    tiny_tipped = trimesh.Trimesh(vertices=verts, faces=faces, process=True)
+    tiny_tipped.fix_normals()
+
+    sb = Sandbox()
+    base = sb._get(sb.add_box(40, 40, 20, [0, 0, 0]))
+
+    rel = Relationship(kind="abutted_to", target_id="base", axis="z", abutment_direction="+")
+    with pytest.raises(RelationshipError):
+        resolve_position(rel, base, tiny_tipped)
+
+
+def test_abutted_to_missing_direction_rejected_by_resolve_position_directly():
+    """resolve_position re-checks the direction independently of
+    validate_relationships -- it's a public function other callers
+    (tests, or any future caller) could reach without validating first."""
+    sb = Sandbox()
+    base = sb._get(sb.add_box(40, 40, 20, [0, 0, 0]))
+    sb2 = Sandbox()
+    cap = sb2._get(sb2.add_box(40, 40, 10, [0, 0, 0]))
+    with pytest.raises(RelationshipError):
+        resolve_position(Relationship(kind="abutted_to", target_id="base", axis="z"), base, cap)
+
+
+def test_resolve_rotation_deg_abutted_to_is_sign_sensitive_like_attached_to_face():
+    """abutted_to's rotation must be sign-sensitive (unlike
+    concentric_with/parallel_to's sign-agnostic rotation) -- the two
+    opposite directions along the same axis must reorient differently,
+    and reuse attached_to_face's own signed lookup exactly."""
+    plus = resolve_rotation_deg(Relationship(kind="abutted_to", target_id="t", axis="y", abutment_direction="+"))
+    minus = resolve_rotation_deg(Relationship(kind="abutted_to", target_id="t", axis="y", abutment_direction="-"))
+    assert plus != minus
+    assert plus == resolve_rotation_deg(Relationship(kind="attached_to_face", target_id="t", face="+y"))
+    assert minus == resolve_rotation_deg(Relationship(kind="attached_to_face", target_id="t", face="-y"))
+
+
 # ---- validation / ordering (no geometry needed) ----
 
 def test_validate_rejects_self_reference():
@@ -587,6 +785,41 @@ def test_validate_rejects_a_cycle():
     }
     with pytest.raises(RelationshipError):
         validate_relationships(["a", "b"], rels)
+
+
+def test_validate_rejects_abutted_to_with_a_missing_direction():
+    with pytest.raises(RelationshipError):
+        validate_relationships(
+            ["a", "b"], {"a": None, "b": Relationship(kind="abutted_to", target_id="a", axis="z")}
+        )
+
+
+def test_validate_rejects_abutted_to_with_an_invalid_direction():
+    with pytest.raises(RelationshipError):
+        validate_relationships(
+            ["a", "b"],
+            {"a": None, "b": Relationship(kind="abutted_to", target_id="a", axis="z", abutment_direction="up")},
+        )
+
+
+def test_validate_accepts_abutted_to_with_a_valid_direction():
+    rels = {"a": None, "b": Relationship(kind="abutted_to", target_id="a", axis="z", abutment_direction="+")}
+    validate_relationships(["a", "b"], rels)  # must not raise
+
+
+def test_relationship_backward_compatible_with_existing_kinds():
+    """Adding abutment_direction (always defaulting to None) must not
+    change how any EXISTING relationship kind is constructed or behaves
+    -- confirms old-style construction (no abutment_direction kwarg at
+    all) still produces a valid Relationship for every pre-existing kind,
+    and round-trips through dict (de)serialization the way a real
+    decomposed plan would."""
+    rel = Relationship(kind="concentric_with", target_id="t", axis="z", axis_offset=5.0)
+    assert rel.abutment_direction is None
+    as_dict = dataclasses.asdict(rel)
+    assert as_dict["abutment_direction"] is None
+    rebuilt = Relationship(**as_dict)
+    assert rebuilt == rel
 
 
 def test_validate_accepts_a_well_formed_chain():

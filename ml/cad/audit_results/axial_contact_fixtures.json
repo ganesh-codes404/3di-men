@@ -1,0 +1,1399 @@
+{
+  "fixture_1_variants": [
+    {
+      "label": "1. Two shaft segments end-to-end, axis_offset=0.0 (schema default)",
+      "note": "intent: flush contact, zero gap, zero overlap",
+      "components": {
+        "shaft_a": {
+          "id": "shaft_a",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 5.0,
+                "height": 40.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -20.0
+            ],
+            [
+              5.0,
+              5.0,
+              20.0
+            ]
+          ],
+          "resolved_position_mm": [
+            0,
+            0,
+            0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -20.0
+            ],
+            [
+              5.0,
+              5.0,
+              20.0
+            ]
+          ],
+          "is_watertight": true
+        },
+        "shaft_b": {
+          "id": "shaft_b",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 5.0,
+                "height": 60.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -30.0
+            ],
+            [
+              5.0,
+              5.0,
+              30.0
+            ]
+          ],
+          "resolved_position_mm": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -30.0
+            ],
+            [
+              5.0,
+              5.0,
+              30.0
+            ]
+          ],
+          "is_watertight": true
+        }
+      },
+      "pairs": {
+        "shaft_a<->shaft_b": {
+          "sample_n": 2000,
+          "tolerance_mm": 1.0095,
+          "min_surface_distance_mm": 0.0,
+          "containment": {
+            "a_points_inside_b": 223,
+            "b_points_inside_a": 0
+          },
+          "classification": "OVERLAPPING"
+        }
+      }
+    },
+    {
+      "label": "1. Two shaft segments end-to-end, axis_offset=40.0 (naive guess)",
+      "note": "intent: flush contact, zero gap, zero overlap",
+      "components": {
+        "shaft_a": {
+          "id": "shaft_a",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 5.0,
+                "height": 40.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -20.0
+            ],
+            [
+              5.0,
+              5.0,
+              20.0
+            ]
+          ],
+          "resolved_position_mm": [
+            0,
+            0,
+            0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -20.0
+            ],
+            [
+              5.0,
+              5.0,
+              20.0
+            ]
+          ],
+          "is_watertight": true
+        },
+        "shaft_b": {
+          "id": "shaft_b",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 5.0,
+                "height": 60.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -30.0
+            ],
+            [
+              5.0,
+              5.0,
+              30.0
+            ]
+          ],
+          "resolved_position_mm": [
+            0.0,
+            0.0,
+            40.0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -5.0,
+              -5.0,
+              10.0
+            ],
+            [
+              5.0,
+              5.0,
+              70.0
+            ]
+          ],
+          "is_watertight": true
+        }
+      },
+      "pairs": {
+        "shaft_a<->shaft_b": {
+          "sample_n": 2000,
+          "tolerance_mm": 1.0095,
+          "min_surface_distance_mm": 0.0,
+          "containment": {
+            "a_points_inside_b": 121,
+            "b_points_inside_a": 73
+          },
+          "classification": "OVERLAPPING"
+        }
+      }
+    },
+    {
+      "label": "1. Two shaft segments end-to-end, axis_offset=50.0 (geometrically correct flush)",
+      "note": "intent: flush contact, zero gap, zero overlap",
+      "components": {
+        "shaft_a": {
+          "id": "shaft_a",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 5.0,
+                "height": 40.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -20.0
+            ],
+            [
+              5.0,
+              5.0,
+              20.0
+            ]
+          ],
+          "resolved_position_mm": [
+            0,
+            0,
+            0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -20.0
+            ],
+            [
+              5.0,
+              5.0,
+              20.0
+            ]
+          ],
+          "is_watertight": true
+        },
+        "shaft_b": {
+          "id": "shaft_b",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 5.0,
+                "height": 60.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -5.0,
+              -5.0,
+              -30.0
+            ],
+            [
+              5.0,
+              5.0,
+              30.0
+            ]
+          ],
+          "resolved_position_mm": [
+            0.0,
+            0.0,
+            50.0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -5.0,
+              -5.0,
+              20.0
+            ],
+            [
+              5.0,
+              5.0,
+              80.0
+            ]
+          ],
+          "is_watertight": true
+        }
+      },
+      "pairs": {
+        "shaft_a<->shaft_b": {
+          "sample_n": 2000,
+          "tolerance_mm": 1.0095,
+          "min_surface_distance_mm": 0.0,
+          "containment": {
+            "a_points_inside_b": 0,
+            "b_points_inside_a": 0
+          },
+          "classification": "TOUCHING"
+        }
+      }
+    }
+  ],
+  "fixture_2": {
+    "label": "2. Shaft with concentric sliding-fit sleeve",
+    "note": "intent: deliberate 0.2mm radial clearance + partial axial overlap (correct real-world behavior, NOT a bug)",
+    "components": {
+      "shaft": {
+        "id": "shaft",
+        "status": "ok",
+        "error": null,
+        "program": [
+          {
+            "op": "add_cylinder",
+            "args": {
+              "radius": 5.0,
+              "height": 80.0,
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "axis": "z"
+            }
+          },
+          {
+            "op": "finalize",
+            "args": {
+              "target": 0
+            }
+          }
+        ],
+        "local_bounds": [
+          [
+            -5.0,
+            -5.0,
+            -40.0
+          ],
+          [
+            5.0,
+            5.0,
+            40.0
+          ]
+        ],
+        "resolved_position_mm": [
+          0,
+          0,
+          0
+        ],
+        "resolved_rotation_deg": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "world_bounds": [
+          [
+            -5.0,
+            -5.0,
+            -40.0
+          ],
+          [
+            5.0,
+            5.0,
+            40.0
+          ]
+        ],
+        "is_watertight": true
+      },
+      "sleeve": {
+        "id": "sleeve",
+        "status": "suspect",
+        "error": "built geometry doesn't match the description's own stated dimensions (20mm); description claims a hole/bore diameter of 10.4mm that no detected hole matches within tolerance (hole diameter is measured by fitting a circle to each detected axis-aligned cylindrical feature (any of the 3 world axes) -- the same scope limitation as detected_hole_count (evaluation/geometry_eval.py); a mismatch may reflect that scope, not necessarily a wrong build)",
+        "program": [
+          {
+            "op": "add_tube",
+            "args": {
+              "outer_radius": 14.883598066430714,
+              "inner_radius": 12.065433561599011,
+              "path_kind": "straight",
+              "path_param_a": 95.28516396923494,
+              "path_param_b": 37.18785043954772,
+              "path_param_c": 0.0,
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "op": "finalize",
+            "args": {
+              "target": 0
+            }
+          }
+        ],
+        "local_bounds": [
+          [
+            -14.883598066430714,
+            -14.883598066430714,
+            -47.64258198461747
+          ],
+          [
+            14.883598066430714,
+            14.883598066430714,
+            47.64258198461747
+          ]
+        ],
+        "resolved_position_mm": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "resolved_rotation_deg": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "world_bounds": [
+          [
+            -14.883598066430714,
+            -14.883598066430714,
+            -47.64258198461747
+          ],
+          [
+            14.883598066430714,
+            14.883598066430714,
+            47.64258198461747
+          ]
+        ],
+        "is_watertight": true
+      }
+    },
+    "pairs": {
+      "shaft<->sleeve": {
+        "sample_n": 2000,
+        "tolerance_mm": 2.8775,
+        "min_surface_distance_mm": 6.9622,
+        "containment": {
+          "a_points_inside_b": 0,
+          "b_points_inside_a": 0
+        },
+        "classification": "SEPARATED"
+      }
+    }
+  },
+  "fixture_3_variants": [
+    {
+      "label": "3. Spacer stacked on standoff, axis_offset=0.0 (schema default)",
+      "note": "intent: flush contact, zero gap, zero overlap",
+      "components": {
+        "standoff": {
+          "id": "standoff",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 4.0,
+                "height": 15.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -7.5
+            ],
+            [
+              4.0,
+              4.0,
+              7.5
+            ]
+          ],
+          "resolved_position_mm": [
+            0,
+            0,
+            0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -7.5
+            ],
+            [
+              4.0,
+              4.0,
+              7.5
+            ]
+          ],
+          "is_watertight": true
+        },
+        "spacer": {
+          "id": "spacer",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 4.0,
+                "height": 5.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -2.5
+            ],
+            [
+              4.0,
+              4.0,
+              2.5
+            ]
+          ],
+          "resolved_position_mm": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -2.5
+            ],
+            [
+              4.0,
+              4.0,
+              2.5
+            ]
+          ],
+          "is_watertight": true
+        }
+      },
+      "pairs": {
+        "standoff<->spacer": {
+          "sample_n": 2000,
+          "tolerance_mm": 0.488,
+          "min_surface_distance_mm": 0.0,
+          "containment": {
+            "a_points_inside_b": 0,
+            "b_points_inside_a": 907
+          },
+          "classification": "OVERLAPPING"
+        }
+      }
+    },
+    {
+      "label": "3. Spacer stacked on standoff, axis_offset=15.0 (naive guess)",
+      "note": "intent: flush contact, zero gap, zero overlap",
+      "components": {
+        "standoff": {
+          "id": "standoff",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 4.0,
+                "height": 15.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -7.5
+            ],
+            [
+              4.0,
+              4.0,
+              7.5
+            ]
+          ],
+          "resolved_position_mm": [
+            0,
+            0,
+            0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -7.5
+            ],
+            [
+              4.0,
+              4.0,
+              7.5
+            ]
+          ],
+          "is_watertight": true
+        },
+        "spacer": {
+          "id": "spacer",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 4.0,
+                "height": 5.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -2.5
+            ],
+            [
+              4.0,
+              4.0,
+              2.5
+            ]
+          ],
+          "resolved_position_mm": [
+            0.0,
+            0.0,
+            15.0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -4.0,
+              -4.0,
+              12.5
+            ],
+            [
+              4.0,
+              4.0,
+              17.5
+            ]
+          ],
+          "is_watertight": true
+        }
+      },
+      "pairs": {
+        "standoff<->spacer": {
+          "sample_n": 2000,
+          "tolerance_mm": 0.488,
+          "min_surface_distance_mm": 5.0,
+          "containment": {
+            "a_points_inside_b": 0,
+            "b_points_inside_a": 0
+          },
+          "classification": "SEPARATED"
+        }
+      }
+    },
+    {
+      "label": "3. Spacer stacked on standoff, axis_offset=10.0 (geometrically correct flush)",
+      "note": "intent: flush contact, zero gap, zero overlap",
+      "components": {
+        "standoff": {
+          "id": "standoff",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 4.0,
+                "height": 15.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -7.5
+            ],
+            [
+              4.0,
+              4.0,
+              7.5
+            ]
+          ],
+          "resolved_position_mm": [
+            0,
+            0,
+            0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -7.5
+            ],
+            [
+              4.0,
+              4.0,
+              7.5
+            ]
+          ],
+          "is_watertight": true
+        },
+        "spacer": {
+          "id": "spacer",
+          "status": "ok",
+          "error": null,
+          "program": [
+            {
+              "op": "add_cylinder",
+              "args": {
+                "radius": 4.0,
+                "height": 5.0,
+                "center": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "axis": "z"
+              }
+            },
+            {
+              "op": "finalize",
+              "args": {
+                "target": 0
+              }
+            }
+          ],
+          "local_bounds": [
+            [
+              -4.0,
+              -4.0,
+              -2.5
+            ],
+            [
+              4.0,
+              4.0,
+              2.5
+            ]
+          ],
+          "resolved_position_mm": [
+            0.0,
+            0.0,
+            10.0
+          ],
+          "resolved_rotation_deg": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "world_bounds": [
+            [
+              -4.0,
+              -4.0,
+              7.5
+            ],
+            [
+              4.0,
+              4.0,
+              12.5
+            ]
+          ],
+          "is_watertight": true
+        }
+      },
+      "pairs": {
+        "standoff<->spacer": {
+          "sample_n": 2000,
+          "tolerance_mm": 0.488,
+          "min_surface_distance_mm": 0.0,
+          "containment": {
+            "a_points_inside_b": 0,
+            "b_points_inside_a": 0
+          },
+          "classification": "TOUCHING"
+        }
+      }
+    }
+  ],
+  "fixture_4": {
+    "label": "4. Two-gear meshing pair (positive control)",
+    "note": "center distance (via lateral_offset) should be exactly 45.0mm; addendum radii ~20mm (gear_a) + ~30mm (gear_b) = 50mm > 45.0mm by design -- SOME tip interference/near-contact is CORRECT (that is what meshing means), not a bug. Gear-tooth contact is intermittent/point-contact as teeth rotate past each other, not a continuous touching surface -- the SEPARATED/TOUCHING/OVERLAPPING labels below are reported as raw measurements only, not as a pass/fail verdict for this fixture.",
+    "components": {
+      "shaft_a": {
+        "id": "shaft_a",
+        "status": "ok",
+        "error": null,
+        "program": [
+          {
+            "op": "add_cylinder",
+            "args": {
+              "radius": 5.0,
+              "height": 60.0,
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "axis": "z"
+            }
+          },
+          {
+            "op": "finalize",
+            "args": {
+              "target": 0
+            }
+          }
+        ],
+        "local_bounds": [
+          [
+            -5.0,
+            -5.0,
+            -30.0
+          ],
+          [
+            5.0,
+            5.0,
+            30.0
+          ]
+        ],
+        "resolved_position_mm": [
+          0,
+          0,
+          0
+        ],
+        "resolved_rotation_deg": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "world_bounds": [
+          [
+            -5.0,
+            -5.0,
+            -30.0
+          ],
+          [
+            5.0,
+            5.0,
+            30.0
+          ]
+        ],
+        "is_watertight": true
+      },
+      "gear_a": {
+        "id": "gear_a",
+        "status": "suspect",
+        "error": "built geometry doesn't match the description's own stated dimensions (5mm)",
+        "program": [
+          {
+            "op": "add_gear_profile",
+            "args": {
+              "module_mm": 2.5,
+              "tooth_count": 14,
+              "face_width_mm": 8.0,
+              "bore_diameter_mm": 5.0,
+              "pressure_angle_deg": 20.0,
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "op": "finalize",
+            "args": {
+              "target": 0
+            }
+          }
+        ],
+        "local_bounds": [
+          [
+            -19.983701705932617,
+            -19.66230010986328,
+            -4.0
+          ],
+          [
+            19.983701705932617,
+            19.66230010986328,
+            4.0
+          ]
+        ],
+        "resolved_position_mm": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "resolved_rotation_deg": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "world_bounds": [
+          [
+            -19.983701705932617,
+            -19.66230010986328,
+            -4.0
+          ],
+          [
+            19.983701705932617,
+            19.66230010986328,
+            4.0
+          ]
+        ],
+        "is_watertight": true
+      },
+      "shaft_b": {
+        "id": "shaft_b",
+        "status": "ok",
+        "error": null,
+        "program": [
+          {
+            "op": "add_cylinder",
+            "args": {
+              "radius": 5.0,
+              "height": 60.0,
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "axis": "z"
+            }
+          },
+          {
+            "op": "finalize",
+            "args": {
+              "target": 0
+            }
+          }
+        ],
+        "local_bounds": [
+          [
+            -5.0,
+            -5.0,
+            -30.0
+          ],
+          [
+            5.0,
+            5.0,
+            30.0
+          ]
+        ],
+        "resolved_position_mm": [
+          45.0,
+          0.0,
+          0.0
+        ],
+        "resolved_rotation_deg": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "world_bounds": [
+          [
+            40.0,
+            -5.0,
+            -30.0
+          ],
+          [
+            50.0,
+            5.0,
+            30.0
+          ]
+        ],
+        "is_watertight": true
+      },
+      "gear_b": {
+        "id": "gear_b",
+        "status": "suspect",
+        "error": "built geometry doesn't match the description's own stated dimensions (5mm)",
+        "program": [
+          {
+            "op": "add_gear_profile",
+            "args": {
+              "module_mm": 2.5,
+              "tooth_count": 22,
+              "face_width_mm": 8.0,
+              "bore_diameter_mm": 5.0,
+              "pressure_angle_deg": 20.0,
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ]
+            }
+          },
+          {
+            "op": "finalize",
+            "args": {
+              "target": 0
+            }
+          }
+        ],
+        "local_bounds": [
+          [
+            -29.98702049255371,
+            -29.807373046875,
+            -4.0
+          ],
+          [
+            29.98702049255371,
+            29.807373046875,
+            4.0
+          ]
+        ],
+        "resolved_position_mm": [
+          45.0,
+          0.0,
+          0.0
+        ],
+        "resolved_rotation_deg": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "world_bounds": [
+          [
+            15.012979507446289,
+            -29.807373046875,
+            -4.0
+          ],
+          [
+            74.98702049255371,
+            29.807373046875,
+            4.0
+          ]
+        ],
+        "is_watertight": true
+      }
+    },
+    "pairs": {
+      "gear_a<->gear_b": {
+        "sample_n": 2000,
+        "tolerance_mm": 1.9526,
+        "min_surface_distance_mm": 0.0,
+        "containment": {
+          "a_points_inside_b": 54,
+          "b_points_inside_a": 48
+        },
+        "classification": "OVERLAPPING"
+      }
+    },
+    "expected_center_distance_mm": 45.0,
+    "corrector_verified": true,
+    "addendum_radius_gear_a_mm": 20.0,
+    "addendum_radius_gear_b_mm": 30.0
+  },
+  "fixture_5": {
+    "label": "5. Two collars with an explicitly intentional 5mm gap",
+    "note": "intent: deliberate ~5mm gap (half_a 10 + half_b 10 + 5mm intended clearance = 25.0 axis_offset)",
+    "components": {
+      "collar_a": {
+        "id": "collar_a",
+        "status": "ok",
+        "error": null,
+        "program": [
+          {
+            "op": "add_cylinder",
+            "args": {
+              "radius": 6.0,
+              "height": 20.0,
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "axis": "z"
+            }
+          },
+          {
+            "op": "finalize",
+            "args": {
+              "target": 0
+            }
+          }
+        ],
+        "local_bounds": [
+          [
+            -6.0,
+            -6.0,
+            -10.0
+          ],
+          [
+            6.0,
+            6.0,
+            10.0
+          ]
+        ],
+        "resolved_position_mm": [
+          0,
+          0,
+          0
+        ],
+        "resolved_rotation_deg": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "world_bounds": [
+          [
+            -6.0,
+            -6.0,
+            -10.0
+          ],
+          [
+            6.0,
+            6.0,
+            10.0
+          ]
+        ],
+        "is_watertight": true
+      },
+      "collar_b": {
+        "id": "collar_b",
+        "status": "ok",
+        "error": null,
+        "program": [
+          {
+            "op": "add_cylinder",
+            "args": {
+              "radius": 6.0,
+              "height": 20.0,
+              "center": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "axis": "z"
+            }
+          },
+          {
+            "op": "finalize",
+            "args": {
+              "target": 0
+            }
+          }
+        ],
+        "local_bounds": [
+          [
+            -6.0,
+            -6.0,
+            -10.0
+          ],
+          [
+            6.0,
+            6.0,
+            10.0
+          ]
+        ],
+        "resolved_position_mm": [
+          0.0,
+          0.0,
+          25.0
+        ],
+        "resolved_rotation_deg": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "world_bounds": [
+          [
+            -6.0,
+            -6.0,
+            15.0
+          ],
+          [
+            6.0,
+            6.0,
+            35.0
+          ]
+        ],
+        "is_watertight": true
+      }
+    },
+    "pairs": {
+      "collar_a<->collar_b": {
+        "sample_n": 2000,
+        "tolerance_mm": 0.6991,
+        "min_surface_distance_mm": 5.0,
+        "containment": {
+          "a_points_inside_b": 0,
+          "b_points_inside_a": 0
+        },
+        "classification": "SEPARATED"
+      }
+    }
+  }
+}
