@@ -283,6 +283,15 @@ const statusLine = document.getElementById('statusLine');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x08090d);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10000);
+// Every Sandbox primitive is authored Z-up, and this file's own
+// printability logic already agrees (loadSTLBuffer rests the model on the
+// plate along its own lowest Z; updateBuildPlate's bed box extends upward
+// from z=0; printability.check_overhangs's build_direction defaults to
+// (0,0,1)) -- only the camera/grid were left at three.js's Y-up default,
+// so a model that's already correctly resting on the plate in the real
+// math rendered sideways. See workspace.html's identical fix for why this
+// is done here (camera/grid only) rather than by rotating loaded geometry.
+camera.up.set(0, 0, 1);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 viewerEl.appendChild(renderer.domElement);
@@ -295,6 +304,7 @@ dir1.position.set(1, 1.5, 1);
 scene.add(dir1);
 
 const grid = new THREE.GridHelper(300, 20, 0x29283a, 0x14141d);
+grid.rotation.x = Math.PI / 2; // GridHelper defaults to the Y-normal (XZ) plane -- rotate onto the Z-normal (XY) plane to match camera.up/the build plate's own z=0 convention above
 scene.add(grid);
 
 let bedMesh = null;

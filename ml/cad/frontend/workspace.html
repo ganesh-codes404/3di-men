@@ -680,6 +680,20 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x08090d);
 
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10000);
+// Every Sandbox primitive/relationship is authored Z-up (add_box's `height`
+// arg, attached_to_face's "+z" = on top, _ALIGN_LOCAL_Z_TO -- see
+// assembly_plan.py) -- three.js defaults every camera to Y-up, which was
+// NEVER converted anywhere in this pipeline (export is raw, loadSTL applies
+// no transform), so a part authored as "a thin base lying flat" rendered
+// standing up like a wall instead. Matches index.html's own showMesh()
+// (upAxis==='z' branch), which already got this right; workspace.html never
+// did. Fixed here at the camera/grid level -- NOT by rotating loaded
+// geometry -- specifically so it never touches currentMesh.position/
+// .quaternion or raycast-derived face normals, which the gizmo/face-pick
+// code below sends straight to the backend as real mm coordinates/axis
+// letters; rotating the mesh data itself would have silently corrupted
+// every one of those (see PILOT_FAILURE_INVESTIGATION.md).
+camera.up.set(0, 0, 1);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
 viewer.appendChild(renderer.domElement);
@@ -696,14 +710,18 @@ dir2.position.set(-1, -0.5, -1);
 scene.add(dir2);
 
 const grid = new THREE.GridHelper(300, 20, 0x2b2e29, 0x18140f);
+grid.rotation.x = Math.PI / 2; // GridHelper defaults to the Y-normal (XZ) plane -- rotate onto the Z-normal (XY) plane to match camera.up/this scene's Z-up models (see camera.up.set above)
 scene.add(grid);
 
-// SolidWorks-style reference planes: Front (XY, normal Z), Top (XZ, normal
-// Y), Right (YZ, normal X), each through the world origin. depthWrite:false
-// + transparent:true matches this file's own existing ghost-mesh pattern
-// (see ghostMesh below) for a translucent, non-occluding overlay. The Top
-// plane is nudged a hair off y=0 to avoid z-fighting with GridHelper, which
-// already lies exactly in that same XZ plane.
+// SolidWorks-style reference planes: Top (XY, normal Z), Front (XZ, normal
+// Y), Right (YZ, normal X), each through the world origin -- relabeled Top/
+// Front (not Front/Top) to match camera.up=Z above: the XY/normal-Z plane is
+// now the one coplanar with the ground grid, so IT'S "Top", and the XZ/
+// normal-Y plane now faces the viewer along the depth axis, so it's "Front".
+// Only the labels/which-plane-gets-the-z-fighting-nudge changed here -- the
+// actual geometry/rotation values are untouched. depthWrite:false +
+// transparent:true matches this file's own existing ghost-mesh pattern (see
+// ghostMesh below) for a translucent, non-occluding overlay.
 function makeReferencePlane(colorHex) {
   const geo = new THREE.PlaneGeometry(400, 400);
   const mat = new THREE.MeshBasicMaterial({
@@ -711,10 +729,10 @@ function makeReferencePlane(colorHex) {
   });
   return new THREE.Mesh(geo, mat);
 }
-const refPlaneFront = makeReferencePlane(0x555a87);   // XY plane (PlaneGeometry's own default orientation, normal +Z) -- blue, matches +Z
-const refPlaneTop = makeReferencePlane(0x3ddc84);     // rotate into the XZ plane, normal +Y -- green, matches +Y
+const refPlaneFront = makeReferencePlane(0x555a87);   // XY plane (PlaneGeometry's own default orientation, normal +Z) -- blue, matches +Z -- this is "Top" now; nudged off the grid's own XY plane to avoid z-fighting
+refPlaneFront.position.z = 0.01;
+const refPlaneTop = makeReferencePlane(0x3ddc84);     // rotate into the XZ plane, normal +Y -- green, matches +Y -- this is "Front" now; no longer coplanar with the grid, so no nudge needed
 refPlaneTop.rotation.x = Math.PI / 2;
-refPlaneTop.position.y = 0.01;
 const refPlaneRight = makeReferencePlane(0xf2566e);   // rotate into the YZ plane, normal +X -- red, matches +X
 refPlaneRight.rotation.y = Math.PI / 2;
 const refPlanes = [refPlaneFront, refPlaneTop, refPlaneRight];
@@ -796,7 +814,7 @@ viewCubeCanvas.addEventListener('pointerdown', (evt) => {
   // not how far out or what you're centered on).
   const distance = camera.position.distanceTo(controls.target);
   camera.position.copy(controls.target).add(normal.clone().multiplyScalar(distance));
-  camera.up.set(0, 1, 0);
+  camera.up.set(0, 0, 1); // keep the scene's Z-up convention (see camera.up.set above) -- resetting to Y-up here would fight OrbitControls on every subsequent drag
   camera.lookAt(controls.target);
   controls.update();
 });
@@ -1242,9 +1260,21 @@ function renderAssemblyTopology(topo) {
   updateViewerOverlay(topo, 'Combined mesh');
 }
 
-function renderCollisionWarnings(collisionWarnings, envelopeWarnings) {
+function renderCollisionWarnings(collisionWarnings, envelopeWarnings, expectedComponentCount, builtComponentCount) {
   const el = document.getElementById('collisionWarnings');
   const all = [...(collisionWarnings || []), ...(envelopeWarnings || []).map(w => `Envelope: ${w}`)];
+  // expectedComponentCount is null whenever component_count.py found no
+  // confident signal in the prompt text (free-form/common-object prompts
+  // are never flagged) -- only shown when it actually fell short of what
+  // got built, same "disclose only the real gap, nothing on the happy
+  // path" discipline as collision/envelope warnings above.
+  if (expectedComponentCount != null && builtComponentCount < expectedComponentCount) {
+    all.push(
+      `This request reads like it asks for about ${expectedComponentCount} component(s), but only ` +
+      `${builtComponentCount} made it into the built assembly -- one may have been dropped during ` +
+      `decomposition, not just during building (see each part's own status below).`
+    );
+  }
   if (all.length === 0) { el.innerHTML = ''; return; }
   el.innerHTML = all.map(w => `<div class="dim-mismatch">⚠ ${escapeAttr(w)}</div>`).join('');
 }
@@ -1305,7 +1335,7 @@ function renderOverallStatusBanner(status) {
 async function applyBuildResponse(data) {
   setPartsFromBuildResult(data.points);
   renderAssemblyTopology(data.assembly_topology);
-  renderCollisionWarnings(data.collision_warnings, data.envelope_warnings);
+  renderCollisionWarnings(data.collision_warnings, data.envelope_warnings, data.expected_component_count, data.built_component_count);
   renderOverallStatusBanner(data.overall_status);
   document.getElementById('fallbackNote').style.display = data.fell_back_to_single_point ? 'block' : 'none';
 
