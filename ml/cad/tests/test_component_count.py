@@ -94,3 +94,61 @@ def test_a_component_noun_naming_the_requests_own_title_is_excluded():
 
 def test_adjacent_recognized_nouns_are_one_compound_component_not_two():
     assert estimate_expected_component_count("Mount a bearing housing on the plate.") == 1
+
+
+# ---- held-out validation prompts (not used to tune the heuristic -- see the
+# commit that added these: "column"/"cap" were added to _COMPONENT_NOUNS as a
+# direct result of testing against this exact batch, then everything above
+# was re-verified to confirm no regression) ----
+
+
+def test_held_out_a_plate_with_a_column():
+    prompt = (
+        "Create a 120 mm x 80 mm x 10 mm rectangular base plate with a 50 mm tall "
+        "cylindrical column centered on it."
+    )
+    assert estimate_expected_component_count(prompt) == 2  # plate + column
+
+
+def test_held_out_b_three_named_components():
+    prompt = (
+        "Create three separate components: a 100 mm x 60 mm x 10 mm base plate, a "
+        "20 mm diameter x 30 mm cylindrical standoff centered on the plate, and a "
+        "20 mm diameter x 10 mm cylindrical spacer placed directly on top of the standoff."
+    )
+    assert estimate_expected_component_count(prompt) == 3  # plate + standoff + spacer
+
+
+def test_held_out_c_generic_cylindrical_components_is_a_known_vocabulary_gap():
+    # "components"/"cylindrical" name no recognized PART noun at all (by
+    # design -- "cylinder" is a raw shape word, not a part-identity word,
+    # see this module's own docstring) -- correctly None (no false
+    # protection claimed), not a wrong non-None guess.
+    prompt = (
+        "Create two separate cylindrical components, each 20 mm in diameter. The "
+        "first is 30 mm tall. Place the second directly above it with an "
+        "intentional 5 mm gap."
+    )
+    assert estimate_expected_component_count(prompt) is None
+
+
+def test_held_out_d_four_identical_standoffs_all_count_not_collapse_to_one():
+    prompt = (
+        "Create a 100 mm x 80 mm x 10 mm base plate with four identical cylindrical "
+        "standoffs, each 10 mm in diameter and 20 mm tall, positioned symmetrically "
+        "near the four corners."
+    )
+    assert estimate_expected_component_count(prompt) == 5  # plate + 4 standoffs
+
+
+def test_held_out_e_screw_cap_is_one_cap_not_a_phantom_screw():
+    # confirmed real false positive before "cap" was added to the noun list:
+    # "a separate screw cap" matched bare "screw" (a real noun, used here
+    # adjectivally) instead of collapsing into the "screw cap" compound.
+    prompt = (
+        "Create a 70 mm diameter, 220 mm tall water bottle with a rounded bottom, "
+        "tapered shoulders, a 30 mm diameter neck, and a separate screw cap with "
+        "grip ridges."
+    )
+    assert estimate_expected_component_count(prompt) == 1  # the cap (the bottle body itself
+        # names no recognized PART noun -- STEP 0's hollow-vessel shape, not a STEP 1 part)

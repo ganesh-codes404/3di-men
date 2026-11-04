@@ -66,6 +66,16 @@ Deliberately conservative in both directions it can go wrong:
   request's own TITLE ("a mechanical shaft support assembly"), not
   naming a standalone part; confirmed against P1, whose own title
   phrase would otherwise phantom-count an extra "shaft".
+- "cap" is deliberately in the noun list for a non-obvious reason: not
+  because a standalone cap needs counting often, but because without
+  it, "a separate screw cap" -- a confirmed real false positive found
+  against a free-form water-bottle-plus-cap regression prompt -- reads
+  as a bare "screw" (a real noun in this list, used adjectivally here,
+  "screw" meaning "screw-on/threaded" not "a fastener") instead of
+  collapsing into the "screw cap" compound the same way "bearing
+  housing"/"base plate" already correctly collapse. Adding "cap" lets
+  the existing compound-noun-run logic absorb "screw" into "screw cap"
+  (head noun "cap") for free, rather than needing a special case.
 """
 
 from __future__ import annotations
@@ -90,8 +100,9 @@ _COMPONENT_NOUNS = (
     "bracket", "plate", "panel", "shaft", "rod", "gear", "bearing",
     "housing", "motor", "fastener", "bolt", "screw", "spacer",
     "standoff", "bushing", "flange", "coupling", "collar", "pulley",
-    "wheel", "tire", "rim", "wing", "cover", "lid", "block",
+    "wheel", "tire", "rim", "wing", "cover", "lid", "cap", "block",
     "arm", "base", "frame", "enclosure", "bar", "pin", "axle", "hinge",
+    "column", "post",
 )
 
 _COUNT_WORDS = {
