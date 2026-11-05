@@ -29,6 +29,30 @@ def test_api_tools_returns_the_full_manual_tool_roster(client):
     assert "finalize" not in ops  # not a modeling op -- handled by the console itself
 
 
+def test_api_showcase_serves_the_f1_car_definition(client):
+    """Confirmed real gap this closes: before showcases.py/this route
+    existed, the landing page's F1 car was a hand-maintained duplicate
+    inside frontend/index.html with no mechanism forcing it to stay in
+    sync with the real one. This is now the single place that definition
+    lives -- the route itself is thin, so this test is really confirming
+    the wiring (showcases.py's data reaches the HTTP layer unmodified),
+    not re-testing showcases.py's own content."""
+    res = client.get("/api/showcases/f1car")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["label"] == "Retro F1 car"
+    assert data["upAxis"] == "y"
+    assert len(data["entities"]) == 34
+    names = {e["name"] for e in data["entities"]}
+    assert "ChassisFront" in names
+    assert "Nose" in names
+
+
+def test_api_showcase_404s_for_an_unknown_key(client):
+    res = client.get("/api/showcases/not_a_real_showcase")
+    assert res.status_code == 404
+
+
 def test_api_execute_program_builds_a_box_and_fillets_an_edge(client):
     res = client.post("/api/execute_program", json={
         "program": [

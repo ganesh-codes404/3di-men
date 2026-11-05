@@ -26,6 +26,7 @@ from build_logger import log_build
 from llm_decompose import ActionablePoint, _parse_relationship, ask_clarifying_questions, fold_answers_into_prompt
 from parallel_builder import build_assembly_from_points, build_assembly_from_programs, build_assembly_from_prompt
 from sandbox import Sandbox, ToolCall, tool_schema
+from showcases import get_showcase
 
 OUTPUT_DIR = Path(__file__).resolve().parent / "webapp_output"
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -63,6 +64,21 @@ def api_tools():
     arguments, target a handle from an earlier step) is a third way to
     reach the identical proprietary builder, never a separate/lesser one."""
     return jsonify({"tools": tool_schema()})
+
+
+@app.route("/api/showcases/<key>")
+def api_showcase(key):
+    """Serves a landing-page hero showcase's definition (currently just
+    "f1car") from showcases.py -- the single place that definition now
+    lives, see that module's own docstring for the drift problem this
+    closes. The frontend fetches this, then POSTs the "entities" field
+    straight through to /api/execute_programs exactly as every other,
+    still-inline showcase already does -- this route changes WHERE the
+    definition is read from, nothing about how it gets built."""
+    showcase = get_showcase(key)
+    if showcase is None:
+        return jsonify({"error": f"no showcase named {key!r}"}), 404
+    return jsonify(showcase)
 
 
 @app.route("/api/clarify", methods=["POST"])
